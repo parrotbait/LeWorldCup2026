@@ -1,4 +1,6 @@
-// We define this file so Next.js typed-route generation has somewhere to extend.
-// Don't remove — Next will auto-populate.
 /// <reference types="next" />
 /// <reference types="next/image-types/global" />
+/// <reference path="./.next/types/routes.d.ts" />
+
+// NOTE: This file should not be edited
+// see https://nextjs.org/docs/app/api-reference/config/typescript for more information.
