@@ -135,6 +135,187 @@ export function darkHorsePoints(stage: DarkHorseStage): number {
     return DARK_HORSE_RUNNING_TOTAL[stage];
 }
 
+/**
+ * Derive a team's furthest stage from match data.
+ *
+ * A team has "reached" round X if they appear as home or away in any match of
+ * that round (regardless of whether they won it). "WON" requires the team to
+ * be marked as the tournament winner explicitly.
+ */
+export function deriveDarkHorseStage(
+    teamId: number,
+    args: {
+        matches: { round: Round; homeTeamId: number | null; awayTeamId: number | null }[];
+        winnerTeamIds: number[];
+    },
+): DarkHorseStage {
+    if (args.winnerTeamIds.includes(teamId)) {
+        return "WON";
+    }
+    const reached = new Set<Round>();
+    for (const m of args.matches) {
+        if (m.homeTeamId === teamId || m.awayTeamId === teamId) {
+            reached.add(m.round);
+        }
+    }
+    if (reached.has("FINAL")) {
+        return "INTO_FINAL";
+    }
+    if (reached.has("SF")) {
+        return "INTO_SF";
+    }
+    if (reached.has("QF")) {
+        return "INTO_QF";
+    }
+    if (reached.has("R16")) {
+        return "INTO_R16";
+    }
+    if (reached.has("R32")) {
+        return "INTO_R32";
+    }
+    return "OUT_IN_GROUPS";
+}
+
+// ---------------------------------------------------------------------------
+// Bonus point computation
+//
+// Pure function from picks + admin-set resolutions → points-per-player.
+// The leaderboard runs this on every read; cheap at our scale (~12 players).
+// ---------------------------------------------------------------------------
+
+export type BonusKind =
+    | "WINNER"
+    | "TOP_SCORER"
+    | "GROUP_WINNER"
+    | "DARK_HORSE"
+    | "WOODEN_SPOON"
+    | "FIRST_GOAL_SCORER"
+    | "PANTOMIME_VILLAIN"
+    | "SIEVE"
+    | "MIGHTY_FALLEN";
+
+export interface BonusPickLite {
+    playerId: number;
+    kind: BonusKind;
+    groupLetter: string | null;
+    teamId: number | null;
+    playerName: string | null;
+}
+
+export interface BonusResolutionLite {
+    kind: BonusKind;
+    groupLetter: string; // "" for non-group bonuses
+    teamIds: number[];
+    playerNames: string[];
+}
+
+export interface BonusComputeInput {
+    picks: BonusPickLite[];
+    resolutions: BonusResolutionLite[];
+    matches: { round: Round; homeTeamId: number | null; awayTeamId: number | null }[];
+}
+
+function normalizeName(s: string): string {
+    return s.trim().toLocaleLowerCase();
+}
+
+export function computeBonusPointsByPlayer(input: BonusComputeInput): Map<number, number> {
+    // Index resolutions for cheap lookup.
+    const resByKey = new Map<string, BonusResolutionLite>();
+    for (const r of input.resolutions) {
+        resByKey.set(`${r.kind}:${r.groupLetter}`, r);
+    }
+    const winner = resByKey.get("WINNER:");
+
+    const pointsByPlayer = new Map<number, number>();
+    const credit = (playerId: number, pts: number): void => {
+        pointsByPlayer.set(playerId, (pointsByPlayer.get(playerId) ?? 0) + pts);
+    };
+
+    for (const pick of input.picks) {
+        switch (pick.kind) {
+            case "WINNER": {
+                if (
+                    pick.teamId !== null &&
+                    winner !== undefined &&
+                    winner.teamIds.includes(pick.teamId)
+                ) {
+                    credit(pick.playerId, BONUS_POINTS.WINNER);
+                }
+                break;
+            }
+            case "TOP_SCORER": {
+                const r = resByKey.get("TOP_SCORER:");
+                if (r !== undefined && pick.playerName !== null) {
+                    const norm = normalizeName(pick.playerName);
+                    if (r.playerNames.some((n) => normalizeName(n) === norm)) {
+                        credit(pick.playerId, BONUS_POINTS.TOP_SCORER);
+                    }
+                }
+                break;
+            }
+            case "FIRST_GOAL_SCORER": {
+                const r = resByKey.get("FIRST_GOAL_SCORER:");
+                if (r !== undefined && pick.playerName !== null) {
+                    const norm = normalizeName(pick.playerName);
+                    if (r.playerNames.some((n) => normalizeName(n) === norm)) {
+                        credit(pick.playerId, BONUS_POINTS.FIRST_GOAL_SCORER);
+                    }
+                }
+                break;
+            }
+            case "GROUP_WINNER": {
+                const r = resByKey.get(`GROUP_WINNER:${pick.groupLetter ?? ""}`);
+                if (r !== undefined && pick.teamId !== null && r.teamIds.includes(pick.teamId)) {
+                    credit(pick.playerId, BONUS_POINTS.GROUP_WINNER);
+                }
+                break;
+            }
+            case "WOODEN_SPOON": {
+                const r = resByKey.get("WOODEN_SPOON:");
+                if (r !== undefined && pick.teamId !== null && r.teamIds.includes(pick.teamId)) {
+                    credit(pick.playerId, BONUS_POINTS.WOODEN_SPOON);
+                }
+                break;
+            }
+            case "PANTOMIME_VILLAIN": {
+                const r = resByKey.get("PANTOMIME_VILLAIN:");
+                if (r !== undefined && pick.teamId !== null && r.teamIds.includes(pick.teamId)) {
+                    credit(pick.playerId, BONUS_POINTS.PANTOMIME_VILLAIN);
+                }
+                break;
+            }
+            case "SIEVE": {
+                const r = resByKey.get("SIEVE:");
+                if (r !== undefined && pick.teamId !== null && r.teamIds.includes(pick.teamId)) {
+                    credit(pick.playerId, BONUS_POINTS.SIEVE);
+                }
+                break;
+            }
+            case "MIGHTY_FALLEN": {
+                const r = resByKey.get("MIGHTY_FALLEN:");
+                if (r !== undefined && pick.teamId !== null && r.teamIds.includes(pick.teamId)) {
+                    credit(pick.playerId, BONUS_POINTS.MIGHTY_FALLEN);
+                }
+                break;
+            }
+            case "DARK_HORSE": {
+                if (pick.teamId === null) {
+                    break;
+                }
+                const stage = deriveDarkHorseStage(pick.teamId, {
+                    matches: input.matches,
+                    winnerTeamIds: winner?.teamIds ?? [],
+                });
+                credit(pick.playerId, darkHorsePoints(stage));
+                break;
+            }
+        }
+    }
+
+    return pointsByPlayer;
+}
+
 // ---------------------------------------------------------------------------
 // Joker: ×2 multiplier on prediction points for a chosen match in a round.
 // ---------------------------------------------------------------------------

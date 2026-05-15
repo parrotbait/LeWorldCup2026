@@ -15,6 +15,13 @@
       "when": 1778862117722,
       "tag": "0001_strong_flatman",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1778862658096,
+      "tag": "0002_mixed_azazel",
+      "breakpoints": true
     }
   ]
 }

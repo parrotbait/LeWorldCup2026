@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db/client";
-import { auditLog, matches, settings } from "@/db/schema";
+import { auditLog, bonusResolutions, matches, settings } from "@/db/schema";
 import { isAdmin } from "@/lib/auth";
 
 async function ensureAdmin(): Promise<void> {
@@ -104,5 +104,81 @@ export async function setTournamentKickoffAction(formData: FormData): Promise<Ad
         detail: parsed.data.iso,
     });
     revalidatePath("/bonuses");
+    return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Bonus resolutions — admin sets the resolved value(s) per bonus kind so
+// computeBonusPointsByPlayer can pay everyone out.
+// ---------------------------------------------------------------------------
+
+const bonusKindSchema = z.enum([
+    "WINNER",
+    "TOP_SCORER",
+    "GROUP_WINNER",
+    "DARK_HORSE",
+    "WOODEN_SPOON",
+    "FIRST_GOAL_SCORER",
+    "PANTOMIME_VILLAIN",
+    "SIEVE",
+    "MIGHTY_FALLEN",
+]);
+
+function parseTeamIdList(raw: string | null): number[] {
+    if (raw === null || raw.trim().length === 0) {
+        return [];
+    }
+    return raw
+        .split(/[,\s]+/)
+        .map((s) => Number(s.trim()))
+        .filter((n) => Number.isFinite(n) && n > 0);
+}
+
+function parsePlayerNameList(raw: string | null): string[] {
+    if (raw === null || raw.trim().length === 0) {
+        return [];
+    }
+    return raw
+        .split(/\s*,\s*/)
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+}
+
+export async function saveBonusResolutionAction(formData: FormData): Promise<AdminResult> {
+    await ensureAdmin();
+    const kind = bonusKindSchema.safeParse(formData.get("kind"));
+    if (!kind.success) {
+        return { ok: false, error: "Invalid bonus kind" };
+    }
+    const groupLetter = (formData.get("groupLetter") as string | null) ?? "";
+    const teamIds = parseTeamIdList(formData.get("teamIds") as string | null);
+    const playerNames = parsePlayerNameList(formData.get("playerNames") as string | null);
+
+    await db
+        .insert(bonusResolutions)
+        .values({
+            kind: kind.data,
+            groupLetter,
+            teamIds,
+            playerNames,
+        })
+        .onConflictDoUpdate({
+            target: [bonusResolutions.kind, bonusResolutions.groupLetter],
+            set: {
+                teamIds,
+                playerNames,
+                updatedAt: new Date(),
+            },
+        });
+
+    await db.insert(auditLog).values({
+        actor: "admin",
+        action: "save-bonus-resolution",
+        detail: JSON.stringify({ kind: kind.data, groupLetter, teamIds, playerNames }),
+    });
+
+    revalidatePath("/admin/bonuses");
+    revalidatePath("/leaderboard");
+    revalidatePath("/me");
     return { ok: true };
 }

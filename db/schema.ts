@@ -204,6 +204,27 @@ export const settings = pgTable("settings", {
 });
 
 // ---------------------------------------------------------------------------
+// Bonus resolutions — admin-set ground truth for each bonus kind.
+//
+// One row per (kind, groupLetter). For non-group bonuses groupLetter is "".
+// teamIds / playerNames are arrays so ties (e.g. shared Golden Boot, two
+// teams tied on cards) credit every player who picked any tied option.
+// ---------------------------------------------------------------------------
+export const bonusResolutions = pgTable(
+    "bonus_resolutions",
+    {
+        kind: bonusKindEnum("kind").notNull(),
+        groupLetter: text("group_letter").default("").notNull(),
+        teamIds: integer("team_ids").array().default([]).notNull(),
+        playerNames: text("player_names").array().default([]).notNull(),
+        updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    },
+    (t) => ({
+        pk: primaryKey({ columns: [t.kind, t.groupLetter] }),
+    }),
+);
+
+// ---------------------------------------------------------------------------
 // Audit log (admin actions; small but valuable for sanity checks)
 // ---------------------------------------------------------------------------
 export const auditLog = pgTable("audit_log", {
@@ -222,3 +243,4 @@ export type Prediction = typeof predictions.$inferSelect;
 export type BonusPick = typeof bonusPicks.$inferSelect;
 export type Joker = typeof jokers.$inferSelect;
 export type Settings = typeof settings.$inferSelect;
+export type BonusResolution = typeof bonusResolutions.$inferSelect;

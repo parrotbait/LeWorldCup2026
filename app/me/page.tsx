@@ -1,11 +1,11 @@
 import { asc, eq } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db/client";
-import { bonusPicks, jokers, matches, predictions, teams } from "@/db/schema";
+import { bonusPicks, bonusResolutions, jokers, matches, predictions, teams } from "@/db/schema";
 import { NavBar } from "@/app/_components/navbar";
 import { requireSession } from "@/lib/auth";
 import { flag } from "@/lib/utils";
-import { predictionPoints } from "@/lib/scoring";
+import { computeBonusPointsByPlayer, predictionPoints } from "@/lib/scoring";
 
 export const revalidate = 30;
 
@@ -25,7 +25,7 @@ export default async function MePage() {
     const home = alias(teams, "home");
     const away = alias(teams, "away");
 
-    const [allMatches, myPredictions, myBonuses, myJokers, allTeams] = await Promise.all([
+    const [allMatches, myPredictions, myBonuses, myJokers, allTeams, allResolutions] = await Promise.all([
         db
             .select({
                 id: matches.id,
@@ -35,6 +35,8 @@ export default async function MePage() {
                 homeScore: matches.homeScore,
                 awayScore: matches.awayScore,
                 status: matches.status,
+                homeTeamId: matches.homeTeamId,
+                awayTeamId: matches.awayTeamId,
                 homeCode: home.code,
                 homeName: home.name,
                 awayCode: away.code,
@@ -48,7 +50,30 @@ export default async function MePage() {
         db.select().from(bonusPicks).where(eq(bonusPicks.playerId, session.playerId)),
         db.select().from(jokers).where(eq(jokers.playerId, session.playerId)),
         db.select().from(teams),
+        db.select().from(bonusResolutions),
     ]);
+
+    const myBonusPoints =
+        computeBonusPointsByPlayer({
+            picks: myBonuses.map((b) => ({
+                playerId: b.playerId,
+                kind: b.kind,
+                groupLetter: b.groupLetter,
+                teamId: b.teamId,
+                playerName: b.playerName,
+            })),
+            resolutions: allResolutions.map((r) => ({
+                kind: r.kind,
+                groupLetter: r.groupLetter,
+                teamIds: r.teamIds,
+                playerNames: r.playerNames,
+            })),
+            matches: allMatches.map((m) => ({
+                round: m.round,
+                homeTeamId: m.homeTeamId,
+                awayTeamId: m.awayTeamId,
+            })),
+        }).get(session.playerId) ?? 0;
 
     const teamById = new Map(allTeams.map((t) => [t.id, t]));
     const predByMatch = new Map(myPredictions.map((p) => [p.matchId, p]));
@@ -87,11 +112,12 @@ export default async function MePage() {
                     </p>
                 </header>
 
-                <section className="mt-6 grid grid-cols-3 gap-3 sm:grid-cols-4">
+                <section className="mt-6 grid grid-cols-3 gap-3 sm:grid-cols-5">
                     <Stat label="Pred. pts" value={totalPredPts} />
+                    <Stat label="Bonus pts" value={myBonusPoints} />
+                    <Stat label="Total" value={totalPredPts + myBonusPoints} />
                     <Stat label="Exact" value={exactCount} />
                     <Stat label="Settled" value={settledRows.length} />
-                    <Stat label="Bonuses" value={myBonuses.length} />
                 </section>
 
                 <section className="mt-10">

@@ -1,7 +1,7 @@
 import { db } from "@/db/client";
-import { matches, players, predictions, jokers } from "@/db/schema";
+import { bonusPicks, bonusResolutions, matches, players, predictions, jokers } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
-import { buildLeaderboard } from "@/lib/scoring";
+import { buildLeaderboard, computeBonusPointsByPlayer } from "@/lib/scoring";
 import { NavBar } from "@/app/_components/navbar";
 
 export const revalidate = 30;
@@ -9,12 +9,36 @@ export const revalidate = 30;
 export default async function LeaderboardPage() {
     const session = await requireSession();
 
-    const [allPlayers, allMatches, allPredictions, allJokers] = await Promise.all([
-        db.select().from(players),
-        db.select().from(matches),
-        db.select().from(predictions),
-        db.select().from(jokers),
-    ]);
+    const [allPlayers, allMatches, allPredictions, allJokers, allBonusPicks, allResolutions] =
+        await Promise.all([
+            db.select().from(players),
+            db.select().from(matches),
+            db.select().from(predictions),
+            db.select().from(jokers),
+            db.select().from(bonusPicks),
+            db.select().from(bonusResolutions),
+        ]);
+
+    const bonusPointsByPlayer = computeBonusPointsByPlayer({
+        picks: allBonusPicks.map((b) => ({
+            playerId: b.playerId,
+            kind: b.kind,
+            groupLetter: b.groupLetter,
+            teamId: b.teamId,
+            playerName: b.playerName,
+        })),
+        resolutions: allResolutions.map((r) => ({
+            kind: r.kind,
+            groupLetter: r.groupLetter,
+            teamIds: r.teamIds,
+            playerNames: r.playerNames,
+        })),
+        matches: allMatches.map((m) => ({
+            round: m.round,
+            homeTeamId: m.homeTeamId,
+            awayTeamId: m.awayTeamId,
+        })),
+    });
 
     const rows = buildLeaderboard({
         players: allPlayers.map((p) => ({
@@ -39,8 +63,7 @@ export default async function LeaderboardPage() {
             round: j.round,
             matchId: j.matchId,
         })),
-        // TODO: bonus aggregation comes from db.bonus_picks + resolved settings.
-        bonusPointsByPlayer: new Map(),
+        bonusPointsByPlayer,
     });
 
     return (

@@ -3,7 +3,9 @@ import {
     BONUS_POINTS,
     DARK_HORSE_RUNNING_TOTAL,
     buildLeaderboard,
+    computeBonusPointsByPlayer,
     darkHorsePoints,
+    deriveDarkHorseStage,
     isExact,
     outcome,
     predictionPoints,
@@ -172,5 +174,142 @@ describe("buildLeaderboard tie-breakers", () => {
         const rows = buildLeaderboard(input);
         expect(rows[0].displayName).toBe("Early");
         expect(rows[1].displayName).toBe("Late");
+    });
+});
+
+describe("deriveDarkHorseStage", () => {
+    const teamId = 42;
+    const matchTeam = (round: "GROUP" | "R32" | "R16" | "QF" | "SF" | "FINAL" | "THIRD") =>
+        ({ round, homeTeamId: teamId, awayTeamId: 99 }) as const;
+
+    it("OUT_IN_GROUPS when only group matches involve them", () => {
+        expect(
+            deriveDarkHorseStage(teamId, {
+                matches: [matchTeam("GROUP"), matchTeam("GROUP"), matchTeam("GROUP")],
+                winnerTeamIds: [],
+            }),
+        ).toBe("OUT_IN_GROUPS");
+    });
+
+    it("INTO_QF when team appears in QF but not later", () => {
+        expect(
+            deriveDarkHorseStage(teamId, {
+                matches: [matchTeam("R32"), matchTeam("R16"), matchTeam("QF")],
+                winnerTeamIds: [],
+            }),
+        ).toBe("INTO_QF");
+    });
+
+    it("INTO_FINAL when team played in the final but didn't win", () => {
+        expect(
+            deriveDarkHorseStage(teamId, {
+                matches: [matchTeam("SF"), matchTeam("FINAL")],
+                winnerTeamIds: [99],
+            }),
+        ).toBe("INTO_FINAL");
+    });
+
+    it("WON when listed as a winner", () => {
+        expect(
+            deriveDarkHorseStage(teamId, {
+                matches: [matchTeam("FINAL")],
+                winnerTeamIds: [teamId],
+            }),
+        ).toBe("WON");
+    });
+});
+
+describe("computeBonusPointsByPlayer", () => {
+    it("credits a tournament-winner pick", () => {
+        const pts = computeBonusPointsByPlayer({
+            picks: [
+                { playerId: 1, kind: "WINNER", groupLetter: null, teamId: 7, playerName: null },
+                { playerId: 2, kind: "WINNER", groupLetter: null, teamId: 8, playerName: null },
+            ],
+            resolutions: [
+                { kind: "WINNER", groupLetter: "", teamIds: [7], playerNames: [] },
+            ],
+            matches: [],
+        });
+        expect(pts.get(1)).toBe(25);
+        expect(pts.get(2)).toBeUndefined();
+    });
+
+    it("credits shared Golden Boot to anyone who picked any joint winner", () => {
+        const pts = computeBonusPointsByPlayer({
+            picks: [
+                { playerId: 1, kind: "TOP_SCORER", groupLetter: null, teamId: null, playerName: "Mbappé" },
+                { playerId: 2, kind: "TOP_SCORER", groupLetter: null, teamId: null, playerName: "kane" },
+                { playerId: 3, kind: "TOP_SCORER", groupLetter: null, teamId: null, playerName: "Haaland" },
+            ],
+            resolutions: [
+                { kind: "TOP_SCORER", groupLetter: "", teamIds: [], playerNames: ["Mbappé", "Kane"] },
+            ],
+            matches: [],
+        });
+        expect(pts.get(1)).toBe(10);
+        expect(pts.get(2)).toBe(10);
+        expect(pts.get(3)).toBeUndefined();
+    });
+
+    it("credits a group-winner pick only for the right group", () => {
+        const pts = computeBonusPointsByPlayer({
+            picks: [
+                { playerId: 1, kind: "GROUP_WINNER", groupLetter: "A", teamId: 1, playerName: null },
+                { playerId: 1, kind: "GROUP_WINNER", groupLetter: "B", teamId: 5, playerName: null },
+            ],
+            resolutions: [
+                { kind: "GROUP_WINNER", groupLetter: "A", teamIds: [1], playerNames: [] },
+                { kind: "GROUP_WINNER", groupLetter: "B", teamIds: [99], playerNames: [] },
+            ],
+            matches: [],
+        });
+        expect(pts.get(1)).toBe(BONUS_POINTS.GROUP_WINNER);
+    });
+
+    it("credits dark-horse points by furthest stage reached", () => {
+        const pts = computeBonusPointsByPlayer({
+            picks: [
+                { playerId: 1, kind: "DARK_HORSE", groupLetter: null, teamId: 42, playerName: null },
+            ],
+            resolutions: [],
+            matches: [
+                { round: "GROUP", homeTeamId: 42, awayTeamId: 1 },
+                { round: "R32", homeTeamId: 42, awayTeamId: 2 },
+                { round: "R16", homeTeamId: 3, awayTeamId: 42 },
+                { round: "QF", homeTeamId: 42, awayTeamId: 4 },
+            ],
+        });
+        expect(pts.get(1)).toBe(DARK_HORSE_RUNNING_TOTAL.INTO_QF);
+    });
+
+    it("credits the anti-bonuses with their declared points", () => {
+        const pts = computeBonusPointsByPlayer({
+            picks: [
+                { playerId: 1, kind: "PANTOMIME_VILLAIN", groupLetter: null, teamId: 5, playerName: null },
+                { playerId: 1, kind: "SIEVE", groupLetter: null, teamId: 6, playerName: null },
+                { playerId: 1, kind: "MIGHTY_FALLEN", groupLetter: null, teamId: 7, playerName: null },
+            ],
+            resolutions: [
+                { kind: "PANTOMIME_VILLAIN", groupLetter: "", teamIds: [5], playerNames: [] },
+                { kind: "SIEVE", groupLetter: "", teamIds: [6], playerNames: [] },
+                { kind: "MIGHTY_FALLEN", groupLetter: "", teamIds: [7], playerNames: [] },
+            ],
+            matches: [],
+        });
+        expect(pts.get(1)).toBe(
+            BONUS_POINTS.PANTOMIME_VILLAIN + BONUS_POINTS.SIEVE + BONUS_POINTS.MIGHTY_FALLEN,
+        );
+    });
+
+    it("returns no points for picks with no matching resolution", () => {
+        const pts = computeBonusPointsByPlayer({
+            picks: [
+                { playerId: 1, kind: "WINNER", groupLetter: null, teamId: 7, playerName: null },
+            ],
+            resolutions: [],
+            matches: [],
+        });
+        expect(pts.get(1)).toBeUndefined();
     });
 });

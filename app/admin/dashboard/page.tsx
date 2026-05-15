@@ -37,6 +37,12 @@ export default async function AdminDashboardPage() {
                         — adjust any match score; marks it as admin-overridden so cron won&apos;t clobber.
                     </li>
                     <li>
+                        <Link href={"/admin/bonuses" as never} className="underline">
+                            Bonus resolution editor
+                        </Link>{" "}
+                        — set the resolved value for each bonus (winner, golden boot, sieve, etc.). Drives bonus payouts on the leaderboard.
+                    </li>
+                    <li>
                         Trigger results sync:
                         <code className="ml-2 rounded bg-ink/10 px-2 py-0.5 text-xs">
                             curl -H &quot;Authorization: Bearer $CRON_SECRET&quot; /api/cron/sync-results
@@ -71,7 +77,6 @@ export default async function AdminDashboardPage() {
                 <h2 className="font-display text-sm uppercase tracking-wider">TODO</h2>
                 <ul className="mt-3 list-disc pl-6 text-sm opacity-80">
                     <li>Player management (rename, remove, add late joiner)</li>
-                    <li>Bonus resolution editor (winner / top scorer / first goal scorer)</li>
                     <li>Invite-code rotation in-app</li>
                 </ul>
             </section>
