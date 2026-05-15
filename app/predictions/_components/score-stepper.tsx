@@ -125,16 +125,16 @@ export function ScoreStepper({
 
     return (
         <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center justify-center gap-3">
                 <span className="text-lg">{flag(homeCode)}</span>
-                <span className="flex-1 text-right font-medium">{homeName}</span>
+                <span className="min-w-[140px] text-right font-medium">{homeName}</span>
                 <Stepper value={home} onBump={(d) => bump("home", d)} />
                 <span className="font-display text-sm opacity-40">vs</span>
                 <Stepper value={away} onBump={(d) => bump("away", d)} />
-                <span className="flex-1 font-medium">{awayName}</span>
+                <span className="min-w-[140px] font-medium">{awayName}</span>
                 <span className="text-lg">{flag(awayCode)}</span>
             </div>
-            <div className="text-right font-display text-[10px] uppercase tracking-wider">
+            <div className="text-center font-display text-[10px] uppercase tracking-wider">
                 {locked ? (
                     <span className="opacity-50">locked 🔒</span>
                 ) : status === "saving" ? (
