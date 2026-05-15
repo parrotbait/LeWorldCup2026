@@ -154,9 +154,11 @@ export const bonusPicks = pgTable(
             .references(() => players.id, { onDelete: "cascade" })
             .notNull(),
         kind: bonusKindEnum("kind").notNull(),
-        // For GROUP_WINNER: the group letter. For others: null.
-        groupLetter: text("group_letter"),
-        // Team-based picks (winner, group winner, dark horse, wooden spoon).
+        // Empty string for non-group bonuses; the group letter ("A"-"L") for GROUP_WINNER.
+        // Empty default + NOT NULL avoids the composite-PK NOT NULL trap that bit us
+        // (Postgres requires PK columns to be non-null even if Drizzle types say otherwise).
+        groupLetter: text("group_letter").default("").notNull(),
+        // Team-based picks (winner, group winner, dark horse, wooden spoon, anti-bonuses).
         teamId: integer("team_id").references(() => teams.id),
         // Free-form for player-based picks (top scorer, first goal scorer)
         // until we model players-of-teams. Stored as written so we can match leniently.

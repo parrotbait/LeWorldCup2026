@@ -51,6 +51,14 @@ pnpm dev             # http://localhost:3000
 curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/sync-results
 ```
 
+## Simulating a tournament locally
+
+`pnpm sim run --seed=42 --players=12` will wipe the DB, seed a synthetic
+48-team World Cup, randomly fill picks for 12 fake players, play every
+round, resolve bonuses, and print the leaderboard. See
+[`docs/SIMULATION.md`](./docs/SIMULATION.md) for the full subcommand list
+and worked examples.
+
 > **Docker users:** `docker-compose.yml` is also provided. If you have Docker
 > Compose V2 installed (`docker compose version` works), run
 > `docker compose up -d` instead of the brew steps above and use the

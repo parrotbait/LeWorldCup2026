@@ -32,8 +32,8 @@ export default async function BonusesPage() {
     // Dark horse — only teams not in Pot 1 (or, when pot data isn't available, all teams).
     const darkHorseOpts = teamOpts.filter((t) => t.groupLetter !== null);
 
-    const findBonus = (kind: string, group: string | null = null) =>
-        myBonuses.find((b) => b.kind === kind && (b.groupLetter ?? null) === group);
+    const findBonus = (kind: string, group: string = "") =>
+        myBonuses.find((b) => b.kind === kind && (b.groupLetter ?? "") === group);
 
     return (
         <>

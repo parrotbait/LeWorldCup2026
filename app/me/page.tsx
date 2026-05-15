@@ -185,7 +185,7 @@ export default async function MePage() {
                                 <li key={`${b.kind}-${b.groupLetter ?? ""}`} className="flex items-baseline justify-between py-2">
                                     <span className="font-display text-xs uppercase tracking-wider opacity-70">
                                         {b.kind.replace("_", " ")}
-                                        {b.groupLetter !== null ? ` (Group ${b.groupLetter})` : ""}
+                                        {b.groupLetter !== null && b.groupLetter !== "" ? ` (Group ${b.groupLetter})` : ""}
                                     </span>
                                     <span>
                                         {b.teamId !== null

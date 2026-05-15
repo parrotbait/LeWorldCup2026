@@ -140,7 +140,7 @@ export async function saveBonusAction(formData: FormData): Promise<SaveResult> {
         return { ok: false, error: "Player name required" };
     }
 
-    const groupKey = kind === "GROUP_WINNER" ? (groupLetter ?? null) : null;
+    const groupKey = kind === "GROUP_WINNER" ? (groupLetter ?? "") : "";
 
     await db
         .insert(bonusPicks)
@@ -240,9 +240,7 @@ export async function clearBonusAction(kind: string, groupLetter: string | null)
             and(
                 eq(bonusPicks.playerId, session.playerId),
                 eq(bonusPicks.kind, parsedKind.data),
-                groupLetter === null
-                    ? eq(bonusPicks.groupLetter, null as unknown as string)
-                    : eq(bonusPicks.groupLetter, groupLetter),
+                eq(bonusPicks.groupLetter, groupLetter ?? ""),
             ),
         );
     revalidatePath("/bonuses");
