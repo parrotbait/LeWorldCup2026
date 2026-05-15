@@ -1,0 +1,30 @@
+ I want to create a site for a world cup 2026 competition I want to run. The site is meant to host a game where we can pick teams from the world cup and then players will earn scores from the matches these teams play, there should be some fun side bonuses. I'll provide access to the previous game which will help drive the new (but the new should be better, more fun and most important really easy to administer). I'm going to spell out the requirements below:
+  - There will be around 12 participants (there was last time)
+  - It was previously hosted in Google Drive Spreadsheets. It was a bit painful to manually update scores and points - I want all of this to be automated
+  - I'd like for it to be hosted for free or a small cost somewhere for the month or so for the competition.
+  - Sign up should be easy for us, limited to one but we should be able to tweak entries once made
+  - There needs to be persistent storage somewhere for the entries. It doesn't need to be very complex, if a db is easiest do that or local files is fine too. It just needs to be backed up so I don't lose access. Updates won't be frequent, after each match maybe 5/6 times a day
+  - There should be a way for people to view the current leaderboards and see a full transparent breakdown of the points.
+  - rules should be obviously documented and linked to from the site
+  - There should be an admin area where I alone can log into to tweak/manually update things as needed
+  - I'm not sure about authentication, I want it to be simple and don't really want to get into SSO stuff and registering apps etc.
+  - Ideally the site would update on it's own but if I have to input scores then that's fine too. The teams games, groups, knockouts etc. for each user and overall would be browsable.
+
+  You can find LeWorldCup2022.pdf as an example of the previous years game.
+  The site created should be testable locally so I can try and test it before we eventually deploy it where-ever it should be deployed.
+  For this - simplicity is key, we don't want to over-engineer this, the simpler (in terms of architecture) the better.
+
+  So first thing we need to:
+  1. Come up with how this will be hosted
+  2. Finalize requirements, please ask all questions necessary and lets resolve them
+  3. Store the requirements, these should be a living document in this folder. This entire folder should be stored in GitHub at git@github.pie.apple.com:eddie-long/LeWorldCup2026.git
+  4. Proceed with development.
+
+  I'd like for you to spin up a team to work on this:
+  1. A soccer expert who knows all there is to know about the World Cup 2026
+  2. A social expert who is skilled and experienced with creating fun games like this
+  3. An expert software engineer who knows the best open source/commerical tools for hosting sites
+  4. A requirements expert who can gather and coherently organize requirements
+  5. A project manager who is great at planning projects and organizing others
+  6. A UX expert who can create beautiful, easy to use websites
+  7. A UI expert who is famiiliar with latest web technologies when building sites
