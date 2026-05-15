@@ -67,31 +67,38 @@ Total knockout matches: **32**.
 
 ## 4. Groups (Final Draw — 5 December 2025, Kennedy Center, Washington DC)
 
-> **VERIFICATION REQUIRED.** Live web access was unavailable during authoring. The four pots and the three host slots (Canada, Mexico, USA) were fixed pre-draw, and the slots below reflect publicly reported draw results plus playoff placeholders. Engineering MUST re-confirm against `https://en.wikipedia.org/wiki/2026_FIFA_World_Cup_group_stage` before any user-facing release. Any team listed as a UEFA play-off (PO) or Inter-confederation play-off (IPO) winner is **TBD** until those play-offs complete in **late March 2026** — note: those play-offs concluded before today's date (2026-05-15), so the actual qualifier names should be substituted in.
+> Confirmed 2026-05-15 by pulling `/v4/competitions/WC/matches` from football-data.org's free tier and deriving group placements from the GROUP-stage match list. The free tier **does** carry WC 2026.
 
-Two host nations were pre-seeded:
-- **Mexico → Group A, position A1** (host of opening match)
-- **Canada → Group B, position B1**
-- **USA → Group D, position D1**
+| Group | Teams (alphabetical within group) |
+|---|---|
+| **A** | Czechia, Mexico, South Africa, South Korea |
+| **B** | Bosnia-Herzegovina, Canada, Qatar, Switzerland |
+| **C** | Brazil, Haiti, Morocco, Scotland |
+| **D** | Australia, Paraguay, Türkiye, United States |
+| **E** | Curaçao, Ecuador, Germany, Ivory Coast |
+| **F** | Japan, Netherlands, Sweden, Tunisia |
+| **G** | Belgium, Egypt, Iran, New Zealand |
+| **H** | Cape Verde Islands, Saudi Arabia, Spain, Uruguay |
+| **I** | France, Iraq, Norway, Senegal |
+| **J** | Algeria, Argentina, Austria, Jordan |
+| **K** | Colombia, Congo DR, Portugal, Uzbekistan |
+| **L** | Croatia, England, Ghana, Panama |
 
-| Group | Pos 1 | Pos 2 | Pos 3 | Pos 4 |
-|---|---|---|---|---|
-| **A** | Mexico (host) | **TBD** | **TBD** | **TBD** |
-| **B** | Canada (host) | **TBD** | **TBD** | **TBD** |
-| **C** | **TBD** | **TBD** | **TBD** | **TBD** |
-| **D** | USA (host) | **TBD** | **TBD** | **TBD** |
-| **E** | **TBD** | **TBD** | **TBD** | **TBD** |
-| **F** | **TBD** | **TBD** | **TBD** | **TBD** |
-| **G** | **TBD** | **TBD** | **TBD** | **TBD** |
-| **H** | **TBD** | **TBD** | **TBD** | **TBD** |
-| **I** | **TBD** | **TBD** | **TBD** | **TBD** |
-| **J** | **TBD** | **TBD** | **TBD** | **TBD** |
-| **K** | **TBD** | **TBD** | **TBD** | **TBD** |
-| **L** | **TBD** | **TBD** | **TBD** | **TBD** |
+The three host nations are seeded as group toppers: Mexico → A1, Canada → B1, USA → D1. Other group positions follow the official draw.
 
-**Action for engineering:** Pull the canonical group list from football-data.org `/v4/competitions/WC/standings` after the competition is loaded, or scrape Wikipedia's group-stage page once at app build/seed time. Do not hard-code without re-verification.
+To repopulate from scratch:
 
-(source: https://en.wikipedia.org/wiki/2026_FIFA_World_Cup_Final_Draw — re-verify)
+```sh
+# 1) Reset (or just clear teams + matches)
+pnpm sim reset
+pnpm db:seed                               # re-creates settings only
+# 2) Pull live data
+curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/sync-results
+```
+
+The cron sync writes both matches *and* `teams.group_letter` (the latter is derived from the GROUP-stage match list, since football-data's `/teams` endpoint doesn't include group info).
+
+(source: football-data.org `/v4/competitions/WC/matches` — pulled 2026-05-15; cross-check at https://en.wikipedia.org/wiki/2026_FIFA_World_Cup_group_stage)
 
 ---
 

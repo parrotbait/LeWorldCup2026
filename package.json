@@ -17,6 +17,8 @@
     "db:backup": "tsx scripts/backup.ts",
     "admin:hash": "tsx scripts/hash-admin-password.ts",
     "sim": "tsx scripts/sim.ts",
+    "snapshot": "tsx scripts/snapshot.ts",
+    "restore": "tsx scripts/restore.ts",
     "format": "prettier --write ."
   },
   "dependencies": {

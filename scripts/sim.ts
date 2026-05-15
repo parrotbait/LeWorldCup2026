@@ -157,10 +157,16 @@ async function reset(): Promise<void> {
     await db.delete(bonusPicks);
     await db.delete(bonusResolutions);
     await db.delete(auditLog);
-    // Settings row id=1 is per-tournament; null out the resolved fields, keep kickoff.
+    // Restore tournament_kickoff to the real WC opening match so the site doesn't
+    // stay locked from a previous sim run (sim setup squashes kickoff to "now").
     await db
         .update(settings)
-        .set({ winnerTeamId: null, topScorerName: null, firstGoalScorerName: null })
+        .set({
+            tournamentKickoff: new Date("2026-06-11T20:00:00Z"),
+            winnerTeamId: null,
+            topScorerName: null,
+            firstGoalScorerName: null,
+        })
         .where(eq(settings.id, 1));
     // Matches first (FKs to teams), then players, then teams.
     await db.delete(matches);
@@ -170,7 +176,7 @@ async function reset(): Promise<void> {
     await db.execute(sql`ALTER SEQUENCE teams_id_seq RESTART WITH 1`);
     await db.execute(sql`ALTER SEQUENCE matches_id_seq RESTART WITH 1`);
     await db.execute(sql`ALTER SEQUENCE players_id_seq RESTART WITH 1`);
-    console.log("✓ wiped sim data");
+    console.log("✓ wiped sim data (tournament_kickoff restored to 2026-06-11)");
 }
 
 // ---------------------------------------------------------------------------

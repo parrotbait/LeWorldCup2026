@@ -1,6 +1,9 @@
 import { SignJWT, jwtVerify } from "jose";
+import { eq } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { db } from "@/db/client";
+import { players } from "@/db/schema";
 import { env } from "./env";
 
 const COOKIE_NAME = "lwc_session";
@@ -39,7 +42,23 @@ export async function getSession(): Promise<SessionPayload | null> {
     if (token === undefined) {
         return null;
     }
-    return await verifySession(token);
+    const payload = await verifySession(token);
+    if (payload === null) {
+        return null;
+    }
+    // Belt-and-braces: confirm the player still exists. After a sim reset the
+    // cookie can outlive the row, which leaves every server action FK-failing.
+    const exists = await db
+        .select({ id: players.id })
+        .from(players)
+        .where(eq(players.id, payload.playerId))
+        .limit(1);
+    if (exists.length === 0) {
+        // Stale cookie — drop it so the next request lands on login cleanly.
+        jar.delete(COOKIE_NAME);
+        return null;
+    }
+    return payload;
 }
 
 export async function requireSession(): Promise<SessionPayload> {

@@ -38,6 +38,9 @@ export async function GET(request: NextRequest) {
 
     try {
         const fdMatches = await fetchMatches();
+        // Track which teams belong to which group as we go — football-data carries the
+        // group letter on the match, not on /teams, so we backfill from there.
+        const groupByTeamId = new Map<number, string>();
         for (const m of fdMatches) {
             const homeTeam = m.homeTeam.tla
                 ? (await db.select().from(teams).where(eq(teams.code, m.homeTeam.tla)).limit(1))[0]
@@ -57,12 +60,22 @@ export async function GET(request: NextRequest) {
                           ? "CANCELLED"
                           : "SCHEDULED";
 
+            const groupLetter = m.group?.replace("GROUP_", "") ?? null;
+            if (groupLetter !== null) {
+                if (homeTeam !== undefined) {
+                    groupByTeamId.set(homeTeam.id, groupLetter);
+                }
+                if (awayTeam !== undefined) {
+                    groupByTeamId.set(awayTeam.id, groupLetter);
+                }
+            }
+
             await db
                 .insert(matches)
                 .values({
                     externalId: m.id,
                     round: mapStage(m.stage),
-                    groupLetter: m.group?.replace("GROUP_", "") ?? null,
+                    groupLetter,
                     kickoff: new Date(m.utcDate),
                     homeTeamId: homeTeam?.id,
                     awayTeamId: awayTeam?.id,
@@ -85,6 +98,11 @@ export async function GET(request: NextRequest) {
                     },
                 });
             matchCount += 1;
+        }
+
+        // Backfill teams.group_letter from the matches we just processed.
+        for (const [teamId, groupLetter] of groupByTeamId) {
+            await db.update(teams).set({ groupLetter }).where(eq(teams.id, teamId));
         }
     } catch (e) {
         errors.push(`matches: ${(e as Error).message}`);

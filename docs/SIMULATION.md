@@ -99,14 +99,33 @@ For the real tournament, fixtures and scores come from `football-data.org` via `
 
 ## Resetting the production-like state
 
-After playing with the sim, restore a clean baseline with the real seed:
+After playing with the sim, restore a clean baseline with the real data:
 
 ```sh
 pnpm sim reset
-pnpm db:seed           # re-creates settings + placeholder teams
+pnpm db:seed                # re-creates the settings row (kickoff = 11 Jun 2026)
+pnpm restore                # re-loads teams + matches from data/wc2026-snapshot.json
 ```
 
-Or, if you've already wired up the football-data token, run the cron sync to pull live fixtures.
+`pnpm sim reset` automatically restores `tournament_kickoff` to 11 Jun 2026 so the site doesn't stay locked from a previous sim run (sim setup squashes the kickoff to "now" so bonuses lock immediately during play).
+
+If you'd rather pull live data from football-data.org instead of the snapshot, swap the `pnpm restore` for the cron sync curl from the README.
+
+## Snapshotting + restoring fixture data
+
+`pnpm snapshot` writes the current teams + matches to `data/wc2026-snapshot.json` (versioned in git). `pnpm restore` reads that file back. Use this so we don't depend on football-data.org being reachable when we want to reset:
+
+```sh
+# After a healthy cron sync, capture
+pnpm snapshot                                # → data/wc2026-snapshot.json
+pnpm snapshot --out=data/2026-06-08.json     # custom path
+
+# Later, restore
+pnpm restore                                 # reads data/wc2026-snapshot.json
+pnpm restore --in=data/2026-06-08.json       # custom path
+```
+
+Restore upserts on team `code` and match `externalId`, so it's idempotent and safe to re-run. Predictions, bonus picks, and jokers are not touched.
 
 ## Troubleshooting
 
