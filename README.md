@@ -20,18 +20,54 @@ See [`docs/tech-stack.md`](./docs/tech-stack.md) for the finalized stack and pro
 
 ## Local development
 
-> Full instructions land in `docs/tech-stack.md` once the engineering team finalizes them. TL;DR:
->
-> ```sh
-> docker compose up -d         # local Postgres
-> pnpm install
-> pnpm db:migrate
-> pnpm dev
-> ```
+```sh
+# 1. Postgres in Docker
+docker compose up -d
+
+# 2. Install
+pnpm install
+
+# 3. Env
+cp .env.example .env.local
+# Generate secrets:
+openssl rand -base64 48                  # → AUTH_SECRET
+openssl rand -hex 32                     # → CRON_SECRET
+node -e "console.log(require('bcryptjs').hashSync('your-admin-pw',10))"  # → ADMIN_PASSWORD_HASH
+# Get a free token at https://www.football-data.org/client/register → FOOTBALL_DATA_TOKEN
+
+# 4. Migrate + seed
+pnpm db:generate     # produces migration SQL from db/schema.ts
+pnpm db:migrate
+pnpm db:seed
+
+# 5. Run
+pnpm dev             # http://localhost:3000
+
+# 6. (optional) Pull live fixtures
+curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/sync-results
+```
 
 ## Deployment
 
 See [`docs/tech-stack.md`](./docs/tech-stack.md) for the Vercel deployment walkthrough.
+
+## What's built so far
+
+- ✅ Auth (invite code + display name) and admin login
+- ✅ Postgres schema (players, teams, matches, predictions, bonus picks, jokers, settings, audit log)
+- ✅ Pure scoring engine + unit tests (`lib/scoring.ts`, `lib/scoring.test.ts`)
+- ✅ Leaderboard, matches list, rules, admin dashboard pages
+- ✅ Cron route + football-data.org client for results auto-sync
+- ✅ Vintage Scoreboard styling (Tailwind v4 + DM Mono / Inter)
+
+## What's next (tracked in TaskList)
+
+- 🚧 Picks UI (per-match prediction grid with auto-save and lock countdown)
+- 🚧 Bonus picks UI (winner, top scorer, group winners, dark horse, wooden spoon, first scorer)
+- 🚧 Joker selection per knockout round
+- 🚧 Per-player profile + per-match detail views (transparent point breakdowns)
+- 🚧 Admin score override editor + bonus resolution UI
+- 🚧 Visibility gating (hide other players' picks until kickoff)
 
 ## Game rules
 
