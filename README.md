@@ -21,17 +21,21 @@ See [`docs/tech-stack.md`](./docs/tech-stack.md) for the finalized stack and pro
 ## Local development
 
 ```sh
-# 1. Postgres in Docker
-docker compose up -d
+# 1. Postgres (Homebrew)
+brew install postgresql@16          # one-time
+brew services start postgresql@16   # start now + at login
+createdb leworldcup                  # one-time
 
 # 2. Install
 pnpm install
 
 # 3. Env
 cp .env.example .env.local
+# Fill in:
+#   POSTGRES_URL=postgres://$USER@localhost:5432/leworldcup
 # Generate secrets:
-openssl rand -base64 48                  # → AUTH_SECRET
-openssl rand -hex 32                     # → CRON_SECRET
+openssl rand -base64 48              # → AUTH_SECRET
+openssl rand -hex 32                 # → CRON_SECRET
 node -e "console.log(require('bcryptjs').hashSync('your-admin-pw',10))"  # → ADMIN_PASSWORD_HASH
 # Get a free token at https://www.football-data.org/client/register → FOOTBALL_DATA_TOKEN
 
@@ -46,6 +50,11 @@ pnpm dev             # http://localhost:3000
 # 6. (optional) Pull live fixtures
 curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/sync-results
 ```
+
+> **Docker users:** `docker-compose.yml` is also provided. If you have Docker
+> Compose V2 installed (`docker compose version` works), run
+> `docker compose up -d` instead of the brew steps above and use the
+> `postgres://postgres:postgres@…` URL.
 
 ## Deployment
 
