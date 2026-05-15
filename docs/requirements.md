@@ -100,6 +100,10 @@ The 2022 game (`LeWorldCup2022.pdf`) is the baseline: predict scorelines for eve
 
 - _(none currently — moved to in-progress decisions in `game-design.md` and `tech-stack.md`)_
 
+## 7a. Deferred work (timed)
+
+- **Footballer player typeahead** — the Top Scorer and First Goal Scorer bonus pickers currently take free-text. Once FIFA squad lists are finalized (≈ early June 2026, ~7 days before opening match), import them into a `tournament_players` table and swap the inputs for a proper select. Existing free-text picks should resolve by exact name match; admin script reconciles any mismatches. Source: api-football.com or FIFA's official squad page.
+
 ## 8. Companion docs
 
 - [`wc2026-tournament.md`](./wc2026-tournament.md) — fixtures, groups, knockout structure, API source
