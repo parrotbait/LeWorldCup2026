@@ -141,6 +141,10 @@ export const bonusKindEnum = pgEnum("bonus_kind", [
     "DARK_HORSE",
     "WOODEN_SPOON",
     "FIRST_GOAL_SCORER",
+    // Anti-bonuses — reward picks that excel at being rubbish.
+    "PANTOMIME_VILLAIN", // most yellow + red cards
+    "SIEVE", // most goals conceded
+    "MIGHTY_FALLEN", // Pot-1 team that crashes out in the group stage
 ]);
 
 export const bonusPicks = pgTable(

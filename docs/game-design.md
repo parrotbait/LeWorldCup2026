@@ -22,6 +22,18 @@ Where rules carry forward from our **2022 game** (`LeWorldCup2022.pdf`), they ar
 | Dark horse — per round survived | **2 / 4 / 6 / 10 / 15 / 20** | R32 / R16 / QF / SF / Final / Champion. Max 57. `[2026 new]` |
 | Tournament winner | **25** | `[2022 carry-forward]` |
 
+### Hall of Shame `[2026 new]` — anti-bonuses
+
+These reward correctly identifying who's going to be **rubbish**. Same lock window as other bonuses (tournament kickoff).
+
+| Source | Points | Notes |
+|---|---|---|
+| Pantomime villain | **5** | Team with the most yellow + red cards across the tournament. |
+| The Sieve | **5** | Team that concedes the most goals overall. |
+| How the mighty have fallen | **8** | A Pot-1 (top-seeded) team that fails to make the knockouts. Higher pay-out because going against the favourites is a bigger call. |
+
+If multiple teams tie on the underlying metric (e.g. two teams equal on cards), every player who picked any of the tied teams collects the full points — same principle as a shared Golden Boot.
+
 **Theoretical maximum** (perfect predictions, all bonuses, every joker doubled): roughly 600 pts. We expect winners around 180–230.
 
 ---

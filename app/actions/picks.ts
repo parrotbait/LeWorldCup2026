@@ -80,6 +80,9 @@ const bonusKindSchema = z.enum([
     "DARK_HORSE",
     "WOODEN_SPOON",
     "FIRST_GOAL_SCORER",
+    "PANTOMIME_VILLAIN",
+    "SIEVE",
+    "MIGHTY_FALLEN",
 ]);
 
 const saveBonusSchema = z.object({
@@ -119,7 +122,13 @@ export async function saveBonusAction(formData: FormData): Promise<SaveResult> {
         return { ok: false, error: "Group letter required" };
     }
     if (
-        (kind === "WINNER" || kind === "DARK_HORSE" || kind === "WOODEN_SPOON" || kind === "GROUP_WINNER") &&
+        (kind === "WINNER" ||
+            kind === "DARK_HORSE" ||
+            kind === "WOODEN_SPOON" ||
+            kind === "GROUP_WINNER" ||
+            kind === "PANTOMIME_VILLAIN" ||
+            kind === "SIEVE" ||
+            kind === "MIGHTY_FALLEN") &&
         (teamId === null || teamId === undefined)
     ) {
         return { ok: false, error: "Team required" };

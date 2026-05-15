@@ -44,6 +44,16 @@ export default async function RulesPage() {
                 </section>
 
                 <section className="mt-8">
+                    <h2 className="font-display text-base uppercase tracking-wider">Hall of Shame (anti-bonuses)</h2>
+                    <p className="mt-2 text-sm opacity-70">Reward picks that nail who&apos;s going to be rubbish.</p>
+                    <ul className="mt-2 list-disc space-y-1 pl-6">
+                        <li><strong>Pantomime villain</strong> — most yellow + red cards across the tournament. 5 pts</li>
+                        <li><strong>The Sieve</strong> — most goals conceded. 5 pts</li>
+                        <li><strong>How the mighty have fallen</strong> — a Pot-1 team that crashes out in the group stage. 8 pts</li>
+                    </ul>
+                </section>
+
+                <section className="mt-8">
                     <h2 className="font-display text-base uppercase tracking-wider">Joker</h2>
                     <p className="mt-2">
                         Once per knockout round (R32, R16, QF, SF, 3rd-place, Final), pick one match where your prediction points <strong>double</strong>. Locks at that round&apos;s first kickoff. Forget to pick? No joker that round.

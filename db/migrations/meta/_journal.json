@@ -8,6 +8,13 @@
       "when": 1778857564565,
       "tag": "0000_awesome_obadiah_stane",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1778862117722,
+      "tag": "0001_strong_flatman",
+      "breakpoints": true
     }
   ]
 }

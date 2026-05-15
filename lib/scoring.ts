@@ -101,6 +101,10 @@ export const BONUS_POINTS = {
     GROUP_WINNER: 3, // per correct group, max 12 × 3 = 36
     WOODEN_SPOON: 5,
     FIRST_GOAL_SCORER: 5,
+    // Anti-bonuses — reward picking who'll be rubbish.
+    PANTOMIME_VILLAIN: 5, // most cards across the tournament
+    SIEVE: 5, // most goals conceded
+    MIGHTY_FALLEN: 8, // Pot-1 team eliminated in the group stage; rated higher because going against the favourites is a bigger call
 } as const;
 
 /**

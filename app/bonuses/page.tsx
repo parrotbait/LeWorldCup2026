@@ -106,6 +106,44 @@ export default async function BonusesPage() {
                 </section>
 
                 <section className="mt-10">
+                    <header>
+                        <h2 className="font-display text-sm uppercase tracking-wider">Hall of Shame</h2>
+                        <p className="mt-1 text-xs opacity-60">
+                            Anti-bonuses — pick the teams you think will excel at being rubbish.
+                        </p>
+                    </header>
+                    <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        <TeamBonusPicker
+                            kind="PANTOMIME_VILLAIN"
+                            label="Pantomime villain"
+                            points="5 pts"
+                            description="Team that picks up the most yellow + red cards across the tournament."
+                            options={teamOpts}
+                            selectedTeamId={findBonus("PANTOMIME_VILLAIN")?.teamId ?? null}
+                            locked={locked}
+                        />
+                        <TeamBonusPicker
+                            kind="SIEVE"
+                            label="The Sieve"
+                            points="5 pts"
+                            description="Team that concedes the most goals overall."
+                            options={teamOpts}
+                            selectedTeamId={findBonus("SIEVE")?.teamId ?? null}
+                            locked={locked}
+                        />
+                        <TeamBonusPicker
+                            kind="MIGHTY_FALLEN"
+                            label="How the mighty have fallen"
+                            points="8 pts"
+                            description="A Pot-1 (top-seeded) team that fails to make the knockouts. Bigger pay-out for backing chaos."
+                            options={teamOpts}
+                            selectedTeamId={findBonus("MIGHTY_FALLEN")?.teamId ?? null}
+                            locked={locked}
+                        />
+                    </div>
+                </section>
+
+                <section className="mt-10">
                     <header className="flex items-baseline justify-between">
                         <h2 className="font-display text-sm uppercase tracking-wider">Group winners</h2>
                         <span className="font-display text-xs text-tournament">3 pts each · max 36</span>

@@ -11,7 +11,14 @@ interface TeamOption {
 }
 
 interface Props {
-    kind: "WINNER" | "GROUP_WINNER" | "DARK_HORSE" | "WOODEN_SPOON";
+    kind:
+        | "WINNER"
+        | "GROUP_WINNER"
+        | "DARK_HORSE"
+        | "WOODEN_SPOON"
+        | "PANTOMIME_VILLAIN"
+        | "SIEVE"
+        | "MIGHTY_FALLEN";
     label: string;
     description: string;
     points: string;
