@@ -36,7 +36,7 @@ cp .env.example .env.local
 # Generate secrets:
 openssl rand -base64 48              # → AUTH_SECRET
 openssl rand -hex 32                 # → CRON_SECRET
-node -e "console.log(require('bcryptjs').hashSync('your-admin-pw',10))"  # → ADMIN_PASSWORD_HASH
+pnpm admin:hash 'your-admin-pw'      # → ADMIN_PASSWORD_HASH (paste into .env.local)
 # Get a free token at https://www.football-data.org/client/register → FOOTBALL_DATA_TOKEN
 
 # 4. Migrate + seed

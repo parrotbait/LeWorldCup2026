@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { players } from "@/db/schema";
-import bcrypt from "bcryptjs";
+import { verifyPassword } from "@/lib/password";
 import { env } from "@/lib/env";
 import {
     clearAdminCookie,
@@ -73,7 +73,7 @@ export async function adminLoginAction(
     if (!parsed.success) {
         return { error: "Password required" };
     }
-    const ok = await bcrypt.compare(parsed.data.password, env.ADMIN_PASSWORD_HASH);
+    const ok = await verifyPassword(parsed.data.password, env.ADMIN_PASSWORD_HASH);
     if (!ok) {
         return { error: "Wrong password" };
     }
