@@ -5,6 +5,7 @@ import { jokers, matches, teams } from "@/db/schema";
 import { NavBar } from "@/app/_components/navbar";
 import { requireSession } from "@/lib/auth";
 import { JokerRoundPicker } from "./_joker-round-picker";
+import { formatKickoff } from "@/lib/utils";
 
 export const revalidate = 30;
 
@@ -57,13 +58,7 @@ export default async function JokerPage() {
                             .map((m) => ({
                                 id: m.id,
                                 label: `${m.homeName ?? "TBD"} vs ${m.awayName ?? "TBD"}`,
-                                kickoff: m.kickoff.toLocaleString("en-IE", {
-                                    weekday: "short",
-                                    day: "2-digit",
-                                    month: "short",
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                }),
+                                kickoff: formatKickoff(m.kickoff),
                             }));
                         const earliestKickoff = allMatches.find((m) => m.round === r.code)?.kickoff;
                         const locked =

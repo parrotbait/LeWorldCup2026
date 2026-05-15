@@ -5,6 +5,7 @@ import { NavBar } from "@/app/_components/navbar";
 import { requireSession } from "@/lib/auth";
 import { TeamBonusPicker } from "./_components/team-bonus-picker";
 import { PlayerNameBonusPicker } from "./_components/player-name-bonus-picker";
+import { formatKickoff } from "@/lib/utils";
 
 export const revalidate = 30;
 
@@ -45,13 +46,7 @@ export default async function BonusesPage() {
                         {locked
                             ? "locked at kickoff 🔒"
                             : tournamentKickoff !== undefined
-                              ? `lock: ${tournamentKickoff.toLocaleString("en-IE", {
-                                    weekday: "short",
-                                    day: "2-digit",
-                                    month: "short",
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                })}`
+                              ? `lock: ${formatKickoff(tournamentKickoff)}`
                               : ""}
                     </span>
                 </header>

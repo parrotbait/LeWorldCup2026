@@ -4,7 +4,7 @@ import { db } from "@/db/client";
 import { matches, predictions, teams } from "@/db/schema";
 import { NavBar } from "@/app/_components/navbar";
 import { requireSession } from "@/lib/auth";
-import { flag } from "@/lib/utils";
+import { flag, formatDayLong, formatTime } from "@/lib/utils";
 import { ScoreStepper } from "./_components/score-stepper";
 
 export const revalidate = 30;
@@ -18,18 +18,6 @@ const ROUND_LABEL: Record<string, string> = {
     THIRD: "Third place",
     FINAL: "Final",
 };
-
-function matchdayLabel(d: Date): string {
-    return d.toLocaleDateString("en-IE", {
-        weekday: "long",
-        day: "2-digit",
-        month: "long",
-    });
-}
-
-function timeLabel(d: Date): string {
-    return d.toLocaleTimeString("en-IE", { hour: "2-digit", minute: "2-digit" });
-}
 
 function lockMessage(kickoff: Date): string {
     const ms = kickoff.getTime() - Date.now();
@@ -76,10 +64,17 @@ export default async function PredictionsPage() {
         .where(eq(predictions.playerId, session.playerId));
     const predByMatch = new Map(myPredictions.map((p) => [p.matchId, p]));
 
-    // Group by matchday.
+    // Group by matchday in the display timezone (so a 23:30 UTC match buckets
+    // into the next day if that's where it lands locally).
+    const dayKeyFmt = new Intl.DateTimeFormat("en-CA", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        timeZone: "Europe/London",
+    });
     const byDay = new Map<string, typeof rows>();
     for (const r of rows) {
-        const key = r.kickoff.toISOString().slice(0, 10);
+        const key = dayKeyFmt.format(r.kickoff);
         const arr = byDay.get(key);
         if (arr === undefined) {
             byDay.set(key, [r]);
@@ -114,7 +109,7 @@ export default async function PredictionsPage() {
                             return (
                                 <section key={key}>
                                     <h2 className="font-display text-xs uppercase tracking-[0.25em] text-tournament">
-                                        {matchdayLabel(day[0]!.kickoff)}
+                                        {formatDayLong(day[0]!.kickoff)}
                                     </h2>
                                     <ul className="mt-3 divide-y divide-ink/15">
                                         {day.map((m) => {
@@ -126,7 +121,7 @@ export default async function PredictionsPage() {
                                                     className="grid grid-cols-[80px_1fr_auto] items-center gap-4 py-4 text-sm"
                                                 >
                                                     <div className="font-display text-xs opacity-60">
-                                                        <div>{timeLabel(m.kickoff)}</div>
+                                                        <div>{formatTime(m.kickoff)}</div>
                                                         <div className="mt-0.5 text-[10px] uppercase opacity-60">
                                                             {ROUND_LABEL[m.round]}
                                                             {m.groupLetter !== null ? ` ${m.groupLetter}` : ""}

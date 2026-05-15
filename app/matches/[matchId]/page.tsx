@@ -6,7 +6,7 @@ import { db } from "@/db/client";
 import { jokers, matches, players, predictions, teams } from "@/db/schema";
 import { NavBar } from "@/app/_components/navbar";
 import { requireSession } from "@/lib/auth";
-import { flag } from "@/lib/utils";
+import { flag, formatKickoffLong } from "@/lib/utils";
 import { predictionPoints } from "@/lib/scoring";
 
 export const revalidate = 30;
@@ -128,13 +128,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
                     <span className="ml-2">{flag(matchRow.awayCode ?? "")}</span>
                 </h1>
                 <p className="mt-2 text-xs opacity-60">
-                    {matchRow.kickoff.toLocaleString("en-IE", {
-                        weekday: "long",
-                        day: "2-digit",
-                        month: "long",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                    })}
+                    {formatKickoffLong(matchRow.kickoff)}
                     {matchRow.venue !== null ? ` · ${matchRow.venue}` : ""} · {matchRow.status}
                 </p>
 

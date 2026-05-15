@@ -4,7 +4,7 @@ import { db } from "@/db/client";
 import { bonusPicks, bonusResolutions, jokers, matches, predictions, teams } from "@/db/schema";
 import { NavBar } from "@/app/_components/navbar";
 import { requireSession } from "@/lib/auth";
-import { flag } from "@/lib/utils";
+import { flag, formatKickoff } from "@/lib/utils";
 import { computeBonusPointsByPlayer, predictionPoints } from "@/lib/scoring";
 
 export const revalidate = 30;
@@ -137,12 +137,7 @@ export default async function MePage() {
                             {rows.map(({ m, pred, base, pts, isJoker }) => (
                                 <tr key={m.id} className="border-b border-ink/10">
                                     <td className="py-2 pr-2 text-xs opacity-70">
-                                        {m.kickoff.toLocaleString("en-IE", {
-                                            day: "2-digit",
-                                            month: "short",
-                                            hour: "2-digit",
-                                            minute: "2-digit",
-                                        })}
+                                        {formatKickoff(m.kickoff)}
                                     </td>
                                     <td className="py-2 pr-2 text-xs opacity-70">
                                         {ROUND_LABEL[m.round]}

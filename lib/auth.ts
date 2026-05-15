@@ -48,14 +48,14 @@ export async function getSession(): Promise<SessionPayload | null> {
     }
     // Belt-and-braces: confirm the player still exists. After a sim reset the
     // cookie can outlive the row, which leaves every server action FK-failing.
+    // We can't mutate the cookie from a server component, so just return null —
+    // the next server action (login, logout) will overwrite or clear it.
     const exists = await db
         .select({ id: players.id })
         .from(players)
         .where(eq(players.id, payload.playerId))
         .limit(1);
     if (exists.length === 0) {
-        // Stale cookie — drop it so the next request lands on login cleanly.
-        jar.delete(COOKIE_NAME);
         return null;
     }
     return payload;
