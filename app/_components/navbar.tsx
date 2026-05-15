@@ -10,8 +10,11 @@ export async function NavBar() {
                 <Link href="/leaderboard" className="font-display text-xs uppercase tracking-[0.3em]">
                     <span className="text-tournament">LeWorldCup</span> 2026
                 </Link>
-                <nav className="flex items-center gap-5 text-sm">
+                <nav className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
                     <Link href="/leaderboard" className="hover:text-tournament">leaderboard</Link>
+                    <Link href="/predictions" className="hover:text-tournament">predictions</Link>
+                    <Link href="/bonuses" className="hover:text-tournament">bonuses</Link>
+                    <Link href="/joker" className="hover:text-tournament">joker</Link>
                     <Link href="/matches" className="hover:text-tournament">matches</Link>
                     <Link href="/me" className="hover:text-tournament">me</Link>
                     <Link href="/rules" className="hover:text-tournament">rules</Link>

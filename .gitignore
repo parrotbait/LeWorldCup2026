@@ -12,6 +12,7 @@ out/
 dist/
 coverage/
 .turbo/
+tsconfig.tsbuildinfo
 
 # Env
 .env
