@@ -66,17 +66,61 @@ export function formatKickoffLong(d: Date | string): string {
     return DATE_TIME_LONG.format(toDate(d));
 }
 
-// ISO 3-letter country code → flag emoji. Falls back to the code itself.
+// FIFA / IOC 3-letter codes → ISO 3166-1 alpha-2 (used to derive the flag emoji).
+// Special-cased for the four UK constituent flags (England, Scotland, Wales,
+// Northern Ireland) which need the "subdivision tag" emoji sequence rather than
+// a regional-indicator pair. Teams that share an ISO-2 code but use a different
+// 3-letter code (e.g. KSA → SA, RSA → ZA) are mapped explicitly here.
+const TLA_TO_ISO2: Record<string, string> = {
+    // 2026 World Cup teams
+    MEX: "MX", RSA: "ZA", KOR: "KR", CZE: "CZ",
+    CAN: "CA", QAT: "QA", SUI: "CH", BIH: "BA",
+    BRA: "BR", HAI: "HT", MAR: "MA", SCO: "GB-SCT",
+    USA: "US", AUS: "AU", PAR: "PY", TUR: "TR",
+    ECU: "EC", GER: "DE", CIV: "CI", CUW: "CW", CUR: "CW",
+    JPN: "JP", NED: "NL", SWE: "SE", TUN: "TN",
+    BEL: "BE", EGY: "EG", IRN: "IR", NZL: "NZ",
+    ESP: "ES", URU: "UY", URY: "UY", CPV: "CV", KSA: "SA",
+    FRA: "FR", IRQ: "IQ", NOR: "NO", SEN: "SN",
+    ARG: "AR", ALG: "DZ", AUT: "AT", JOR: "JO",
+    COL: "CO", COD: "CD", POR: "PT", UZB: "UZ",
+    CRO: "HR", ENG: "GB-ENG", GHA: "GH", PAN: "PA",
+    WAL: "GB-WLS", NIR: "GB-NIR",
+    // Common past WC entrants and other UEFA / CONMEBOL / AFC sides
+    ITA: "IT", DEN: "DK", POL: "PL", CRC: "CR", IRL: "IE",
+    JAM: "JM", PER: "PE", VEN: "VE", CHI: "CL", NGA: "NG",
+    SRB: "RS", UKR: "UA", ROU: "RO", SVK: "SK", SVN: "SI",
+    HUN: "HU", BUL: "BG", FIN: "FI", ISL: "IS",
+    PRK: "KP", CHN: "CN", THA: "TH", VIE: "VN", IDN: "ID",
+    UAE: "AE", LBN: "LB", PSE: "PS", SYR: "SY", OMA: "OM",
+    LBY: "LY", SDN: "SD", CMR: "CM", BDI: "BI",
+    HON: "HN", SLV: "SV", GUA: "GT", DOM: "DO", CUB: "CU", TRI: "TT",
+    BOL: "BO",
+};
+
+function iso2ToFlag(iso2: string): string {
+    if (iso2.startsWith("GB-")) {
+        const subdivision: Record<string, string> = {
+            "GB-ENG": "\u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}",
+            "GB-SCT": "\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}",
+            "GB-WLS": "\u{1F3F4}\u{E0067}\u{E0062}\u{E0077}\u{E006C}\u{E0073}\u{E007F}",
+            "GB-NIR": "\u{1F3F3}\u{FE0F}", // no standard subdivision flag; use white
+        };
+        return subdivision[iso2] ?? "\u{1F3F3}";
+    }
+    if (iso2.length !== 2) {
+        return iso2;
+    }
+    // Each ASCII letter A–Z maps to a regional-indicator codepoint at 0x1F1E6.
+    const codes = [...iso2.toUpperCase()].map((c) => 0x1f1e6 - 65 + c.charCodeAt(0));
+    return String.fromCodePoint(...codes);
+}
+
+// FIFA / IOC 3-letter code → flag emoji. Falls back to the code if unknown.
 export function flag(code: string): string {
-    const map: Record<string, string> = {
-        ARG: "🇦🇷", AUS: "🇦🇺", AUT: "🇦🇹", BEL: "🇧🇪", BRA: "🇧🇷",
-        CAN: "🇨🇦", CHN: "🇨🇳", COL: "🇨🇴", CRC: "🇨🇷", CRO: "🇭🇷",
-        DEN: "🇩🇰", ECU: "🇪🇨", EGY: "🇪🇬", ENG: "🏴\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}",
-        ESP: "🇪🇸", FRA: "🇫🇷", GER: "🇩🇪", GHA: "🇬🇭", IRN: "🇮🇷",
-        ITA: "🇮🇹", JPN: "🇯🇵", KOR: "🇰🇷", MAR: "🇲🇦", MEX: "🇲🇽",
-        NED: "🇳🇱", NOR: "🇳🇴", NZL: "🇳🇿", PAR: "🇵🇾", POL: "🇵🇱",
-        POR: "🇵🇹", QAT: "🇶🇦", SAU: "🇸🇦", SEN: "🇸🇳", SRB: "🇷🇸",
-        SUI: "🇨🇭", TUN: "🇹🇳", URU: "🇺🇾", USA: "🇺🇸", WAL: "🏴\u{E0067}\u{E0062}\u{E0077}\u{E006C}\u{E0073}\u{E007F}",
-    };
-    return map[code] ?? code;
+    const iso2 = TLA_TO_ISO2[code.toUpperCase()];
+    if (iso2 === undefined) {
+        return code;
+    }
+    return iso2ToFlag(iso2);
 }

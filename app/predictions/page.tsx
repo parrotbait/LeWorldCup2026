@@ -4,7 +4,7 @@ import { db } from "@/db/client";
 import { matches, predictions, teams } from "@/db/schema";
 import { NavBar } from "@/app/_components/navbar";
 import { requireSession } from "@/lib/auth";
-import { flag, formatDayLong, formatTime } from "@/lib/utils";
+import { formatDayLong, formatTime } from "@/lib/utils";
 import { ScoreStepper } from "./_components/score-stepper";
 
 export const revalidate = 30;
@@ -118,7 +118,7 @@ export default async function PredictionsPage() {
                                             return (
                                                 <li
                                                     key={m.id}
-                                                    className="grid grid-cols-[80px_1fr_auto] items-center gap-4 py-4 text-sm"
+                                                    className="grid grid-cols-[100px_1fr] items-center gap-4 py-4 text-sm"
                                                 >
                                                     <div className="font-display text-xs opacity-60">
                                                         <div>{formatTime(m.kickoff)}</div>
@@ -131,23 +131,15 @@ export default async function PredictionsPage() {
                                                         </div>
                                                     </div>
 
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-lg">{flag(m.homeCode ?? "")}</span>
-                                                        <span className="flex-1 font-medium">
-                                                            {m.homeName ?? "TBD"}
-                                                        </span>
-                                                        <span className="opacity-40">vs</span>
-                                                        <span className="flex-1 text-right font-medium">
-                                                            {m.awayName ?? "TBD"}
-                                                        </span>
-                                                        <span className="text-lg">{flag(m.awayCode ?? "")}</span>
-                                                    </div>
-
                                                     <ScoreStepper
                                                         matchId={m.id}
                                                         initialHome={pred?.homeScore ?? null}
                                                         initialAway={pred?.awayScore ?? null}
                                                         locked={locked}
+                                                        homeCode={m.homeCode ?? ""}
+                                                        homeName={m.homeName ?? "TBD"}
+                                                        awayCode={m.awayCode ?? ""}
+                                                        awayName={m.awayName ?? "TBD"}
                                                     />
                                                 </li>
                                             );
