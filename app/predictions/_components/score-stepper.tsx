@@ -17,6 +17,13 @@ export function ScoreStepper({ matchId, initialHome, initialAway, locked }: Prop
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [, startTransition] = useTransition();
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    // Track what we've actually persisted so the effect can compare against
+    // it without depending on `status` (which the save itself mutates and
+    // would otherwise re-trigger the effect → infinite loop).
+    const lastSavedRef = useRef<{ h: number | null; a: number | null }>({
+        h: initialHome,
+        a: initialAway,
+    });
 
     // Save with a small debounce so rapid stepper clicks coalesce.
     useEffect(() => {
@@ -26,7 +33,7 @@ export function ScoreStepper({ matchId, initialHome, initialAway, locked }: Prop
         if (home === null || away === null) {
             return;
         }
-        if (home === initialHome && away === initialAway && status === "idle") {
+        if (home === lastSavedRef.current.h && away === lastSavedRef.current.a) {
             return;
         }
 
@@ -42,6 +49,7 @@ export function ScoreStepper({ matchId, initialHome, initialAway, locked }: Prop
             startTransition(async () => {
                 const res = await savePredictionAction(fd);
                 if (res.ok) {
+                    lastSavedRef.current = { h: home, a: away };
                     setStatus("saved");
                     setErrorMsg(null);
                 } else {
@@ -56,7 +64,7 @@ export function ScoreStepper({ matchId, initialHome, initialAway, locked }: Prop
                 clearTimeout(debounceRef.current);
             }
         };
-    }, [home, away, matchId, locked, initialHome, initialAway, status]);
+    }, [home, away, matchId, locked]);
 
     const Box = ({
         value,
