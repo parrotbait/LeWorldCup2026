@@ -36,18 +36,6 @@ html, body {
     font-variant-numeric: tabular-nums;
 }
 
-/* Hide the native number-input spinner buttons; we don't want the up/down
-   arrows in the prediction stepper cells. */
-input[type="number"]::-webkit-inner-spin-button,
-input[type="number"]::-webkit-outer-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
-}
-input[type="number"] {
-    -moz-appearance: textfield;
-    appearance: textfield;
-}
-
 .dashed-rule {
     border-top: 1px dashed currentColor;
     opacity: 0.4;

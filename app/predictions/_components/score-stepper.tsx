@@ -90,13 +90,17 @@ export function ScoreStepper({
         ariaLabel: string;
     }) => (
         <input
-            type="number"
+            type="text"
             inputMode="numeric"
-            min={0}
-            max={20}
+            pattern="[0-9]*"
+            maxLength={2}
             disabled={locked}
             value={value}
-            onChange={(e) => onChange(e.target.value)}
+            onChange={(e) => {
+                // Strip anything that isn't a digit so we never need to format
+                // input on save.
+                onChange(e.target.value.replace(/\D/g, ""));
+            }}
             onBlur={save}
             onKeyDown={(e) => {
                 if (e.key === "Enter") {
@@ -136,11 +140,9 @@ export function ScoreStepper({
                     <span className="text-tournament">{errorMsg}</span>
                 ) : !bothFilled ? (
                     <span className="opacity-30">enter both scores to save</span>
-                ) : matchesSaved || status === "saved" ? (
+                ) : matchesSaved ? (
                     <span className="opacity-40">saved</span>
-                ) : (
-                    <span className="opacity-30">click out to save</span>
-                )}
+                ) : null}
             </div>
         </div>
     );
