@@ -108,6 +108,14 @@ export function ScoreStepper({
         />
     );
 
+    const parsedHome = parse(home);
+    const parsedAway = parse(away);
+    const bothFilled = parsedHome !== null && parsedAway !== null;
+    const matchesSaved =
+        bothFilled &&
+        parsedHome === lastSavedRef.current.h &&
+        parsedAway === lastSavedRef.current.a;
+
     return (
         <div className="flex flex-col gap-1">
             <div className="flex items-center justify-center gap-3">
@@ -119,18 +127,20 @@ export function ScoreStepper({
                 <span className="min-w-[140px] font-medium">{awayName}</span>
                 <span className="text-lg">{flag(awayCode)}</span>
             </div>
-            <div className="text-center font-display text-[10px] uppercase tracking-wider">
+            <div className="min-h-[14px] text-center font-display text-[10px] uppercase tracking-wider">
                 {locked ? (
                     <span className="opacity-50">locked 🔒</span>
                 ) : status === "saving" ? (
                     <span className="opacity-50">saving…</span>
-                ) : status === "saved" ? (
-                    <span className="text-pitch">saved ✓</span>
                 ) : status === "error" ? (
                     <span className="text-tournament">{errorMsg}</span>
-                ) : home.trim() === "" || away.trim() === "" ? (
+                ) : !bothFilled ? (
                     <span className="opacity-30">enter both scores to save</span>
-                ) : null}
+                ) : matchesSaved || status === "saved" ? (
+                    <span className="opacity-40">saved</span>
+                ) : (
+                    <span className="opacity-30">click out to save</span>
+                )}
             </div>
         </div>
     );
