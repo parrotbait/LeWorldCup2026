@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "../scripts/_load-env";
 import { db } from "./client";
 import { settings } from "./schema";
 

@@ -10,7 +10,7 @@
  * Restore later with `pnpm restore [--in=path]`.
  */
 
-import "dotenv/config";
+import "./_load-env";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { db } from "../db/client";

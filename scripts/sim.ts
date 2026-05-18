@@ -15,7 +15,7 @@
  * `play` is incremental: re-running it advances the next unfinished round.
  */
 
-import "dotenv/config";
+import "./_load-env";
 import { eq, sql } from "drizzle-orm";
 import { db } from "../db/client";
 import {

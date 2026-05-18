@@ -10,7 +10,7 @@
  * tests.
  */
 
-import "dotenv/config";
+import "./_load-env";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { eq } from "drizzle-orm";
