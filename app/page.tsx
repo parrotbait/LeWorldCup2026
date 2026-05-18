@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
-import { JoinForm } from "./_components/join-form";
+import { AuthForm } from "./_components/auth-form";
 
 export default async function LandingPage() {
     const session = await getSession();
@@ -24,7 +24,7 @@ export default async function LandingPage() {
 
             <div className="dashed-rule mb-8" />
 
-            <JoinForm />
+            <AuthForm />
 
             <div className="mt-10 text-xs opacity-60">
                 <Link href="/rules" className="underline-offset-2 hover:underline">

@@ -40,6 +40,9 @@ export const players = pgTable(
     {
         id: serial("id").primaryKey(),
         displayName: text("display_name").notNull(),
+        // scrypt hash (see lib/password.ts). Null only for legacy rows from the
+        // pre-password auth flow — those can't log in until admin resets.
+        passwordHash: text("password_hash"),
         // Used to identify a returning player without an email.
         // Stored hashed; the cookie carries the player id, not this token.
         joinedAt: timestamp("joined_at", { withTimezone: true }).defaultNow().notNull(),

@@ -33,10 +33,12 @@ The 2022 game (`LeWorldCup2022.pdf`) is the baseline: predict scorelines for eve
 ## 4. Functional requirements
 
 ### 4.1 Sign-up / login
-- F-1.1 Player enters invite code + chooses a unique display name → session cookie set.
-- F-1.2 Admin logs in via separate password (single-tenant; only one admin = the owner).
-- F-1.3 New sign-ups are blocked once tournament has kicked off.
-- F-1.4 Owner can rotate the invite code at any time.
+- F-1.1 New player enters invite code + chooses a unique display name + sets a password (≥6 chars). Player record is created with the scrypt-hashed password; session cookie set.
+- F-1.2 Returning player enters display name + password. Invite code is **not** required for log-in — it's a sign-up gate only.
+- F-1.3 Admin logs in via separate password (single-tenant; only one admin = the owner).
+- F-1.4 New sign-ups are blocked once tournament has kicked off.
+- F-1.5 Owner can rotate the invite code at any time. Existing players keep their passwords.
+- F-1.6 If a player forgets their password the only recovery path is admin clearing their `password_hash` (or the row entirely) so they can sign up again.
 
 ### 4.2 Predictions
 - F-2.1 Every player can enter a predicted scoreline for every match in the tournament.
