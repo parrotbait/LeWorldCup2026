@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { db } from "@/db/client";
 import { bonusPicks, bonusResolutions, matches, players, predictions, jokers } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
@@ -104,9 +105,16 @@ export default async function LeaderboardPage() {
                                     >
                                         <td className="py-2 pr-2">{i + 1}</td>
                                         <td className="py-2 pr-2">
-                                            {i === 0 ? "👑 " : ""}
-                                            {r.displayName}
-                                            {me ? <span className="ml-2 text-xs opacity-50">(you)</span> : null}
+                                            <Link
+                                                href={`/players/${r.playerId}` as never}
+                                                className="hover:text-tournament hover:underline"
+                                            >
+                                                {i === 0 ? "👑 " : ""}
+                                                {r.displayName}
+                                                {me ? (
+                                                    <span className="ml-2 text-xs opacity-50">(you)</span>
+                                                ) : null}
+                                            </Link>
                                         </td>
                                         <td className="py-2 pr-2 text-right opacity-70">{predPoints}</td>
                                         <td className="py-2 pr-2 text-right opacity-70">{r.bonusPoints}</td>

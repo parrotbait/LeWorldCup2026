@@ -1,5 +1,6 @@
 import { and, asc, eq, gte, inArray, lte, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
+import Link from "next/link";
 import { db } from "@/db/client";
 import { jokers, matches, players, predictions, teams } from "@/db/schema";
 import { NavBar } from "@/app/_components/navbar";
@@ -184,7 +185,12 @@ export default async function LivePage() {
                                                     className="grid grid-cols-[1fr_auto_auto] items-center gap-4 px-4 py-2"
                                                 >
                                                     <span>
-                                                        {r.displayName}
+                                                        <Link
+                                                            href={`/players/${r.playerId}` as never}
+                                                            className="hover:text-tournament hover:underline"
+                                                        >
+                                                            {r.displayName}
+                                                        </Link>
                                                         {r.isJoker ? (
                                                             <span className="ml-2 font-display text-[10px] text-mustard">
                                                                 joker ×2
