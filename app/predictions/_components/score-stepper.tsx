@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { savePredictionAction } from "@/app/actions/picks";
 import { flag } from "@/lib/utils";
 
@@ -25,102 +25,87 @@ export function ScoreStepper({
     awayCode,
     awayName,
 }: Props) {
-    // Display defaults to 0–0 so the steppers always have a sensible starting
-    // point. We only persist once the user actually interacts (`touched`),
-    // otherwise opening the page would silently file 0-0 picks for every match.
-    const [home, setHome] = useState<number>(initialHome ?? 0);
-    const [away, setAway] = useState<number>(initialAway ?? 0);
-    const hasExistingPick = initialHome !== null && initialAway !== null;
-    const [touched, setTouched] = useState<boolean>(hasExistingPick);
+    // Strings so the inputs can be empty without React fighting "" vs null.
+    const [home, setHome] = useState<string>(initialHome?.toString() ?? "");
+    const [away, setAway] = useState<string>(initialAway?.toString() ?? "");
     const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [, startTransition] = useTransition();
-    const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    // Track what's actually persisted so the effect can compare without
-    // depending on `status` (which the save itself mutates → loop bug).
+    // Track what's already persisted so blur doesn't re-fire identical saves.
     const lastSavedRef = useRef<{ h: number | null; a: number | null }>({
         h: initialHome,
         a: initialAway,
     });
 
-    // Save with a small debounce so rapid stepper clicks coalesce.
-    useEffect(() => {
-        if (locked || !touched) {
-            return;
+    const parse = (s: string): number | null => {
+        if (s.trim() === "") {
+            return null;
         }
-        if (home === lastSavedRef.current.h && away === lastSavedRef.current.a) {
-            return;
+        const n = Number(s);
+        if (!Number.isInteger(n) || n < 0 || n > 20) {
+            return null;
         }
+        return n;
+    };
 
-        if (debounceRef.current !== null) {
-            clearTimeout(debounceRef.current);
-        }
-        debounceRef.current = setTimeout(() => {
-            const fd = new FormData();
-            fd.set("matchId", String(matchId));
-            fd.set("homeScore", String(home));
-            fd.set("awayScore", String(away));
-            setStatus("saving");
-            startTransition(async () => {
-                const res = await savePredictionAction(fd);
-                if (res.ok) {
-                    lastSavedRef.current = { h: home, a: away };
-                    setStatus("saved");
-                    setErrorMsg(null);
-                } else {
-                    setStatus("error");
-                    setErrorMsg(res.error ?? "Couldn't save");
-                }
-            });
-        }, 350);
-
-        return () => {
-            if (debounceRef.current !== null) {
-                clearTimeout(debounceRef.current);
-            }
-        };
-    }, [home, away, matchId, locked, touched]);
-
-    const bump = (which: "home" | "away", delta: number) => {
+    const save = (): void => {
         if (locked) {
             return;
         }
-        setTouched(true);
-        if (which === "home") {
-            setHome((v) => Math.max(0, Math.min(20, v + delta)));
-        } else {
-            setAway((v) => Math.max(0, Math.min(20, v + delta)));
+        const h = parse(home);
+        const a = parse(away);
+        if (h === null || a === null) {
+            // Wait until both sides are valid integers before persisting.
+            return;
         }
+        if (h === lastSavedRef.current.h && a === lastSavedRef.current.a) {
+            return;
+        }
+
+        const fd = new FormData();
+        fd.set("matchId", String(matchId));
+        fd.set("homeScore", String(h));
+        fd.set("awayScore", String(a));
+        setStatus("saving");
+        startTransition(async () => {
+            const res = await savePredictionAction(fd);
+            if (res.ok) {
+                lastSavedRef.current = { h, a };
+                setStatus("saved");
+                setErrorMsg(null);
+            } else {
+                setStatus("error");
+                setErrorMsg(res.error ?? "Couldn't save");
+            }
+        });
     };
 
-    const Stepper = ({
+    const ScoreInput = ({
         value,
-        onBump,
+        onChange,
+        ariaLabel,
     }: {
-        value: number;
-        onBump: (delta: number) => void;
+        value: string;
+        onChange: (v: string) => void;
+        ariaLabel: string;
     }) => (
-        <div className="flex items-center gap-1">
-            <button
-                type="button"
-                disabled={locked || value <= 0}
-                onClick={() => onBump(-1)}
-                className="h-8 w-8 rounded border border-ink/30 font-display text-base hover:bg-ink/5 disabled:opacity-30"
-                aria-label="decrease"
-            >
-                −
-            </button>
-            <span className="w-7 text-center font-display text-xl tabular">{value}</span>
-            <button
-                type="button"
-                disabled={locked || value >= 20}
-                onClick={() => onBump(1)}
-                className="h-8 w-8 rounded border border-ink/30 font-display text-base hover:bg-ink/5 disabled:opacity-30"
-                aria-label="increase"
-            >
-                +
-            </button>
-        </div>
+        <input
+            type="number"
+            inputMode="numeric"
+            min={0}
+            max={20}
+            disabled={locked}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            onBlur={save}
+            onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                    (e.currentTarget as HTMLInputElement).blur();
+                }
+            }}
+            aria-label={ariaLabel}
+            className="h-10 w-14 rounded border border-ink/30 bg-paper text-center font-display text-xl tabular focus:border-tournament focus:outline-none disabled:opacity-60"
+        />
     );
 
     return (
@@ -128,9 +113,9 @@ export function ScoreStepper({
             <div className="flex items-center justify-center gap-3">
                 <span className="text-lg">{flag(homeCode)}</span>
                 <span className="min-w-[140px] text-right font-medium">{homeName}</span>
-                <Stepper value={home} onBump={(d) => bump("home", d)} />
+                <ScoreInput value={home} onChange={setHome} ariaLabel={`${homeName} score`} />
                 <span className="font-display text-sm opacity-40">vs</span>
-                <Stepper value={away} onBump={(d) => bump("away", d)} />
+                <ScoreInput value={away} onChange={setAway} ariaLabel={`${awayName} score`} />
                 <span className="min-w-[140px] font-medium">{awayName}</span>
                 <span className="text-lg">{flag(awayCode)}</span>
             </div>
@@ -143,8 +128,8 @@ export function ScoreStepper({
                     <span className="text-pitch">saved ✓</span>
                 ) : status === "error" ? (
                     <span className="text-tournament">{errorMsg}</span>
-                ) : !touched ? (
-                    <span className="opacity-30">tap +/− to predict</span>
+                ) : home.trim() === "" || away.trim() === "" ? (
+                    <span className="opacity-30">enter both scores to save</span>
                 ) : null}
             </div>
         </div>
