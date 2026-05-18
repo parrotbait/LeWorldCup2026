@@ -113,38 +113,31 @@ export default async function PlayerProfilePage({ params }: PageProps) {
         }).get(playerId) ?? 0;
 
     let totalPredPts = 0;
-    let exactCount = 0;
-    const visibleRows: {
+    let predictionsFiled = 0;
+    interface Row {
         m: (typeof allMatches)[number];
         pred: (typeof theirPredictions)[number] | undefined;
         base: number;
         pts: number;
         isJoker: boolean;
-    }[] = [];
-    for (const m of allMatches) {
+        revealed: boolean; // are we allowed to show the actual scoreline?
+    }
+    const rows: Row[] = allMatches.map((m) => {
         const pred = predByMatch.get(m.id);
-        const matchKickedOff = m.kickoff.getTime() <= now;
-        // Visibility gate: own profile sees everything; others only see picks
-        // for matches that have already kicked off.
-        if (!isMe && !matchKickedOff) {
-            continue;
+        if (pred !== undefined) {
+            predictionsFiled += 1;
         }
+        const matchKickedOff = m.kickoff.getTime() <= now;
+        const revealed = isMe || matchKickedOff;
         const base = predictionPoints(m, pred);
         const isJoker = jokerByRound.get(m.round) === m.id;
         const pts = base * (isJoker ? 2 : 1);
-        totalPredPts += pts;
-        if (
-            pred !== undefined &&
-            m.homeScore !== null &&
-            m.awayScore !== null &&
-            pred.homeScore === m.homeScore &&
-            pred.awayScore === m.awayScore
-        ) {
-            exactCount += 1;
+        if (revealed) {
+            totalPredPts += pts;
         }
-        visibleRows.push({ m, pred, base, pts, isJoker });
-    }
-    const settledCount = visibleRows.filter((r) => r.m.homeScore !== null).length;
+        return { m, pred, base, pts, isJoker, revealed };
+    });
+    const settledCount = rows.filter((r) => r.revealed && r.m.homeScore !== null).length;
 
     const showBonuses = isMe || tournamentStarted;
 
@@ -171,7 +164,7 @@ export default async function PlayerProfilePage({ params }: PageProps) {
                     <Stat label="Pred. pts" value={totalPredPts} />
                     <Stat label="Bonus pts" value={theirBonusPoints} />
                     <Stat label="Total" value={totalPredPts + theirBonusPoints} />
-                    <Stat label="Exact" value={exactCount} />
+                    <Stat label="Filed" value={predictionsFiled} />
                     <Stat label="Settled" value={settledCount} />
                 </section>
 
@@ -182,16 +175,12 @@ export default async function PlayerProfilePage({ params }: PageProps) {
                         </h2>
                         {!isMe ? (
                             <span className="font-display text-[10px] uppercase opacity-50">
-                                only matches that have kicked off
+                                scorelines reveal at each match&apos;s kickoff
                             </span>
                         ) : null}
                     </header>
-                    {visibleRows.length === 0 ? (
-                        <p className="mt-3 text-sm opacity-60">
-                            {isMe
-                                ? "You haven't filed any predictions yet."
-                                : "No matches have kicked off yet — picks reveal at each match's kickoff."}
-                        </p>
+                    {rows.length === 0 ? (
+                        <p className="mt-3 text-sm opacity-60">No fixtures loaded yet.</p>
                     ) : (
                         <table className="mt-3 w-full text-sm tabular">
                             <thead className="border-b border-ink/30 text-left font-display text-xs uppercase tracking-wider">
@@ -205,7 +194,7 @@ export default async function PlayerProfilePage({ params }: PageProps) {
                                 </tr>
                             </thead>
                             <tbody>
-                                {visibleRows.map(({ m, pred, base, pts, isJoker }) => (
+                                {rows.map(({ m, pred, base, pts, isJoker, revealed }) => (
                                     <tr key={m.id} className="border-b border-ink/10">
                                         <td className="py-2 pr-2 text-xs opacity-70">
                                             {formatKickoff(m.kickoff)}
@@ -225,17 +214,39 @@ export default async function PlayerProfilePage({ params }: PageProps) {
                                                 : `${m.homeScore} : ${m.awayScore}`}
                                         </td>
                                         <td className="py-2 pr-2 text-right font-display">
-                                            {pred === undefined
-                                                ? "–"
-                                                : `${pred.homeScore} : ${pred.awayScore}`}
+                                            {revealed ? (
+                                                pred === undefined ? (
+                                                    <span className="opacity-30">–</span>
+                                                ) : (
+                                                    `${pred.homeScore} : ${pred.awayScore}`
+                                                )
+                                            ) : pred === undefined ? (
+                                                <span className="opacity-30">–</span>
+                                            ) : (
+                                                <span className="opacity-50" title="Picks reveal at kickoff">
+                                                    ✓ filed
+                                                </span>
+                                            )}
                                         </td>
                                         <td className="py-2 pl-2 text-right font-display">
-                                            {pts}
-                                            {isJoker && base > 0 ? (
-                                                <span className="ml-1 text-[10px] text-mustard">
-                                                    ×2
-                                                </span>
-                                            ) : null}
+                                            {revealed ? (
+                                                pts > 0 ? (
+                                                    <>
+                                                        {pts}
+                                                        {isJoker && base > 0 ? (
+                                                            <span className="ml-1 text-[10px] text-mustard">
+                                                                ×2
+                                                            </span>
+                                                        ) : null}
+                                                    </>
+                                                ) : m.homeScore === null ? (
+                                                    <span className="opacity-30">–</span>
+                                                ) : (
+                                                    "0"
+                                                )
+                                            ) : (
+                                                <span className="opacity-30">–</span>
+                                            )}
                                         </td>
                                     </tr>
                                 ))}
