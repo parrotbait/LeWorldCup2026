@@ -43,6 +43,13 @@
       "when": 1779135038095,
       "tag": "0005_uneven_patriot",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1779135591109,
+      "tag": "0006_useful_songbird",
+      "breakpoints": true
     }
   ]
 }

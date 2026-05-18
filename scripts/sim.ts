@@ -271,11 +271,17 @@ async function setup(args: Record<string, string>): Promise<void> {
     await db.insert(matches).values(matchInserts);
     console.log(`✓ seeded 48 teams (12 groups) and ${matchInserts.length} matches`);
 
-    // Seed players.
+    // Seed players. Synthetic emails so the NOT NULL email column is happy
+    // and you can spot sim accounts at a glance.
     const playerNames = shuffle(rng, FAKE_NAMES).slice(0, playerCount);
     const playerRows = await db
         .insert(players)
-        .values(playerNames.map((n) => ({ displayName: n })))
+        .values(
+            playerNames.map((n) => ({
+                displayName: n,
+                email: `${n.toLowerCase().replace(/[^a-z0-9]+/g, ".")}@sim.local`,
+            })),
+        )
         .returning();
     console.log(`✓ created ${playerRows.length} sim players`);
 

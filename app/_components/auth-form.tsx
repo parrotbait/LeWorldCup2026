@@ -56,7 +56,7 @@ function LogInForm() {
 
     return (
         <form action={formAction} className="flex flex-col gap-4">
-            <Field label="Display name" name="displayName" placeholder="The Pelé Mayor" />
+            <Field label="Email" name="email" type="email" placeholder="you@example.com" />
             <Field label="Password" name="password" type="password" />
             {state?.error !== undefined ? (
                 <p className="text-sm text-tournament">{state.error}</p>
@@ -80,20 +80,14 @@ function SignUpForm() {
     return (
         <form action={formAction} className="flex flex-col gap-4">
             <Field label="Invite code" name="inviteCode" placeholder="goal-2026" />
+            <Field label="Email" name="email" type="email" placeholder="you@example.com" />
             <Field
                 label="Display name"
                 name="displayName"
                 placeholder="The Pelé Mayor"
                 minLength={2}
                 maxLength={24}
-            />
-            <Field
-                label="Email (optional, for password reset)"
-                name="email"
-                type="email"
-                placeholder="you@example.com"
-                required={false}
-                hint="Without an email, only an admin can reset your password."
+                hint="How you'll appear on the leaderboard."
             />
             <Field
                 label="Password"

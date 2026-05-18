@@ -33,12 +33,12 @@ The 2022 game (`LeWorldCup2022.pdf`) is the baseline: predict scorelines for eve
 ## 4. Functional requirements
 
 ### 4.1 Sign-up / login
-- F-1.1 New player enters invite code + chooses a unique display name + sets a password (≥6 chars). Email is optional but recommended (enables self-serve reset). Player record is created with the scrypt-hashed password; session cookie set.
-- F-1.2 Returning player enters display name + password. Invite code is **not** required for log-in — it's a sign-up gate only.
+- F-1.1 New player enters invite code + email + a unique display name + password (≥6 chars). Player record is created with the scrypt-hashed password; session cookie set.
+- F-1.2 Returning player logs in with **email + password**. Display name is the public-facing label only — it is no longer an authentication factor.
 - F-1.3 Admin logs in via separate password (single-tenant; only one admin = the owner).
 - F-1.4 New sign-ups are blocked once tournament has kicked off.
 - F-1.5 Owner can rotate the invite code at any time. Existing players keep their passwords.
-- F-1.6 **Password reset:** if the player set an email and `RESEND_API_KEY` is configured, `/forgot` mails a single-use 60-minute reset link backed by a SHA-256-hashed token. If reset isn't configured (or the player never gave an email), only an admin can clear `password_hash` (or the row) so they can sign up again.
+- F-1.6 **Password reset:** if `RESEND_API_KEY` is configured, `/forgot` mails a single-use 60-minute reset link backed by a SHA-256-hashed token. Without Resend, only an admin can clear `password_hash` (or the row) so they can sign up again.
 
 ### 4.2 Predictions
 - F-2.1 Every player can enter a predicted scoreline for every match in the tournament.

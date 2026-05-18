@@ -39,15 +39,16 @@ export const players = pgTable(
     "players",
     {
         id: serial("id").primaryKey(),
+        // Public-facing label on the leaderboard. Also unique so two friends
+        // can't share the same name, but no longer used for login.
         displayName: text("display_name").notNull(),
+        // Login key. Lower-cased on insert. Required since the email-based
+        // login switch — historic rows from before this column existed should
+        // be backfilled or cleared by admin.
+        email: text("email").notNull(),
         // scrypt hash (see lib/password.ts). Null only for legacy rows from the
         // pre-password auth flow — those can't log in until admin resets.
         passwordHash: text("password_hash"),
-        // Optional. Required only to use the "forgot password" flow. Stored
-        // case-insensitively (we lower-case before insert + lookup).
-        email: text("email"),
-        // Used to identify a returning player without an email.
-        // Stored hashed; the cookie carries the player id, not this token.
         joinedAt: timestamp("joined_at", { withTimezone: true }).defaultNow().notNull(),
         isAdmin: boolean("is_admin").default(false).notNull(),
     },

@@ -26,20 +26,14 @@ const signUpSchema = z.object({
         .trim()
         .min(2, "At least 2 characters")
         .max(24, "At most 24 characters"),
+    email: z.string().trim().toLowerCase().email("Invalid email"),
     password: z
         .string()
         .min(PASSWORD_MIN, `Password must be at least ${PASSWORD_MIN} characters`),
-    email: z
-        .string()
-        .trim()
-        .toLowerCase()
-        .email("Invalid email")
-        .optional()
-        .or(z.literal("").transform(() => undefined)),
 });
 
 const logInSchema = z.object({
-    displayName: z.string().trim().min(1),
+    email: z.string().trim().toLowerCase().email("Invalid email"),
     password: z.string().min(1),
 });
 
@@ -55,41 +49,39 @@ export async function signUpAction(
     const parsed = signUpSchema.safeParse({
         inviteCode: formData.get("inviteCode"),
         displayName: formData.get("displayName"),
-        password: formData.get("password"),
         email: formData.get("email"),
+        password: formData.get("password"),
     });
     if (!parsed.success) {
         return { error: parsed.error.errors[0]?.message ?? "Invalid input" };
     }
-    const { inviteCode, displayName, password, email } = parsed.data;
+    const { inviteCode, displayName, email, password } = parsed.data;
 
     if (inviteCode !== env.INVITE_CODE) {
         return { error: "Invite code is wrong. Ask the admin." };
     }
 
-    const existing = await db
+    const nameTaken = await db
         .select()
         .from(players)
         .where(eq(players.displayName, displayName))
         .limit(1);
-    if (existing.length > 0) {
-        return { error: "That name is already taken. Pick another, or log in if it's yours." };
+    if (nameTaken.length > 0) {
+        return { error: "That name is already taken. Pick another." };
     }
-    if (email !== undefined) {
-        const emailTaken = await db
-            .select()
-            .from(players)
-            .where(eq(players.email, email))
-            .limit(1);
-        if (emailTaken.length > 0) {
-            return { error: "That email is already in use." };
-        }
+    const emailTaken = await db
+        .select()
+        .from(players)
+        .where(eq(players.email, email))
+        .limit(1);
+    if (emailTaken.length > 0) {
+        return { error: "That email is already in use. Try logging in." };
     }
 
     const passwordHash = await hashPassword(password);
     const inserted = await db
         .insert(players)
-        .values({ displayName, passwordHash, email: email ?? null })
+        .values({ displayName, email, passwordHash })
         .returning();
     const player = inserted[0]!;
 
@@ -102,23 +94,23 @@ export async function logInAction(
     formData: FormData,
 ): Promise<ActionResult> {
     const parsed = logInSchema.safeParse({
-        displayName: formData.get("displayName"),
+        email: formData.get("email"),
         password: formData.get("password"),
     });
     if (!parsed.success) {
-        return { error: "Enter your name and password" };
+        return { error: "Enter your email and password" };
     }
-    const { displayName, password } = parsed.data;
+    const { email, password } = parsed.data;
 
     const found = await db
         .select()
         .from(players)
-        .where(eq(players.displayName, displayName))
+        .where(eq(players.email, email))
         .limit(1);
     const player = found[0];
     // Generic error for both "no such player" and "wrong password" — don't
     // leak which one it was.
-    const generic = { error: "Name or password is wrong." };
+    const generic = { error: "Email or password is wrong." };
     if (player === undefined || player.passwordHash === null) {
         return generic;
     }
