@@ -7,7 +7,7 @@ import { requireSession } from "@/lib/auth";
 import { formatDayLong, formatTime } from "@/lib/utils";
 import { ScoreStepper } from "./_components/score-stepper";
 
-export const revalidate = 30;
+export const revalidate = 0;
 
 const ROUND_LABEL: Record<string, string> = {
     GROUP: "Groups",
@@ -48,6 +48,7 @@ export default async function PredictionsPage() {
             kickoff: matches.kickoff,
             round: matches.round,
             groupLetter: matches.groupLetter,
+            status: matches.status,
             homeCode: home.code,
             homeName: home.name,
             awayCode: away.code,
@@ -114,7 +115,12 @@ export default async function PredictionsPage() {
                                     <ul className="mt-3 divide-y divide-ink/15">
                                         {day.map((m) => {
                                             const pred = predByMatch.get(m.id);
-                                            const locked = m.kickoff.getTime() <= now;
+                                            // Locked once the match has started by either signal:
+                                            // its kickoff has passed, OR the status has moved on
+                                            // (cron may flip to LIVE early, or admin overrode).
+                                            const locked =
+                                                m.kickoff.getTime() <= now ||
+                                                m.status !== "SCHEDULED";
                                             return (
                                                 <li
                                                     key={m.id}
