@@ -80,37 +80,20 @@ export function ScoreStepper({
         });
     };
 
-    const ScoreInput = ({
-        value,
-        onChange,
-        ariaLabel,
-    }: {
-        value: string;
-        onChange: (v: string) => void;
-        ariaLabel: string;
-    }) => (
-        <input
-            type="text"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            maxLength={2}
-            disabled={locked}
-            value={value}
-            onChange={(e) => {
-                // Strip anything that isn't a digit so we never need to format
-                // input on save.
-                onChange(e.target.value.replace(/\D/g, ""));
-            }}
-            onBlur={save}
-            onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                    (e.currentTarget as HTMLInputElement).blur();
-                }
-            }}
-            aria-label={ariaLabel}
-            className="h-10 w-14 rounded border border-ink/30 bg-paper text-center font-display text-xl tabular focus:border-tournament focus:outline-none disabled:opacity-60"
-        />
-    );
+    const inputClass =
+        "h-10 w-14 rounded border border-ink/30 bg-paper text-center font-display text-xl tabular focus:border-tournament focus:outline-none disabled:opacity-60";
+
+    const handleChange =
+        (setter: (v: string) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
+            // Strip anything that isn't a digit so we never need to format on save.
+            setter(e.target.value.replace(/\D/g, ""));
+        };
+
+    const handleEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === "Enter") {
+            e.currentTarget.blur();
+        }
+    };
 
     const parsedHome = parse(home);
     const parsedAway = parse(away);
@@ -125,9 +108,33 @@ export function ScoreStepper({
             <div className="flex items-center justify-center gap-3">
                 <span className="text-lg">{flag(homeCode)}</span>
                 <span className="min-w-[140px] text-right font-medium">{homeName}</span>
-                <ScoreInput value={home} onChange={setHome} ariaLabel={`${homeName} score`} />
+                <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={2}
+                    disabled={locked}
+                    value={home}
+                    onChange={handleChange(setHome)}
+                    onBlur={save}
+                    onKeyDown={handleEnter}
+                    aria-label={`${homeName} score`}
+                    className={inputClass}
+                />
                 <span className="font-display text-sm opacity-40">vs</span>
-                <ScoreInput value={away} onChange={setAway} ariaLabel={`${awayName} score`} />
+                <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={2}
+                    disabled={locked}
+                    value={away}
+                    onChange={handleChange(setAway)}
+                    onBlur={save}
+                    onKeyDown={handleEnter}
+                    aria-label={`${awayName} score`}
+                    className={inputClass}
+                />
                 <span className="min-w-[140px] font-medium">{awayName}</span>
                 <span className="text-lg">{flag(awayCode)}</span>
             </div>
