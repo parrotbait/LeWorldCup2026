@@ -42,9 +42,17 @@ For step-by-step exploration:
 | `pnpm sim reset` | Wipe all sim data (teams, matches, players, predictions, bonuses, jokers, audit log). |
 | `pnpm sim setup --seed=N --players=12` | Seed teams, groups, fixtures, players, picks. |
 | `pnpm sim play --up-to=GROUP\|R32\|R16\|QF\|SF\|FINAL` | Settle through the named round (defaults to FINAL). Re-runnable — picks up where it left off. |
+| `pnpm sim play-next [--seed=N]` | Settle just the next-by-kickoff scheduled match with both teams set. Auto-advances the bracket if that match was the last in its round. |
+| `pnpm sim play-match --id=N [--home=X --away=Y] [--seed=N]` | Settle a specific match. With `--home`/`--away` you choose the score (handy for testing exact-pick scoring). Without, scores are random. Auto-advances the bracket if applicable. |
 | `pnpm sim resolve` | Set bonus resolutions from actual outcomes. Run this once the tournament has finished. |
 | `pnpm sim leaderboard` | Print the current standings to stdout. |
 | `pnpm sim run --seed=N --players=12` | Reset + setup + play + resolve + leaderboard, in one go. |
+
+Need a match id for `play-match`? Look in `/admin/matches`, or:
+
+```sh
+psql -d leworldcup -c "select id, round, home_team_id, away_team_id, status from matches where status='SCHEDULED' order by kickoff limit 10"
+```
 
 ## Common workflows
 

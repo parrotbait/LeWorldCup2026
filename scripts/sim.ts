@@ -16,7 +16,7 @@
  */
 
 import "./_load-env";
-import { eq, sql } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 import { db } from "../db/client";
 import {
     auditLog,
@@ -390,37 +390,91 @@ async function play(args: Record<string, string>): Promise<void> {
     }
 }
 
+/**
+ * Settle a single match in place. Returns the resulting score so callers can
+ * print a one-line summary. Throws if the match is already finished or has
+ * unresolved teams.
+ */
+async function settleOne(
+    matchId: number,
+    opts: { home?: number; away?: number; rng: () => number },
+): Promise<{ round: Round; home: number; away: number; homeName: string; awayName: string }> {
+    const m = (await db.select().from(matches).where(eq(matches.id, matchId)).limit(1))[0];
+    if (m === undefined) {
+        throw new Error(`match ${matchId} not found`);
+    }
+    if (m.status === "FINISHED") {
+        throw new Error(`match ${matchId} is already finished`);
+    }
+    if (m.homeTeamId === null || m.awayTeamId === null) {
+        throw new Error(`match ${matchId} has unresolved teams (still TBD)`);
+    }
+    let h = opts.home ?? weightedGoal(opts.rng);
+    let a = opts.away ?? weightedGoal(opts.rng);
+    // Knockouts can't draw — if the user explicitly chose a draw we let it
+    // through (they're testing something), otherwise nudge.
+    if (m.round !== "GROUP" && h === a && opts.home === undefined && opts.away === undefined) {
+        if (opts.rng() < 0.5) h += 1;
+        else a += 1;
+    }
+    const winnerTeamId = h > a ? m.homeTeamId : a > h ? m.awayTeamId : null;
+    await db
+        .update(matches)
+        .set({
+            homeScore: h,
+            awayScore: a,
+            status: "FINISHED",
+            winnerTeamId: m.round === "GROUP" ? null : winnerTeamId,
+        })
+        .where(eq(matches.id, m.id));
+
+    const teamRows = await db.select().from(teams);
+    const teamById = new Map(teamRows.map((t) => [t.id, t]));
+    return {
+        round: m.round,
+        home: h,
+        away: a,
+        homeName: teamById.get(m.homeTeamId)?.name ?? "?",
+        awayName: teamById.get(m.awayTeamId)?.name ?? "?",
+    };
+}
+
+/**
+ * If every match in `round` is finished, advance the bracket.
+ * (After GROUP → fill R32 from standings; after each KO → fill the next round.)
+ */
+async function advanceIfRoundComplete(round: Round, rng: () => number): Promise<boolean> {
+    const all = await db.select().from(matches).where(eq(matches.round, round));
+    const settleable = all.filter((m) => m.homeTeamId !== null && m.awayTeamId !== null);
+    if (settleable.length === 0) {
+        return false;
+    }
+    const allFinished = settleable.every((m) => m.status === "FINISHED");
+    if (!allFinished) {
+        return false;
+    }
+    if (round === "GROUP") {
+        await fillR32(rng);
+        return true;
+    }
+    if (round === "R32" || round === "R16" || round === "QF" || round === "SF") {
+        await advanceBracket(round);
+        return true;
+    }
+    return false;
+}
+
 async function settleRound(round: Round, rng: () => number): Promise<void> {
-    const open = await db
-        .select()
-        .from(matches)
-        .where(eq(matches.round, round));
+    const open = await db.select().from(matches).where(eq(matches.round, round));
     let settled = 0;
     for (const m of open) {
         if (m.status === "FINISHED") {
             continue;
         }
         if (m.homeTeamId === null || m.awayTeamId === null) {
-            // Bracket isn't filled yet — stop.
             continue;
         }
-        let h = weightedGoal(rng);
-        let a = weightedGoal(rng);
-        // Knockouts can't draw: nudge to a winner if tied.
-        if (round !== "GROUP" && h === a) {
-            if (rng() < 0.5) h += 1;
-            else a += 1;
-        }
-        const winnerTeamId = h > a ? m.homeTeamId : m.awayTeamId;
-        await db
-            .update(matches)
-            .set({
-                homeScore: h,
-                awayScore: a,
-                status: "FINISHED",
-                winnerTeamId: round === "GROUP" ? null : winnerTeamId,
-            })
-            .where(eq(matches.id, m.id));
+        await settleOne(m.id, { rng });
         settled += 1;
     }
     if (settled > 0) {
@@ -764,6 +818,62 @@ async function run(args: Record<string, string>): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// One-match-at-a-time playback
+// ---------------------------------------------------------------------------
+
+async function playNext(args: Record<string, string>): Promise<void> {
+    const seed = Number(args.seed ?? "1");
+    const rng = rngFromSeed(seed + Date.now());
+    const next = (
+        await db
+            .select()
+            .from(matches)
+            .where(eq(matches.status, "SCHEDULED"))
+            .orderBy(asc(matches.kickoff))
+    ).find((m) => m.homeTeamId !== null && m.awayTeamId !== null);
+    if (next === undefined) {
+        console.log(
+            "No scheduled match has both teams set. Check the bracket — you may need `pnpm sim play --up-to=...` to fill placeholders.",
+        );
+        return;
+    }
+    const out = await settleOne(next.id, { rng });
+    console.log(
+        `✓ ${out.round}: ${out.homeName} ${out.home}–${out.away} ${out.awayName} (match #${next.id})`,
+    );
+    if (await advanceIfRoundComplete(next.round, rng)) {
+        console.log(`✓ ${next.round} complete — bracket advanced`);
+    }
+}
+
+async function playMatch(args: Record<string, string>): Promise<void> {
+    const id = Number(args.id);
+    if (!Number.isFinite(id)) {
+        throw new Error("--id=<matchId> required (look it up via psql or /admin/matches)");
+    }
+    const home = args.home !== undefined ? Number(args.home) : undefined;
+    const away = args.away !== undefined ? Number(args.away) : undefined;
+    if (home !== undefined && (!Number.isInteger(home) || home < 0 || home > 20)) {
+        throw new Error("--home must be an integer 0-20");
+    }
+    if (away !== undefined && (!Number.isInteger(away) || away < 0 || away > 20)) {
+        throw new Error("--away must be an integer 0-20");
+    }
+    const seed = Number(args.seed ?? "1");
+    const rng = rngFromSeed(seed + id);
+    const out = await settleOne(id, { home, away, rng });
+    console.log(
+        `✓ ${out.round}: ${out.homeName} ${out.home}–${out.away} ${out.awayName} (match #${id})`,
+    );
+    const matchRow = (await db.select().from(matches).where(eq(matches.id, id)).limit(1))[0];
+    if (matchRow !== undefined) {
+        if (await advanceIfRoundComplete(matchRow.round, rng)) {
+            console.log(`✓ ${matchRow.round} complete — bracket advanced`);
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
 
@@ -780,6 +890,12 @@ async function main(): Promise<void> {
         case "play":
             await play(args);
             break;
+        case "play-next":
+            await playNext(args);
+            break;
+        case "play-match":
+            await playMatch(args);
+            break;
         case "resolve":
             await resolve();
             break;
@@ -791,7 +907,7 @@ async function main(): Promise<void> {
             break;
         default:
             console.log(
-                "Usage: pnpm sim <reset|setup|play|resolve|leaderboard|run> [--seed=N] [--players=12] [--up-to=GROUP|R32|R16|QF|SF|FINAL]",
+                "Usage: pnpm sim <reset|setup|play|play-next|play-match|resolve|leaderboard|run> [--seed=N] [--players=12] [--up-to=GROUP|R32|R16|QF|SF|FINAL] [--id=<matchId>] [--home=N] [--away=N]",
             );
             process.exit(1);
     }
