@@ -10,7 +10,7 @@ interface MatchOpt {
 }
 
 interface Props {
-    round: "R32" | "R16" | "QF" | "SF" | "THIRD" | "FINAL";
+    round: "R32" | "R16" | "QF";
     roundLabel: string;
     matches: MatchOpt[];
     selectedMatchId: number | null;

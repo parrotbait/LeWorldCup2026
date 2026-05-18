@@ -35,7 +35,6 @@ export default async function RulesPage() {
                     <ul className="mt-2 list-disc space-y-1 pl-6">
                         <li><strong>Tournament winner</strong> — 25 pts</li>
                         <li><strong>Top scorer (Golden Boot)</strong> — 10 pts (shared boot? everyone who picked any joint winner gets 10)</li>
-                        <li><strong>Group winners</strong> — 3 pts each, 12 groups, max 36</li>
                         <li><strong>Dark horse</strong> (any team not in Pot 1) — 2 / 6 / 12 / 22 / 37 / 57 cumulative as they survive each round</li>
                         <li><strong>Wooden spoon</strong> (worst team in worst group) — 5 pts</li>
                         <li><strong>First goal scorer</strong> of the tournament — 5 pts (own goals don&apos;t count)</li>
@@ -51,13 +50,6 @@ export default async function RulesPage() {
                         <li><strong>The Sieve</strong> — most goals conceded. 5 pts</li>
                         <li><strong>How the mighty have fallen</strong> — a Pot-1 team that crashes out in the group stage. 8 pts</li>
                     </ul>
-                </section>
-
-                <section className="mt-8">
-                    <h2 className="font-display text-base uppercase tracking-wider">Joker</h2>
-                    <p className="mt-2">
-                        Once per knockout round (R32, R16, QF, SF, 3rd-place, Final), pick one match where your prediction points <strong>double</strong>. Locks at that round&apos;s first kickoff. Forget to pick? No joker that round.
-                    </p>
                 </section>
 
                 <section className="mt-8">

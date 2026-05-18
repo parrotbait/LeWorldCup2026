@@ -14,8 +14,7 @@ Where rules carry forward from our **2022 game** (`LeWorldCup2022.pdf`), they ar
 | Group-stage match — exact scoreline | **4** | Includes the 2; not additive. `[2022 carry-forward]` |
 | Knockout match — correct result | **3** | Result = winner after 90/ET/pens. `[2022 carry-forward]` |
 | Knockout match — exact scoreline | **6** | Scoreline at end of 90 (or end of ET if drawn at 90). Not additive. `[2022 carry-forward]` |
-| Joker — doubles one knockout match per round | **×2** | Applies to whatever match score above resolves to. `[2026 new]` |
-| Group winner (per group, 12 groups) | **3 each** | Max 36 pts. `[2022 carry-forward, scaled]` |
+| Joker — doubles one knockout match per round (R32 / R16 / QF only) | **×2** | **Hidden in the v1 UI** — re-introduce later. Applies to whatever match score above resolves to. `[2026 new, deferred]` |
 | Wooden spoon (worst-placed team in worst group) | **5** | `[2022 carry-forward]` |
 | First goal scorer of the tournament | **5** | `[2022 carry-forward]` |
 | Top scorer / Golden Boot | **10** | `[2022 carry-forward]` |

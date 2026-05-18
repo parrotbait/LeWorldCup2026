@@ -334,23 +334,14 @@ async function setup(args: Record<string, string>): Promise<void> {
             kind: "FIRST_GOAL_SCORER",
             playerName: pick(rng, FAKE_GOALSCORERS),
         });
-        for (const g of GROUPS) {
-            const gTeams = teamList.filter((t) => t.groupLetter === g);
-            bonusInserts.push({
-                playerId: player.id,
-                kind: "GROUP_WINNER",
-                groupLetter: g,
-                teamId: pick(rng, gTeams).id,
-            });
-        }
     }
     await db.insert(bonusPicks).values(bonusInserts);
     console.log(`✓ ${bonusInserts.length} random bonus picks filed`);
 
-    // Random joker per knockout round (one match per round).
+    // Random joker per knockout round (one match per round, R32/R16/QF only).
     const jokerInserts: typeof jokers.$inferInsert[] = [];
     for (const player of playerRows) {
-        for (const round of ["R32", "R16", "QF", "SF", "THIRD", "FINAL"] as const) {
+        for (const round of ["R32", "R16", "QF"] as const) {
             const candidates = allMatches.filter((m) => m.round === round);
             const m = pick(rng, candidates);
             jokerInserts.push({ playerId: player.id, round, matchId: m.id });
@@ -612,12 +603,6 @@ async function resolve(): Promise<void> {
         .filter((t) => t.pot === 1 && !advancingIds.has(t.id))
         .map((t) => t.id);
 
-    // Group winners: top of each group.
-    const groupWinnerByLetter = new Map<string, number[]>();
-    for (const [g, arr] of standings) {
-        if (arr[0] !== undefined) groupWinnerByLetter.set(g, [arr[0].teamId]);
-    }
-
     // We have no real cards data — pick the most-fouled-looking team randomly from
     // the highest-scoring matches as a stand-in. Better than nothing for sim.
     const cardsCount = new Map<number, number>();
@@ -642,9 +627,6 @@ async function resolve(): Promise<void> {
         { kind: "SIEVE", groupLetter: "", teamIds: sieve, playerNames: [] },
         { kind: "MIGHTY_FALLEN", groupLetter: "", teamIds: mightyFallen, playerNames: [] },
     ];
-    for (const [g, ids] of groupWinnerByLetter) {
-        upserts.push({ kind: "GROUP_WINNER", groupLetter: g, teamIds: ids, playerNames: [] });
-    }
 
     for (const u of upserts) {
         await db
@@ -760,7 +742,6 @@ function theoreticalCeiling(): number {
     const bonusMax =
         BONUS_POINTS.WINNER +
         BONUS_POINTS.TOP_SCORER +
-        12 * BONUS_POINTS.GROUP_WINNER +
         BONUS_POINTS.WOODEN_SPOON +
         BONUS_POINTS.FIRST_GOAL_SCORER +
         BONUS_POINTS.PANTOMIME_VILLAIN +

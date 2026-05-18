@@ -13,7 +13,6 @@ interface TeamOption {
 interface Props {
     kind:
         | "WINNER"
-        | "GROUP_WINNER"
         | "DARK_HORSE"
         | "WOODEN_SPOON"
         | "PANTOMIME_VILLAIN"
@@ -24,7 +23,6 @@ interface Props {
     points: string;
     options: TeamOption[];
     selectedTeamId: number | null;
-    groupLetter?: string;
     locked: boolean;
 }
 
@@ -35,7 +33,6 @@ export function TeamBonusPicker({
     points,
     options,
     selectedTeamId,
-    groupLetter,
     locked,
 }: Props) {
     const [value, setValue] = useState<number | "">(selectedTeamId ?? "");
@@ -52,9 +49,6 @@ export function TeamBonusPicker({
         const fd = new FormData();
         fd.set("kind", kind);
         fd.set("teamId", String(v));
-        if (groupLetter !== undefined) {
-            fd.set("groupLetter", groupLetter);
-        }
         setStatus("saving");
         startTransition(async () => {
             const res: SaveResult = await saveBonusAction(fd);

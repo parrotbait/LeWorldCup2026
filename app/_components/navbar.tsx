@@ -14,7 +14,6 @@ export async function NavBar() {
                     <Link href="/leaderboard" className="hover:text-tournament">leaderboard</Link>
                     <Link href="/predictions" className="hover:text-tournament">predictions</Link>
                     <Link href="/bonuses" className="hover:text-tournament">bonuses</Link>
-                    <Link href="/joker" className="hover:text-tournament">joker</Link>
                     <Link href="/matches" className="hover:text-tournament">matches</Link>
                     <Link href="/me" className="hover:text-tournament">me</Link>
                     <Link href="/rules" className="hover:text-tournament">rules</Link>

@@ -13,7 +13,6 @@ interface TeamOpt {
 interface Props {
     kind:
         | "WINNER"
-        | "GROUP_WINNER"
         | "DARK_HORSE"
         | "WOODEN_SPOON"
         | "PANTOMIME_VILLAIN"
@@ -24,7 +23,6 @@ interface Props {
     points: string;
     options: TeamOpt[];
     selectedTeamIds: number[];
-    groupLetter?: string;
 }
 
 export function TeamResolutionEditor({
@@ -34,7 +32,6 @@ export function TeamResolutionEditor({
     points,
     options,
     selectedTeamIds,
-    groupLetter,
 }: Props) {
     const [selected, setSelected] = useState<Set<number>>(new Set(selectedTeamIds));
     const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -53,9 +50,6 @@ export function TeamResolutionEditor({
     const save = () => {
         const fd = new FormData();
         fd.set("kind", kind);
-        if (groupLetter !== undefined) {
-            fd.set("groupLetter", groupLetter);
-        }
         fd.set("teamIds", Array.from(selected).join(","));
         setStatus("saving");
         startTransition(async () => {

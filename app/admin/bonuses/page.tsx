@@ -8,8 +8,6 @@ import { PlayerNameResolutionEditor } from "./_player-name-resolution-editor";
 
 export const revalidate = 0;
 
-const GROUPS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
-
 export default async function AdminBonusesPage() {
     await requireAdmin();
     const [allTeams, allResolutions] = await Promise.all([
@@ -24,8 +22,8 @@ export default async function AdminBonusesPage() {
         groupLetter: t.groupLetter,
     }));
 
-    const find = (kind: string, group = "") =>
-        allResolutions.find((r) => r.kind === kind && r.groupLetter === group);
+    const find = (kind: string) =>
+        allResolutions.find((r) => r.kind === kind && r.groupLetter === "");
 
     return (
         <main className="mx-auto max-w-5xl px-6 py-8">
@@ -100,38 +98,6 @@ export default async function AdminBonusesPage() {
                     options={teamOpts}
                     selectedTeamIds={find("MIGHTY_FALLEN")?.teamIds ?? []}
                 />
-            </section>
-
-            <section className="mt-10">
-                <h2 className="font-display text-sm uppercase tracking-wider">Group winners</h2>
-                <p className="mt-1 text-xs opacity-60">3 pts each. Tied? Tick multiple.</p>
-                <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    {GROUPS.map((g) => {
-                        const groupTeams = teamOpts.filter((t) => t.groupLetter === g);
-                        if (groupTeams.length === 0) {
-                            return (
-                                <div
-                                    key={g}
-                                    className="rounded border border-dashed border-ink/20 p-3 text-xs opacity-50"
-                                >
-                                    Group {g} — teams not yet loaded
-                                </div>
-                            );
-                        }
-                        return (
-                            <TeamResolutionEditor
-                                key={g}
-                                kind="GROUP_WINNER"
-                                label={`Group ${g}`}
-                                points="3 pts"
-                                description=""
-                                options={groupTeams}
-                                groupLetter={g}
-                                selectedTeamIds={find("GROUP_WINNER", g)?.teamIds ?? []}
-                            />
-                        );
-                    })}
-                </div>
             </section>
         </main>
     );

@@ -76,7 +76,6 @@ export async function savePredictionAction(formData: FormData): Promise<SaveResu
 const bonusKindSchema = z.enum([
     "WINNER",
     "TOP_SCORER",
-    "GROUP_WINNER",
     "DARK_HORSE",
     "WOODEN_SPOON",
     "FIRST_GOAL_SCORER",
@@ -87,7 +86,6 @@ const bonusKindSchema = z.enum([
 
 const saveBonusSchema = z.object({
     kind: bonusKindSchema,
-    groupLetter: z.string().trim().max(2).optional().nullable(),
     teamId: z.coerce.number().int().positive().optional().nullable(),
     playerName: z.string().trim().max(80).optional().nullable(),
 });
@@ -104,7 +102,6 @@ export async function saveBonusAction(formData: FormData): Promise<SaveResult> {
     const session = await requireSession();
     const parsed = saveBonusSchema.safeParse({
         kind: formData.get("kind"),
-        groupLetter: formData.get("groupLetter"),
         teamId: formData.get("teamId"),
         playerName: formData.get("playerName"),
     });
@@ -114,18 +111,12 @@ export async function saveBonusAction(formData: FormData): Promise<SaveResult> {
     if (await tournamentLocked()) {
         return { ok: false, error: "Bonuses are locked — tournament has kicked off" };
     }
-    const { kind, groupLetter, teamId, playerName } = parsed.data;
+    const { kind, teamId, playerName } = parsed.data;
 
-    // Group winner picks must carry a group letter; team-based picks need teamId;
-    // player-name picks need a name. The schema permits nulls so we validate here.
-    if (kind === "GROUP_WINNER" && (groupLetter === null || groupLetter === undefined || groupLetter === "")) {
-        return { ok: false, error: "Group letter required" };
-    }
     if (
         (kind === "WINNER" ||
             kind === "DARK_HORSE" ||
             kind === "WOODEN_SPOON" ||
-            kind === "GROUP_WINNER" ||
             kind === "PANTOMIME_VILLAIN" ||
             kind === "SIEVE" ||
             kind === "MIGHTY_FALLEN") &&
@@ -140,14 +131,12 @@ export async function saveBonusAction(formData: FormData): Promise<SaveResult> {
         return { ok: false, error: "Player name required" };
     }
 
-    const groupKey = kind === "GROUP_WINNER" ? (groupLetter ?? "") : "";
-
     await db
         .insert(bonusPicks)
         .values({
             playerId: session.playerId,
             kind,
-            groupLetter: groupKey,
+            groupLetter: "",
             teamId: teamId ?? null,
             playerName: playerName ?? null,
         })
@@ -169,7 +158,8 @@ export async function saveBonusAction(formData: FormData): Promise<SaveResult> {
 // Joker (one match per knockout round, doubles prediction points)
 // ---------------------------------------------------------------------------
 
-const roundSchema = z.enum(["R32", "R16", "QF", "SF", "THIRD", "FINAL"]);
+// Joker is only offered up to QF — see /joker page for rationale.
+const roundSchema = z.enum(["R32", "R16", "QF"]);
 
 const saveJokerSchema = z.object({
     round: roundSchema,

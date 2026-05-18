@@ -9,13 +9,12 @@ import { formatKickoff } from "@/lib/utils";
 
 export const revalidate = 30;
 
-const ROUNDS: { code: "R32" | "R16" | "QF" | "SF" | "THIRD" | "FINAL"; label: string }[] = [
+// Joker is only offered up to the quarter-finals — semis / 3rd place / final
+// have too few matches for a meaningful ×2 pick.
+const ROUNDS: { code: "R32" | "R16" | "QF"; label: string }[] = [
     { code: "R32", label: "Round of 32" },
     { code: "R16", label: "Round of 16" },
     { code: "QF", label: "Quarter-finals" },
-    { code: "SF", label: "Semi-finals" },
-    { code: "THIRD", label: "Third place" },
-    { code: "FINAL", label: "Final" },
 ];
 
 export default async function JokerPage() {

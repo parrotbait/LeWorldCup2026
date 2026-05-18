@@ -9,8 +9,6 @@ import { formatKickoff } from "@/lib/utils";
 
 export const revalidate = 30;
 
-const GROUPS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
-
 export default async function BonusesPage() {
     const session = await requireSession();
 
@@ -33,8 +31,7 @@ export default async function BonusesPage() {
     // Dark horse — only teams not in Pot 1 (or, when pot data isn't available, all teams).
     const darkHorseOpts = teamOpts.filter((t) => t.groupLetter !== null);
 
-    const findBonus = (kind: string, group: string = "") =>
-        myBonuses.find((b) => b.kind === kind && (b.groupLetter ?? "") === group);
+    const findBonus = (kind: string) => myBonuses.find((b) => b.kind === kind);
 
     return (
         <>
@@ -135,44 +132,6 @@ export default async function BonusesPage() {
                             selectedTeamId={findBonus("MIGHTY_FALLEN")?.teamId ?? null}
                             locked={locked}
                         />
-                    </div>
-                </section>
-
-                <section className="mt-10">
-                    <header className="flex items-baseline justify-between">
-                        <h2 className="font-display text-sm uppercase tracking-wider">Group winners</h2>
-                        <span className="font-display text-xs text-tournament">3 pts each · max 36</span>
-                    </header>
-                    <p className="mt-1 text-xs opacity-60">Pick the team you think tops each group.</p>
-                    <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                        {GROUPS.map((g) => {
-                            const groupTeams = teamOpts.filter((t) => t.groupLetter === g);
-                            const sel = findBonus("GROUP_WINNER", g);
-                            // If group hasn't been populated yet, show a disabled placeholder.
-                            if (groupTeams.length === 0) {
-                                return (
-                                    <div
-                                        key={g}
-                                        className="rounded border border-dashed border-ink/20 p-3 text-xs opacity-50"
-                                    >
-                                        Group {g} — teams not yet known
-                                    </div>
-                                );
-                            }
-                            return (
-                                <TeamBonusPicker
-                                    key={g}
-                                    kind="GROUP_WINNER"
-                                    label={`Group ${g}`}
-                                    points="3 pts"
-                                    description=""
-                                    options={groupTeams}
-                                    groupLetter={g}
-                                    selectedTeamId={sel?.teamId ?? null}
-                                    locked={locked}
-                                />
-                            );
-                        })}
                     </div>
                 </section>
             </main>
