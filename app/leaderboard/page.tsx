@@ -80,21 +80,23 @@ export default async function LeaderboardPage() {
                         <tr>
                             <th className="py-2 pr-2">#</th>
                             <th className="py-2 pr-2">Player</th>
-                            <th className="py-2 pr-2 text-right">Pts</th>
-                            <th className="py-2 pr-2 text-right">Exact</th>
+                            <th className="py-2 pr-2 text-right">Pred</th>
                             <th className="py-2 pr-2 text-right">Bonus</th>
+                            <th className="py-2 pr-2 text-right">Total</th>
+                            <th className="py-2 pr-2 text-right">Exact</th>
                         </tr>
                     </thead>
                     <tbody>
                         {rows.length === 0 ? (
                             <tr>
-                                <td colSpan={5} className="py-8 text-center opacity-60">
+                                <td colSpan={6} className="py-8 text-center opacity-60">
                                     No players yet. Share the invite code.
                                 </td>
                             </tr>
                         ) : (
                             rows.map((r, i) => {
                                 const me = r.playerId === session.playerId;
+                                const predPoints = r.points - r.bonusPoints;
                                 return (
                                     <tr
                                         key={r.playerId}
@@ -106,9 +108,12 @@ export default async function LeaderboardPage() {
                                             {r.displayName}
                                             {me ? <span className="ml-2 text-xs opacity-50">(you)</span> : null}
                                         </td>
-                                        <td className="py-2 pr-2 text-right font-display">{r.points}</td>
-                                        <td className="py-2 pr-2 text-right opacity-70">{r.exactCount}</td>
+                                        <td className="py-2 pr-2 text-right opacity-70">{predPoints}</td>
                                         <td className="py-2 pr-2 text-right opacity-70">{r.bonusPoints}</td>
+                                        <td className="py-2 pr-2 text-right font-display text-base font-bold">
+                                            {r.points}
+                                        </td>
+                                        <td className="py-2 pr-2 text-right opacity-70">{r.exactCount}</td>
                                     </tr>
                                 );
                             })
