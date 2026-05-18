@@ -39,7 +39,7 @@ If multiple teams tie on the underlying metric (e.g. two teams equal on cards), 
 
 ## 2. Detailed Bonus Rules
 
-All bonus picks lock at **tournament kickoff** (first whistle of opening match). After that, bonuses cannot be edited. Joker picks lock per-round (see below).
+All bonus picks lock at the moment **the first match of the tournament starts** — concretely, when the earliest-kickoff fixture's stored kickoff has passed OR its status moves off `SCHEDULED` (whichever fires first). This is derived from match data, not from a configurable setting, so the lock can't drift if admin forgets to update anything. Once locked, bonuses can't be edited.
 
 ### 2.1 Tournament Winner — 25 pts
 - Pick one of the 48 teams.
@@ -53,12 +53,11 @@ All bonus picks lock at **tournament kickoff** (first whistle of opening match).
 - **Injured / withdrawn before tournament:** player auto-replaced via in-app prompt **before tournament kickoff** only. After kickoff, no replacement — you took the risk.
 - **Not in final squad:** treated as not playing; no replacement after kickoff.
 
-### 2.3 Group Winners — 3 pts each (12 groups, max 36)
-- Pick the team that finishes **1st** in each of Groups A–L.
-- Awarded only for finishing top of the group (2nd doesn't count).
+### 2.3 Group Winners — REMOVED in v1
+Originally on the list (3 pts × 12 groups, max 36) but cut from the v1 picks UI to keep bonus selection manageable. Schema retains the `GROUP_WINNER` enum value for any historical / sim data; no new picks can be made.
 
 ### 2.4 Dark Horse `[2026 new]`
-**Eligibility (objective):** any team **not in Pot 1** at the official draw. Pot 1 = the 12 seeded hosts/top-ranked teams. App will surface only eligible teams in the picker.
+**Eligibility (objective):** any team **not in Pot 1** at the official draw. Pot 1 in 2026 = the three hosts (USA, Mexico, Canada) plus the nine top-ranked qualifiers (Spain, Argentina, France, England, Brazil, Portugal, Netherlands, Belgium, Germany). The picker filters Pot-1 teams out. Pot membership is set in `teams.pot` via `pnpm tsx scripts/set-pots.ts`.
 
 **Payout — cumulative per round survived:**
 
@@ -85,16 +84,24 @@ All bonus picks lock at **tournament kickoff** (first whistle of opening match).
 - **Injured/withdrawn before opening match:** in-app prompt to replace, up until **kickoff of the opening match** (not tournament kickoff — this one bonus has a slightly later lock to give people a chance to swap if a marquee striker pulls out warming up).
 - **Not on the pitch for opening match but in squad:** no replacement; you gambled.
 
-### 2.7 Joker / Double-Down `[2026 new]` — ×2 multiplier
-- **Once per knockout round:** R32, R16, QF, SF, 3rd-place playoff, Final. Six total.
+### 2.7 Joker / Double-Down `[2026 new, deferred]` — ×2 multiplier
+**Hidden from the v1 UI.** Built and tested but the navbar entry was pulled and the bonuses page doesn't surface it, to keep first-time-player friction low. When re-introduced:
+- **Once per knockout round:** R32, R16, QF only. Three total — semis / 3rd / final have too few matches for ×2 to feel meaningful.
 - Pick **one match in that round**; your prediction points (result and/or exact) are doubled.
 - Must be selected **before kickoff of the first match in that round**. Once that round's first match starts, your joker for the round is locked to whatever you've selected (or void if you didn't pick).
 - If you forget to pick: no joker that round, no rollover.
 - Joker doubles **only the match prediction points**, not bonus points.
 
-### 2.8 Admin Score Overrides
-- Source of truth: official FIFA result feed.
-- If the API is wrong (wrong scorer, wrong scoreline), an **admin override** can correct any match. Overrides recompute scores for everyone affected and post a changelog entry visible on the leaderboard ("Match X corrected: BRA 2-1 → 2-2").
+### 2.8 Hall of Shame anti-bonuses `[2026 new]`
+Three picks rewarding identifying which teams will be rubbish. Same lock window as other bonuses (first match's kickoff). Tied teams credit every player who picked any of them.
+
+- **Pantomime villain — 5 pts.** Team with the most yellow + red cards across the tournament. Resolved by admin once the tournament ends (football-data does carry bookings; manual resolution is the safe path until we wire automation).
+- **The Sieve — 5 pts.** Team that concedes the most goals overall. Auto-derivable from match results; the admin still ratifies in `/admin/bonuses` for tie handling.
+- **How the mighty have fallen — 8 pts.** A Pot-1 team that fails to make the knockouts (no R32 appearance). Picker is filtered to Pot-1 teams only. **If every Pot-1 team advances, no points are awarded** — the bonus is structurally inert that tournament.
+
+### 2.9 Admin Score Overrides
+- Source of truth: official FIFA result feed via football-data.org.
+- If the API is wrong (wrong scorer, wrong scoreline), `/admin/matches` lets the owner correct any match. Overrides set `admin_overridden=true` so the cron sync won't clobber the corrected value. Recomputation is implicit — the leaderboard reads through `computeBonusPointsByPlayer` + `buildLeaderboard` on every page load, so changes show up the next time anyone reloads.
 
 ---
 

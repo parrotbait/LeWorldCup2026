@@ -26,10 +26,19 @@ export default async function BonusesPage() {
         code: t.code,
         name: t.name,
         groupLetter: t.groupLetter,
+        pot: t.pot,
     }));
 
-    // Dark horse — only teams not in Pot 1 (or, when pot data isn't available, all teams).
-    const darkHorseOpts = teamOpts.filter((t) => t.groupLetter !== null);
+    // Dark horse: only teams NOT in Pot 1 are eligible. If pot data hasn't been
+    // populated yet (run scripts/set-pots.ts), fall back to all teams.
+    const anyPotMarked = teamOpts.some((t) => t.pot !== null);
+    const darkHorseOpts = anyPotMarked
+        ? teamOpts.filter((t) => t.pot !== 1)
+        : teamOpts;
+    // Mighty fallen: only Pot 1 teams. Same fallback.
+    const mightyFallenOpts = anyPotMarked
+        ? teamOpts.filter((t) => t.pot === 1)
+        : teamOpts;
 
     const findBonus = (kind: string) => myBonuses.find((b) => b.kind === kind);
 
@@ -127,8 +136,8 @@ export default async function BonusesPage() {
                             kind="MIGHTY_FALLEN"
                             label="How the mighty have fallen"
                             points="8 pts"
-                            description="A Pot-1 (top-seeded) team that fails to make the knockouts. Bigger pay-out for backing chaos."
-                            options={teamOpts}
+                            description="A Pot-1 (top-seeded) team that fails to make the knockouts. Bigger pay-out for backing chaos. If every Pot-1 team advances, no points are awarded."
+                            options={mightyFallenOpts}
                             selectedTeamId={findBonus("MIGHTY_FALLEN")?.teamId ?? null}
                             locked={locked}
                         />

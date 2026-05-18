@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db/client";
@@ -94,11 +94,28 @@ const saveBonusSchema = z.object({
 });
 
 async function tournamentLocked(): Promise<boolean> {
-    const row = (await db.select().from(settings).where(eq(settings.id, 1)).limit(1))[0];
-    if (row === undefined) {
+    // Bonuses lock the moment the first match has started, by either signal:
+    //   - the earliest kickoff has passed, OR
+    //   - any match has moved off SCHEDULED (cron flipped to LIVE/FINISHED).
+    // Using the actual fixture data (rather than settings.tournament_kickoff)
+    // means the lock can't drift if admin forgets to update the setting.
+    const earliest = (
+        await db
+            .select({ kickoff: matches.kickoff, status: matches.status })
+            .from(matches)
+            .orderBy(asc(matches.kickoff))
+            .limit(1)
+    )[0];
+    if (earliest === undefined) {
         return false;
     }
-    return row.tournamentKickoff.getTime() <= Date.now();
+    if (earliest.kickoff.getTime() <= Date.now()) {
+        return true;
+    }
+    if (earliest.status !== "SCHEDULED") {
+        return true;
+    }
+    return false;
 }
 
 export async function saveBonusAction(formData: FormData): Promise<SaveResult> {

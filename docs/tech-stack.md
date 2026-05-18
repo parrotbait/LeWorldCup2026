@@ -15,15 +15,17 @@ Audience: ~12 friends running a private FIFA World Cup 2026 pick'em.
 | ORM / migrations     | Drizzle ORM + `drizzle-kit`                  | Lightweight, SQL-first, no codegen daemon, ~0 runtime overhead             | https://orm.drizzle.team                                          |
 | Styling              | Tailwind CSS v4                              | Utility-first, no runtime, plays nicely with RSC                           | https://tailwindcss.com/docs                                      |
 | UI primitives        | shadcn/ui (selective: Button, Dialog, Table) | Copy-paste components, no library lock-in, tweakable                       | https://ui.shadcn.com                                             |
-| Auth                 | Roll-our-own: invite code + signed cookie    | 12 friends; no need for OAuth/NextAuth surface area                        | n/a                                                               |
+| Auth                 | Roll-our-own: invite code + email + scrypt password   | 12 friends; no need for OAuth/NextAuth surface area                        | n/a                                                               |
 | Cookies / signing    | `jose` (HS256 JWT in HttpOnly cookie)        | Standard, audited, tiny                                                    | https://github.com/panva/jose                                     |
+| Password hashing     | Node built-in `crypto.scrypt`                | No external dep; format `scrypt$N$saltHex$hashHex` with bumpable cost      | https://nodejs.org/api/crypto.html#cryptoscryptpassword-salt-keylen-options-callback |
+| Email (optional)     | Resend HTTP API                              | Free tier 3000/mo; only used for `/forgot` password reset; degrades cleanly if unset | https://resend.com/docs                                  |
 | Cron                 | Vercel Cron `*/30 * * * *` (tournament window) | Free on Hobby, native, secured via `CRON_SECRET` header                    | https://vercel.com/docs/cron-jobs                                 |
 | Football data        | football-data.org free tier                  | Free 10 req/min, World Cup competition `WC` covered                        | https://www.football-data.org/documentation/api                   |
 | Validation           | Zod                                          | Form/server action input parsing                                           | https://zod.dev                                                   |
-| Package manager      | pnpm                                         | Fast, disk-efficient, Vercel supports natively                             | https://pnpm.io                                                   |
-| Testing              | Vitest + Playwright (smoke only)             | We're not NASA — keep tests focused on scoring logic                       | https://vitest.dev                                                |
-| Lint/format          | ESLint (next/core-web-vitals) + Prettier     | Defaults are fine                                                          | https://nextjs.org/docs/app/api-reference/config/eslint            |
-| Local DB             | Docker Compose (postgres:16-alpine)          | One command, no Vercel needed locally                                      | https://hub.docker.com/_/postgres                                 |
+| Package manager      | pnpm                                         | Fast, disk-efficient, Vercel supports natively. **Installs go through `npm.apple.com` only** — never the public registry | https://pnpm.io                              |
+| Testing              | Vitest                                       | Pure-function tests on the scoring engine                                  | https://vitest.dev                                                |
+| Format               | Prettier (no ESLint)                         | Linting was nice-to-have on a 12-friend project; tsc + Prettier are enough | https://prettier.io                                               |
+| Local DB             | Homebrew `postgresql@16`                     | One brew install, no Docker. `docker-compose.yml` kept as fallback         | https://formulae.brew.sh/formula/postgresql@16                    |
 
 ---
 
