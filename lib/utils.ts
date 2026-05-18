@@ -80,7 +80,7 @@ const TLA_TO_ISO2: Record<string, string> = {
     ECU: "EC", GER: "DE", CIV: "CI", CUW: "CW", CUR: "CW",
     JPN: "JP", NED: "NL", SWE: "SE", TUN: "TN",
     BEL: "BE", EGY: "EG", IRN: "IR", NZL: "NZ",
-    ESP: "ES", URU: "UY", URY: "UY", CPV: "CV", KSA: "SA",
+    ESP: "ES", URU: "UY", URY: "UY", CPV: "CV", KSA: "SA", SAU: "SA",
     FRA: "FR", IRQ: "IQ", NOR: "NO", SEN: "SN",
     ARG: "AR", ALG: "DZ", AUT: "AT", JOR: "JO",
     COL: "CO", COD: "CD", POR: "PT", UZB: "UZ",
