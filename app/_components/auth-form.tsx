@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useState } from "react";
 import { logInAction, signUpAction, type ActionResult } from "@/app/actions/auth";
 
@@ -61,6 +62,11 @@ function LogInForm() {
                 <p className="text-sm text-tournament">{state.error}</p>
             ) : null}
             <SubmitButton pending={pending} idle="Log in" busy="Signing in…" />
+            <p className="text-center text-xs">
+                <Link href="/forgot" className="opacity-60 hover:text-tournament hover:opacity-100">
+                    Forgot password?
+                </Link>
+            </p>
         </form>
     );
 }
@@ -82,11 +88,19 @@ function SignUpForm() {
                 maxLength={24}
             />
             <Field
+                label="Email (optional, for password reset)"
+                name="email"
+                type="email"
+                placeholder="you@example.com"
+                required={false}
+                hint="Without an email, only an admin can reset your password."
+            />
+            <Field
                 label="Password"
                 name="password"
                 type="password"
                 minLength={6}
-                hint="At least 6 characters. Pick something memorable — there's no reset email."
+                hint="At least 6 characters."
             />
             {state?.error !== undefined ? (
                 <p className="text-sm text-tournament">{state.error}</p>
@@ -104,14 +118,16 @@ function Field({
     minLength,
     maxLength,
     hint,
+    required = true,
 }: {
     label: string;
     name: string;
-    type?: "text" | "password";
+    type?: "text" | "password" | "email";
     placeholder?: string;
     minLength?: number;
     maxLength?: number;
     hint?: string;
+    required?: boolean;
 }) {
     return (
         <label className="flex flex-col gap-1.5">
@@ -121,8 +137,14 @@ function Field({
             <input
                 name={name}
                 type={type}
-                required
-                autoComplete={type === "password" ? "current-password" : "off"}
+                required={required}
+                autoComplete={
+                    type === "password"
+                        ? "current-password"
+                        : type === "email"
+                          ? "email"
+                          : "off"
+                }
                 minLength={minLength}
                 maxLength={maxLength}
                 placeholder={placeholder}

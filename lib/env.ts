@@ -8,6 +8,10 @@ const envSchema = z.object({
     CRON_SECRET: z.string().min(1),
     FOOTBALL_DATA_TOKEN: z.string().optional().default(""),
     NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
+    // Optional Resend integration for password reset. If unset, /forgot is
+    // disabled gracefully and admins reset passwords manually.
+    RESEND_API_KEY: z.string().optional().default(""),
+    RESET_FROM_EMAIL: z.string().email().optional().default("onboarding@resend.dev"),
 });
 
 export const env = envSchema.parse({
@@ -18,4 +22,8 @@ export const env = envSchema.parse({
     CRON_SECRET: process.env.CRON_SECRET,
     FOOTBALL_DATA_TOKEN: process.env.FOOTBALL_DATA_TOKEN,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+    RESEND_API_KEY: process.env.RESEND_API_KEY,
+    RESET_FROM_EMAIL: process.env.RESET_FROM_EMAIL,
 });
+
+export const passwordResetEnabled = env.RESEND_API_KEY.length > 0;

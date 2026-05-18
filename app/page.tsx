@@ -3,11 +3,17 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { AuthForm } from "./_components/auth-form";
 
-export default async function LandingPage() {
+interface PageProps {
+    searchParams: Promise<{ reset?: string }>;
+}
+
+export default async function LandingPage({ searchParams }: PageProps) {
     const session = await getSession();
     if (session !== null) {
         redirect("/leaderboard");
     }
+    const params = await searchParams;
+    const resetOk = params.reset === "ok";
 
     return (
         <main className="mx-auto max-w-md px-6 pt-16 pb-24">
@@ -23,6 +29,12 @@ export default async function LandingPage() {
             </header>
 
             <div className="dashed-rule mb-8" />
+
+            {resetOk ? (
+                <p className="mb-6 rounded border border-pitch/40 bg-pitch/10 p-3 text-sm">
+                    Password updated. Log in with your new one.
+                </p>
+            ) : null}
 
             <AuthForm />
 

@@ -43,6 +43,9 @@ export const players = pgTable(
         // scrypt hash (see lib/password.ts). Null only for legacy rows from the
         // pre-password auth flow — those can't log in until admin resets.
         passwordHash: text("password_hash"),
+        // Optional. Required only to use the "forgot password" flow. Stored
+        // case-insensitively (we lower-case before insert + lookup).
+        email: text("email"),
         // Used to identify a returning player without an email.
         // Stored hashed; the cookie carries the player id, not this token.
         joinedAt: timestamp("joined_at", { withTimezone: true }).defaultNow().notNull(),
@@ -50,8 +53,25 @@ export const players = pgTable(
     },
     (t) => ({
         displayNameUq: uniqueIndex("players_display_name_uq").on(t.displayName),
+        emailUq: uniqueIndex("players_email_uq").on(t.email),
     }),
 );
+
+// ---------------------------------------------------------------------------
+// Password reset tokens (single-use, short-lived).
+// ---------------------------------------------------------------------------
+export const passwordResetTokens = pgTable("password_reset_tokens", {
+    id: serial("id").primaryKey(),
+    playerId: integer("player_id")
+        .references(() => players.id, { onDelete: "cascade" })
+        .notNull(),
+    // SHA-256 hash of the raw token. The raw token is only ever sent in the
+    // reset email — DB compromise doesn't enable a reset on its own.
+    tokenHash: text("token_hash").notNull().unique(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
 
 // ---------------------------------------------------------------------------
 // Teams (48 World Cup teams)
