@@ -13,6 +13,13 @@ interface Props {
     homeName: string;
     awayCode: string;
     awayName: string;
+    // Set once the match has finished. When defined, the row shows the
+    // actual score and the points the player earned for their pick.
+    actualHome?: number | null;
+    actualAway?: number | null;
+    earnedPoints?: number;
+    isExact?: boolean;
+    hasPick?: boolean;
 }
 
 export function ScoreStepper({
@@ -24,6 +31,11 @@ export function ScoreStepper({
     homeName,
     awayCode,
     awayName,
+    actualHome,
+    actualAway,
+    earnedPoints,
+    isExact,
+    hasPick,
 }: Props) {
     // Strings so the inputs can be empty without React fighting "" vs null.
     const [home, setHome] = useState<string>(initialHome?.toString() ?? "");
@@ -103,6 +115,9 @@ export function ScoreStepper({
         parsedHome === lastSavedRef.current.h &&
         parsedAway === lastSavedRef.current.a;
 
+    const settled = actualHome !== null && actualHome !== undefined && actualAway !== null && actualAway !== undefined;
+    const pts = earnedPoints ?? 0;
+
     return (
         <div className="flex flex-col gap-1">
             <div className="flex items-center justify-center gap-3">
@@ -139,12 +154,28 @@ export function ScoreStepper({
                 <span className="text-lg">{flag(awayCode)}</span>
             </div>
             <div className="min-h-[14px] text-center font-display text-[10px] uppercase tracking-wider">
-                {locked ? (
-                    <span className="opacity-50">locked 🔒</span>
+                {settled ? (
+                    <span>
+                        <span className="opacity-60">
+                            full time {actualHome}–{actualAway}
+                        </span>
+                        <span className="mx-2 opacity-30">·</span>
+                        {hasPick === false ? (
+                            <span className="text-tournament">no pick — 0 pts</span>
+                        ) : isExact ? (
+                            <span className="text-pitch">+{pts} exact</span>
+                        ) : pts > 0 ? (
+                            <span className="opacity-80">+{pts} result</span>
+                        ) : (
+                            <span className="opacity-40">missed — 0 pts</span>
+                        )}
+                    </span>
                 ) : status === "saving" ? (
                     <span className="opacity-50">saving…</span>
                 ) : status === "error" ? (
                     <span className="text-tournament">{errorMsg}</span>
+                ) : locked ? (
+                    <span className="opacity-50">locked 🔒</span>
                 ) : !bothFilled ? (
                     <span className="opacity-30">enter both scores to save</span>
                 ) : matchesSaved ? (

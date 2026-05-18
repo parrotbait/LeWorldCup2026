@@ -5,6 +5,7 @@ import { matches, predictions, teams } from "@/db/schema";
 import { NavBar } from "@/app/_components/navbar";
 import { requireSession } from "@/lib/auth";
 import { formatDayLong, formatTime } from "@/lib/utils";
+import { isExact, predictionPoints } from "@/lib/scoring";
 import { ScoreStepper } from "./_components/score-stepper";
 
 export const revalidate = 0;
@@ -55,6 +56,8 @@ export default async function PredictionsPage() {
             round: matches.round,
             groupLetter: matches.groupLetter,
             status: matches.status,
+            homeScore: matches.homeScore,
+            awayScore: matches.awayScore,
             homeCode: home.code,
             homeName: home.name,
             awayCode: away.code,
@@ -133,6 +136,21 @@ export default async function PredictionsPage() {
                                                 tbd ||
                                                 m.kickoff.getTime() <= now ||
                                                 m.status !== "SCHEDULED";
+                                            const settled = m.homeScore !== null && m.awayScore !== null;
+                                            const earned =
+                                                settled && pred !== undefined
+                                                    ? predictionPoints(m, {
+                                                          homeScore: pred.homeScore,
+                                                          awayScore: pred.awayScore,
+                                                      })
+                                                    : 0;
+                                            const exact =
+                                                settled &&
+                                                pred !== undefined &&
+                                                isExact(m, {
+                                                    homeScore: pred.homeScore,
+                                                    awayScore: pred.awayScore,
+                                                });
                                             return (
                                                 <li
                                                     key={m.id}
@@ -158,6 +176,11 @@ export default async function PredictionsPage() {
                                                         homeName={m.homeName ?? "TBD"}
                                                         awayCode={m.awayCode ?? ""}
                                                         awayName={m.awayName ?? "TBD"}
+                                                        actualHome={m.homeScore}
+                                                        actualAway={m.awayScore}
+                                                        earnedPoints={earned}
+                                                        isExact={exact}
+                                                        hasPick={pred !== undefined}
                                                     />
                                                 </li>
                                             );
