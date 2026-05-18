@@ -26,6 +26,7 @@ interface PlayerPickRow {
     displayName: string;
     homeScore: number | null;
     awayScore: number | null;
+    hasPick: boolean;
     points: number;
     isExact: boolean;
     correctResult: boolean;
@@ -87,34 +88,56 @@ export default async function LivePage() {
             db.select().from(predictions).where(inArray(predictions.matchId, matchIds)),
             db.select().from(jokers).where(inArray(jokers.matchId, matchIds)),
         ]);
-        const playerById = new Map(allPlayers.map((p) => [p.id, p]));
         const jokerByPlayerMatch = new Map(
             allJokers.map((j) => [`${j.playerId}:${j.matchId}`, true]),
         );
 
         for (const m of liveOrRecent) {
-            const matchPreds = allPreds.filter((p) => p.matchId === m.id);
-            const rows: PlayerPickRow[] = matchPreds.map((p) => {
-                const player = playerById.get(p.playerId);
-                const isJoker = jokerByPlayerMatch.has(`${p.playerId}:${m.id}`);
+            const matchPredsByPlayer = new Map(
+                allPreds.filter((p) => p.matchId === m.id).map((p) => [p.playerId, p]),
+            );
+            const rows: PlayerPickRow[] = allPlayers.map((player) => {
+                const pred = matchPredsByPlayer.get(player.id);
+                const isJoker = jokerByPlayerMatch.has(`${player.id}:${m.id}`);
+                if (pred === undefined) {
+                    return {
+                        playerId: player.id,
+                        displayName: player.displayName,
+                        homeScore: null,
+                        awayScore: null,
+                        hasPick: false,
+                        points: 0,
+                        isExact: false,
+                        correctResult: false,
+                        isJoker,
+                    };
+                }
                 const base = predictionPoints(m, {
-                    homeScore: p.homeScore,
-                    awayScore: p.awayScore,
+                    homeScore: pred.homeScore,
+                    awayScore: pred.awayScore,
                 });
-                const exact = isExact(m, { homeScore: p.homeScore, awayScore: p.awayScore });
+                const exact = isExact(m, {
+                    homeScore: pred.homeScore,
+                    awayScore: pred.awayScore,
+                });
                 const result = base > 0;
                 return {
-                    playerId: p.playerId,
-                    displayName: player?.displayName ?? "?",
-                    homeScore: p.homeScore,
-                    awayScore: p.awayScore,
+                    playerId: player.id,
+                    displayName: player.displayName,
+                    homeScore: pred.homeScore,
+                    awayScore: pred.awayScore,
+                    hasPick: true,
                     points: base * (isJoker ? 2 : 1),
                     isExact: exact,
                     correctResult: result && !exact,
                     isJoker,
                 };
             });
-            rows.sort((a, b) => b.points - a.points || a.displayName.localeCompare(b.displayName));
+            rows.sort((a, b) => {
+                if (a.points !== b.points) return b.points - a.points;
+                if (a.hasPick !== b.hasPick) return a.hasPick ? -1 : 1;
+                return a.displayName.localeCompare(b.displayName);
+            });
             pickByMatch.set(m.id, rows);
         }
     }
@@ -175,7 +198,7 @@ export default async function LivePage() {
 
                                     {rows.length === 0 ? (
                                         <p className="px-4 py-6 text-center text-xs opacity-60">
-                                            Nobody filed a prediction for this one.
+                                            No players in the league yet.
                                         </p>
                                     ) : (
                                         <ul className="divide-y divide-ink/10 text-sm">
@@ -198,7 +221,15 @@ export default async function LivePage() {
                                                         ) : null}
                                                     </span>
                                                     <span className="font-display tabular text-base">
-                                                        {r.homeScore} – {r.awayScore}
+                                                        {r.hasPick ? (
+                                                            <>
+                                                                {r.homeScore} – {r.awayScore}
+                                                            </>
+                                                        ) : (
+                                                            <span className="text-[10px] uppercase opacity-50">
+                                                                no pick
+                                                            </span>
+                                                        )}
                                                     </span>
                                                     <span
                                                         className={`w-20 text-right font-display tabular ${
@@ -209,7 +240,7 @@ export default async function LivePage() {
                                                                   : "opacity-30"
                                                         }`}
                                                     >
-                                                        {r.points > 0 ? `+${r.points}` : "—"}
+                                                        {r.hasPick && r.points > 0 ? `+${r.points}` : "—"}
                                                         {r.isExact ? (
                                                             <span className="ml-1 text-[10px] uppercase">
                                                                 exact

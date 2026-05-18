@@ -69,27 +69,34 @@ export default async function MatchDetailPage({ params }: PageProps) {
         matchRow.kickoff.getTime() <= Date.now() || matchRow.status !== "SCHEDULED";
 
     // Visibility gate: until kickoff, players see only their own pick.
-    let predRows: { displayName: string; playerId: number; homeScore: number; awayScore: number; isJoker: boolean }[] = [];
+    // After kickoff, every player is listed — even those who didn't file
+    // a prediction — so the slackers are visible.
+    interface PredRow {
+        displayName: string;
+        playerId: number;
+        homeScore: number | null;
+        awayScore: number | null;
+        isJoker: boolean;
+    }
+    let predRows: PredRow[] = [];
     if (kickedOff) {
-        const all = await db
-            .select({
-                playerId: players.id,
-                displayName: players.displayName,
-                homeScore: predictions.homeScore,
-                awayScore: predictions.awayScore,
-            })
-            .from(predictions)
-            .innerJoin(players, eq(predictions.playerId, players.id))
-            .where(eq(predictions.matchId, matchId));
-        const jokerForRound = await db
-            .select()
-            .from(jokers)
-            .where(eq(jokers.round, matchRow.round));
+        const [allPlayers, matchPreds, jokerForRound] = await Promise.all([
+            db.select().from(players),
+            db.select().from(predictions).where(eq(predictions.matchId, matchId)),
+            db.select().from(jokers).where(eq(jokers.round, matchRow.round)),
+        ]);
+        const predByPlayer = new Map(matchPreds.map((p) => [p.playerId, p]));
         const jokerByPlayer = new Map(jokerForRound.map((j) => [j.playerId, j.matchId]));
-        predRows = all.map((p) => ({
-            ...p,
-            isJoker: jokerByPlayer.get(p.playerId) === matchId,
-        }));
+        predRows = allPlayers.map((p) => {
+            const pred = predByPlayer.get(p.id);
+            return {
+                playerId: p.id,
+                displayName: p.displayName,
+                homeScore: pred?.homeScore ?? null,
+                awayScore: pred?.awayScore ?? null,
+                isJoker: jokerByPlayer.get(p.id) === matchId,
+            };
+        });
     } else {
         const mine = await db
             .select()
@@ -161,15 +168,23 @@ export default async function MatchDetailPage({ params }: PageProps) {
                                 </tr>
                             ) : (
                                 predRows
-                                    .map((r) => ({
-                                        ...r,
-                                        pts:
-                                            predictionPoints(matchRow, {
-                                                homeScore: r.homeScore,
-                                                awayScore: r.awayScore,
-                                            }) * (r.isJoker ? 2 : 1),
-                                    }))
-                                    .sort((a, b) => b.pts - a.pts)
+                                    .map((r) => {
+                                        const hasPick =
+                                            r.homeScore !== null && r.awayScore !== null;
+                                        const pts = hasPick
+                                            ? predictionPoints(matchRow, {
+                                                  homeScore: r.homeScore!,
+                                                  awayScore: r.awayScore!,
+                                              }) * (r.isJoker ? 2 : 1)
+                                            : 0;
+                                        return { ...r, hasPick, pts };
+                                    })
+                                    .sort((a, b) => {
+                                        if (a.pts !== b.pts) return b.pts - a.pts;
+                                        // Players with picks ahead of those without, alphabetical within.
+                                        if (a.hasPick !== b.hasPick) return a.hasPick ? -1 : 1;
+                                        return a.displayName.localeCompare(b.displayName);
+                                    })
                                     .map((r) => (
                                         <tr key={r.playerId} className="border-b border-ink/10">
                                             <td className="py-2 pr-2">
@@ -181,10 +196,20 @@ export default async function MatchDetailPage({ params }: PageProps) {
                                                 ) : null}
                                             </td>
                                             <td className="py-2 pr-2 text-right font-display">
-                                                {r.homeScore} : {r.awayScore}
+                                                {r.hasPick ? (
+                                                    <>
+                                                        {r.homeScore} : {r.awayScore}
+                                                    </>
+                                                ) : (
+                                                    <span className="text-[10px] uppercase opacity-50">
+                                                        no pick
+                                                    </span>
+                                                )}
                                             </td>
                                             <td className="py-2 pl-2 text-right font-display">
-                                                {matchRow.homeScore === null ? "–" : r.pts}
+                                                {!r.hasPick || matchRow.homeScore === null
+                                                    ? "–"
+                                                    : r.pts}
                                             </td>
                                         </tr>
                                     ))
