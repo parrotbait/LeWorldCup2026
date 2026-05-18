@@ -195,18 +195,28 @@ export default async function PlayerProfilePage({ params }: PageProps) {
                             </thead>
                             <tbody>
                                 {rows.map(({ m, pred, base, pts, isJoker, revealed }) => (
-                                    <tr key={m.id} className="border-b border-ink/10">
+                                    <tr key={m.id} className="border-b border-ink/10 hover:bg-ink/5">
                                         <td className="py-2 pr-2 text-xs opacity-70">
-                                            {formatKickoff(m.kickoff)}
+                                            <Link
+                                                href={`/matches/${m.id}` as never}
+                                                className="hover:text-tournament hover:underline"
+                                            >
+                                                {formatKickoff(m.kickoff)}
+                                            </Link>
                                         </td>
                                         <td className="py-2 pr-2 text-xs opacity-70">
                                             {ROUND_LABEL[m.round]}
                                             {m.groupLetter !== null ? ` ${m.groupLetter}` : ""}
                                         </td>
                                         <td className="py-2 pr-2">
-                                            <span className="mr-1">{flag(m.homeCode ?? "")}</span>
-                                            {m.homeName ?? "TBD"} vs {m.awayName ?? "TBD"}{" "}
-                                            <span className="ml-1">{flag(m.awayCode ?? "")}</span>
+                                            <Link
+                                                href={`/matches/${m.id}` as never}
+                                                className="hover:text-tournament hover:underline"
+                                            >
+                                                <span className="mr-1">{flag(m.homeCode ?? "")}</span>
+                                                {m.homeName ?? "TBD"} vs {m.awayName ?? "TBD"}{" "}
+                                                <span className="ml-1">{flag(m.awayCode ?? "")}</span>
+                                            </Link>
                                         </td>
                                         <td className="py-2 pr-2 text-right font-display">
                                             {m.homeScore === null
