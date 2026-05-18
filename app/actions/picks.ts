@@ -42,6 +42,9 @@ export async function savePredictionAction(formData: FormData): Promise<SaveResu
     if (match === undefined) {
         return { ok: false, error: "Match not found" };
     }
+    if (match.homeTeamId === null || match.awayTeamId === null) {
+        return { ok: false, error: "Teams not known yet — this fixture is TBD" };
+    }
     if (match.kickoff.getTime() <= Date.now() || match.status !== "SCHEDULED") {
         return { ok: false, error: "Match has kicked off — picks are locked" };
     }

@@ -19,7 +19,10 @@ const ROUND_LABEL: Record<string, string> = {
     FINAL: "Final",
 };
 
-function lockMessage(kickoff: Date, locked: boolean): string {
+function lockMessage(kickoff: Date, locked: boolean, tbd: boolean): string {
+    if (tbd) {
+        return "teams TBD";
+    }
     if (locked) {
         return "locked";
     }
@@ -118,10 +121,16 @@ export default async function PredictionsPage() {
                                     <ul className="mt-3 divide-y divide-ink/15">
                                         {day.map((m) => {
                                             const pred = predByMatch.get(m.id);
+                                            // TBD when either side hasn't been resolved yet
+                                            // (knockout placeholders before the bracket fills).
+                                            const tbd = m.homeName === null || m.awayName === null;
                                             // Locked once the match has started by either signal:
                                             // its kickoff has passed, OR the status has moved on
                                             // (cron may flip to LIVE early, or admin overrode).
+                                            // Also locked while teams are TBD — there's no
+                                            // meaningful pick to make against placeholders.
                                             const locked =
+                                                tbd ||
                                                 m.kickoff.getTime() <= now ||
                                                 m.status !== "SCHEDULED";
                                             return (
@@ -136,7 +145,7 @@ export default async function PredictionsPage() {
                                                             {m.groupLetter !== null ? ` ${m.groupLetter}` : ""}
                                                         </div>
                                                         <div className="mt-0.5 text-[10px] opacity-60">
-                                                            {lockMessage(m.kickoff, locked)}
+                                                            {lockMessage(m.kickoff, locked, tbd)}
                                                         </div>
                                                     </div>
 
