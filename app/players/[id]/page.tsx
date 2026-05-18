@@ -127,7 +127,8 @@ export default async function PlayerProfilePage({ params }: PageProps) {
         if (pred !== undefined) {
             predictionsFiled += 1;
         }
-        const matchKickedOff = m.kickoff.getTime() <= now;
+        const matchKickedOff =
+            m.kickoff.getTime() <= now || m.status !== "SCHEDULED";
         const revealed = isMe || matchKickedOff;
         const base = predictionPoints(m, pred);
         const isJoker = jokerByRound.get(m.round) === m.id;

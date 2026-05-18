@@ -19,7 +19,10 @@ const ROUND_LABEL: Record<string, string> = {
     FINAL: "Final",
 };
 
-function lockMessage(kickoff: Date): string {
+function lockMessage(kickoff: Date, locked: boolean): string {
+    if (locked) {
+        return "locked";
+    }
     const ms = kickoff.getTime() - Date.now();
     if (ms <= 0) {
         return "locked";
@@ -133,7 +136,7 @@ export default async function PredictionsPage() {
                                                             {m.groupLetter !== null ? ` ${m.groupLetter}` : ""}
                                                         </div>
                                                         <div className="mt-0.5 text-[10px] opacity-60">
-                                                            {lockMessage(m.kickoff)}
+                                                            {lockMessage(m.kickoff, locked)}
                                                         </div>
                                                     </div>
 

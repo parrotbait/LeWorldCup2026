@@ -9,7 +9,7 @@ import { requireSession } from "@/lib/auth";
 import { flag, formatKickoffLong } from "@/lib/utils";
 import { predictionPoints } from "@/lib/scoring";
 
-export const revalidate = 30;
+export const revalidate = 0;
 
 const ROUND_LABEL: Record<string, string> = {
     GROUP: "Group",
@@ -63,7 +63,10 @@ export default async function MatchDetailPage({ params }: PageProps) {
         notFound();
     }
 
-    const kickedOff = matchRow.kickoff.getTime() <= Date.now();
+    // Reveal everyone's picks if either signal says the match has started:
+    // kickoff has passed OR status has moved off SCHEDULED (LIVE/FINISHED).
+    const kickedOff =
+        matchRow.kickoff.getTime() <= Date.now() || matchRow.status !== "SCHEDULED";
 
     // Visibility gate: until kickoff, players see only their own pick.
     let predRows: { displayName: string; playerId: number; homeScore: number; awayScore: number; isJoker: boolean }[] = [];
