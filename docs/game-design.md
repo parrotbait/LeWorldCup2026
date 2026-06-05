@@ -16,7 +16,6 @@ Where rules carry forward from our **2022 game** (`LeWorldCup2022.pdf`), they ar
 | Knockout match — exact scoreline | **6** | Scoreline at end of 90 (or end of ET if drawn at 90). Not additive. `[2022 carry-forward]` |
 | Joker — doubles one knockout match per round (R32 / R16 / QF only) | **×2** | **Hidden in the v1 UI** — re-introduce later. Applies to whatever match score above resolves to. `[2026 new, deferred]` |
 | Wooden spoon (worst-placed team in worst group) | **5** | `[2022 carry-forward]` |
-| First goal scorer of the tournament | **5** | `[2022 carry-forward]` |
 | Top scorer / Golden Boot | **10** | `[2022 carry-forward]` |
 | Dark horse — per round survived | **2 / 4 / 6 / 10 / 15 / 20** | R32 / R16 / QF / SF / Final / Champion. Max 57. `[2026 new]` |
 | Tournament winner | **25** | `[2022 carry-forward]` |
@@ -78,11 +77,8 @@ Originally on the list (3 pts × 12 groups, max 36) but cut from the v1 picks UI
 - Tiebreak across groups: fewest points → worst goal difference → fewest goals scored → coin flip (admin).
 - If multiple teams tie on all official metrics across groups, **all picks of any tied team win**.
 
-### 2.6 First Goal Scorer — 5 pts
-- Pick a player to score the **first goal of the entire tournament** (opening match onwards, first goal across the whole competition).
-- **Own goals don't count** — credit goes to the next legitimate scorer.
-- **Injured/withdrawn before opening match:** in-app prompt to replace, up until **kickoff of the opening match** (not tournament kickoff — this one bonus has a slightly later lock to give people a chance to swap if a marquee striker pulls out warming up).
-- **Not on the pitch for opening match but in squad:** no replacement; you gambled.
+### 2.6 First Goal Scorer — REMOVED
+Originally on the list (5 pts) but cut from the bonus set: too noisy at our scale, and the marquee bonuses (Golden Boot, Dark Horse) cover the player-pick thrill already. Schema retains the data column historically; the `FIRST_GOAL_SCORER` enum value has been removed.
 
 ### 2.7 Joker / Double-Down `[2026 new, deferred]` — ×2 multiplier
 **Hidden from the v1 UI.** Built and tested but the navbar entry was pulled and the bonuses page doesn't surface it, to keep first-time-player friction low. When re-introduced:
@@ -209,9 +205,6 @@ Applied in order:
 |                                          |
 | Wooden Spoon                 5 pts       |
 |   [ Tunisia          v ]                 |
-|                                          |
-| First Goal Scorer            5 pts       |
-|   [ Harry Kane       v ]                 |
 +------------------------------------------+
 ```
 
@@ -270,7 +263,7 @@ Nice-to-haves (not all need to ship v1):
 These do not block the design but should be confirmed early:
 
 - Source of truth for fixtures, scores, scorers, and Golden Boot resolution (FIFA feed, football-data.org, SportMonks).
-- Squad data feed for player picks (Golden Boot, First Goal Scorer).
+- Squad data feed for player picks (Golden Boot).
 - Push-notification channel (APNs only? web push? Slack/iMessage webhook for digests?).
 - Admin tool for score overrides — minimum viable UI is a JSON editor behind a password.
 - Time zone handling for kickoff locks — store UTC, render local.

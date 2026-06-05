@@ -59,13 +59,6 @@ export default async function AdminBonusesPage() {
                     description="Top scorer name(s). Joint winners go in comma-separated."
                     initialNames={find("TOP_SCORER")?.playerNames ?? []}
                 />
-                <PlayerNameResolutionEditor
-                    kind="FIRST_GOAL_SCORER"
-                    label="First goal scorer"
-                    points="5 pts"
-                    description="Whoever scored the first non-own-goal of the tournament."
-                    initialNames={find("FIRST_GOAL_SCORER")?.playerNames ?? []}
-                />
                 <TeamResolutionEditor
                     kind="WOODEN_SPOON"
                     label="Wooden spoon"

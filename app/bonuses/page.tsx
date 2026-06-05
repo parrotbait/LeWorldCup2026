@@ -96,14 +96,6 @@ export default async function BonusesPage() {
                         initialName={findBonus("TOP_SCORER")?.playerName ?? null}
                         locked={locked}
                     />
-                    <PlayerNameBonusPicker
-                        kind="FIRST_GOAL_SCORER"
-                        label="First goal scorer"
-                        points="5 pts"
-                        description="The first legitimate goal of the entire tournament. Own goals don't count."
-                        initialName={findBonus("FIRST_GOAL_SCORER")?.playerName ?? null}
-                        locked={locked}
-                    />
                 </section>
 
                 <section className="mt-10">

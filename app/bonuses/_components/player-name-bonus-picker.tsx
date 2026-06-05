@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { saveBonusAction, type SaveResult } from "@/app/actions/picks";
 
 interface Props {
-    kind: "TOP_SCORER" | "FIRST_GOAL_SCORER";
+    kind: "TOP_SCORER";
     label: string;
     description: string;
     points: string;

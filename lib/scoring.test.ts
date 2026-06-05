@@ -97,7 +97,9 @@ describe("BONUS_POINTS sanity", () => {
         expect(BONUS_POINTS.TOP_SCORER).toBe(10);
         expect(BONUS_POINTS.GROUP_WINNER).toBe(3);
         expect(BONUS_POINTS.WOODEN_SPOON).toBe(5);
-        expect(BONUS_POINTS.FIRST_GOAL_SCORER).toBe(5);
+        expect(BONUS_POINTS.PANTOMIME_VILLAIN).toBe(5);
+        expect(BONUS_POINTS.SIEVE).toBe(5);
+        expect(BONUS_POINTS.MIGHTY_FALLEN).toBe(8);
     });
 });
 

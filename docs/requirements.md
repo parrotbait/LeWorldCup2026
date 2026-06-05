@@ -23,7 +23,7 @@ The 2022 game (`LeWorldCup2022.pdf`) is the baseline: predict scorelines for eve
 | Topic | Decision |
 |---|---|
 | **Game format** | Hybrid: per-match score predictions **plus** bonus picks |
-| **Bonuses** | Tournament winner, top scorer (Golden Boot), dark horse, wooden spoon, first goal scorer, plus the Hall of Shame anti-bonuses (pantomime villain, the sieve, mighty fallen). Group winners and joker were on the original list but are out / hidden in v1 to keep the picks UI simple. |
+| **Bonuses** | Tournament winner, top scorer (Golden Boot), dark horse, wooden spoon, plus the Hall of Shame anti-bonuses (pantomime villain, the sieve, mighty fallen). Group winners, first goal scorer, and joker were on the original list but are out / hidden in v1 to keep the picks UI simple. |
 | **Auth** | Per-user account: invite code (sign-up only) + email + display name + password (scrypt). Login is email + password. Optional self-serve password reset via Resend if `RESEND_API_KEY` is set. Separate admin password for the owner. |
 | **Score entry** | Auto-pulled from football-data.org free tier; admin can override per match |
 | **Hosting** | Vercel (Hobby) + Vercel Postgres |
@@ -113,7 +113,7 @@ The 2022 game (`LeWorldCup2022.pdf`) is the baseline: predict scorelines for eve
 
 ## 7. Deferred work (timed)
 
-- **Footballer player typeahead** — the Top Scorer and First Goal Scorer bonus pickers currently take free-text. Once FIFA squad lists are finalized (≈ early June 2026, ~7 days before opening match), import them into a `tournament_players` table and swap the inputs for a proper select. Existing free-text picks should resolve by exact name match; admin script reconciles any mismatches. Source: api-football.com or FIFA's official squad page.
+- **Footballer player typeahead** — the Top Scorer bonus picker currently takes free-text. Once FIFA squad lists are finalized (≈ early June 2026, ~7 days before opening match), import them into a `tournament_players` table and swap the input for a proper select. Existing free-text picks should resolve by exact name match; admin script reconciles any mismatches. Source: api-football.com or FIFA's official squad page.
 
 ## 8. Companion docs
 

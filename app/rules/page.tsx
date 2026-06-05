@@ -37,7 +37,6 @@ export default async function RulesPage() {
                         <li><strong>Top scorer (Golden Boot)</strong> — 10 pts (shared boot? everyone who picked any joint winner gets 10)</li>
                         <li><strong>Dark horse</strong> (any team not in Pot 1) — 2 / 6 / 12 / 22 / 37 / 57 cumulative as they survive each round</li>
                         <li><strong>Wooden spoon</strong> (worst team in worst group) — 5 pts</li>
-                        <li><strong>First goal scorer</strong> of the tournament — 5 pts (own goals don&apos;t count)</li>
                     </ul>
                     <p className="mt-2 text-sm opacity-70">All bonuses lock at tournament kickoff.</p>
                 </section>

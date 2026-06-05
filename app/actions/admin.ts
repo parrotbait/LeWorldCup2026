@@ -118,7 +118,6 @@ const bonusKindSchema = z.enum([
     "GROUP_WINNER",
     "DARK_HORSE",
     "WOODEN_SPOON",
-    "FIRST_GOAL_SCORER",
     "PANTOMIME_VILLAIN",
     "SIEVE",
     "MIGHTY_FALLEN",

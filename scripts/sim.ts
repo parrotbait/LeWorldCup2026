@@ -165,7 +165,6 @@ async function reset(): Promise<void> {
             tournamentKickoff: new Date("2026-06-11T20:00:00Z"),
             winnerTeamId: null,
             topScorerName: null,
-            firstGoalScorerName: null,
         })
         .where(eq(settings.id, 1));
     // Matches first (FKs to teams), then players, then teams.
@@ -327,11 +326,6 @@ async function setup(args: Record<string, string>): Promise<void> {
         bonusInserts.push({
             playerId: player.id,
             kind: "TOP_SCORER",
-            playerName: pick(rng, FAKE_GOALSCORERS),
-        });
-        bonusInserts.push({
-            playerId: player.id,
-            kind: "FIRST_GOAL_SCORER",
             playerName: pick(rng, FAKE_GOALSCORERS),
         });
     }
@@ -668,14 +662,12 @@ async function resolve(): Promise<void> {
     }
     const pantomime = pickHighest(cardsCount);
 
-    // Top scorer / first goal scorer aren't tracked in sim — just pick a fake name.
+    // Top scorer isn't tracked in sim — just pick a fake name.
     const topScorerName = "Sky O. Striker";
-    const firstGoalScorerName = "Boots Magee";
 
     const upserts: { kind: any; groupLetter: string; teamIds: number[]; playerNames: string[] }[] = [
         { kind: "WINNER", groupLetter: "", teamIds: winnerTeamId !== null && winnerTeamId !== undefined ? [winnerTeamId] : [], playerNames: [] },
         { kind: "TOP_SCORER", groupLetter: "", teamIds: [], playerNames: [topScorerName] },
-        { kind: "FIRST_GOAL_SCORER", groupLetter: "", teamIds: [], playerNames: [firstGoalScorerName] },
         { kind: "WOODEN_SPOON", groupLetter: "", teamIds: worst !== undefined ? [worst.teamId] : [], playerNames: [] },
         { kind: "PANTOMIME_VILLAIN", groupLetter: "", teamIds: pantomime, playerNames: [] },
         { kind: "SIEVE", groupLetter: "", teamIds: sieve, playerNames: [] },
@@ -699,7 +691,6 @@ async function resolve(): Promise<void> {
     console.log(`   pantomime       : ${pantomime.map((id) => teamById.get(id)?.name).join(", ") || "(none)"}`);
     console.log(`   mighty fallen   : ${mightyFallen.map((id) => teamById.get(id)?.name).join(", ") || "(none)"}`);
     console.log(`   top scorer      : ${topScorerName}`);
-    console.log(`   first scorer    : ${firstGoalScorerName}`);
 }
 
 function pickHighest(map: Map<number, number>): number[] {
@@ -797,7 +788,6 @@ function theoreticalCeiling(): number {
         BONUS_POINTS.WINNER +
         BONUS_POINTS.TOP_SCORER +
         BONUS_POINTS.WOODEN_SPOON +
-        BONUS_POINTS.FIRST_GOAL_SCORER +
         BONUS_POINTS.PANTOMIME_VILLAIN +
         BONUS_POINTS.SIEVE +
         BONUS_POINTS.MIGHTY_FALLEN +

@@ -79,7 +79,7 @@ function SignUpForm() {
 
     return (
         <form action={formAction} className="flex flex-col gap-4">
-            <Field label="Invite code" name="inviteCode" placeholder="goal-2026" />
+            <Field label="Invite code" name="inviteCode" placeholder="ask the group chat" />
             <Field label="Email" name="email" type="email" placeholder="you@example.com" />
             <Field
                 label="Display name"

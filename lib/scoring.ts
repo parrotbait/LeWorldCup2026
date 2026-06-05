@@ -100,7 +100,6 @@ export const BONUS_POINTS = {
     TOP_SCORER: 10,
     GROUP_WINNER: 3, // per correct group, max 12 × 3 = 36
     WOODEN_SPOON: 5,
-    FIRST_GOAL_SCORER: 5,
     // Anti-bonuses — reward picking who'll be rubbish.
     PANTOMIME_VILLAIN: 5, // most cards across the tournament
     SIEVE: 5, // most goals conceded
@@ -189,7 +188,6 @@ export type BonusKind =
     | "GROUP_WINNER"
     | "DARK_HORSE"
     | "WOODEN_SPOON"
-    | "FIRST_GOAL_SCORER"
     | "PANTOMIME_VILLAIN"
     | "SIEVE"
     | "MIGHTY_FALLEN";
@@ -250,16 +248,6 @@ export function computeBonusPointsByPlayer(input: BonusComputeInput): Map<number
                     const norm = normalizeName(pick.playerName);
                     if (r.playerNames.some((n) => normalizeName(n) === norm)) {
                         credit(pick.playerId, BONUS_POINTS.TOP_SCORER);
-                    }
-                }
-                break;
-            }
-            case "FIRST_GOAL_SCORER": {
-                const r = resByKey.get("FIRST_GOAL_SCORER:");
-                if (r !== undefined && pick.playerName !== null) {
-                    const norm = normalizeName(pick.playerName);
-                    if (r.playerNames.some((n) => normalizeName(n) === norm)) {
-                        credit(pick.playerId, BONUS_POINTS.FIRST_GOAL_SCORER);
                     }
                 }
                 break;

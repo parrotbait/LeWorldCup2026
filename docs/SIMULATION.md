@@ -24,7 +24,7 @@ That single command:
 2. Seeds 48 teams across 12 groups (A–L) with synthetic pots.
 3. Creates 12 fake players with whimsical names.
 4. Files randomized predictions for every match (104 of them).
-5. Files randomized bonus picks (winner / dark horse / wooden spoon / golden boot / first scorer / pantomime villain / sieve / mighty fallen / 12 group winners) for each player.
+5. Files randomized bonus picks (winner / dark horse / wooden spoon / golden boot / pantomime villain / sieve / mighty fallen / 12 group winners) for each player.
 6. Picks one joker per knockout round per player.
 7. Settles every match round-by-round with weighted-random scores (no draws in knockouts).
 8. Fills the bracket as each round ends, including third-place play-off.
@@ -98,7 +98,7 @@ pnpm sim leaderboard   # after — see the new totals against the same matches+p
 ## How the sim differs from a real tournament
 
 - **No real teams or fixture data.** The 48 teams in `scripts/sim.ts` are plausible WC contenders with made-up pots; the bracket pairs adjacent qualifiers rather than following FIFA's actual draw rules.
-- **No player goalscorers.** Top Scorer and First Goal Scorer are resolved to fixed fake names (`Sky O. Striker`, `Boots Magee`). Anyone who picked those wins; everyone else doesn't.
+- **No player goalscorers.** Top Scorer is resolved to a fixed fake name (`Sky O. Striker`). Anyone who picked it wins; everyone else doesn't.
 - **No cards data.** Pantomime Villain is approximated by treating the highest-scoring matches as the "most chaotic" — close enough for testing the scoring path.
 - **Knockout matches never go to penalties.** If the random scores tie, the sim nudges one team up by a goal so there's always a winner.
 - **Kickoff times are squashed.** All 104 matches are scheduled 30–60 minutes apart starting just after `now`. Don't expect realistic dates.

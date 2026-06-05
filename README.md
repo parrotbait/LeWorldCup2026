@@ -1,4 +1,5 @@
 # LeWorldCup 2026
+ 
 
 A small private pick'em web game for ~12 friends to play along with **FIFA World Cup 2026** (Canada / Mexico / USA, June–July 2026).
 
@@ -80,7 +81,7 @@ See [`docs/tech-stack.md`](./docs/tech-stack.md) for the Vercel deployment walkt
 ## What's next (tracked in TaskList)
 
 - 🚧 Picks UI (per-match prediction grid with auto-save and lock countdown)
-- 🚧 Bonus picks UI (winner, top scorer, group winners, dark horse, wooden spoon, first scorer)
+- 🚧 Bonus picks UI (winner, top scorer, group winners, dark horse, wooden spoon)
 - 🚧 Joker selection per knockout round
 - 🚧 Per-player profile + per-match detail views (transparent point breakdowns)
 - 🚧 Admin score override editor + bonus resolution UI

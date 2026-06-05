@@ -81,7 +81,6 @@ const bonusKindSchema = z.enum([
     "TOP_SCORER",
     "DARK_HORSE",
     "WOODEN_SPOON",
-    "FIRST_GOAL_SCORER",
     "PANTOMIME_VILLAIN",
     "SIEVE",
     "MIGHTY_FALLEN",
@@ -145,7 +144,7 @@ export async function saveBonusAction(formData: FormData): Promise<SaveResult> {
         return { ok: false, error: "Team required" };
     }
     if (
-        (kind === "TOP_SCORER" || kind === "FIRST_GOAL_SCORER") &&
+        kind === "TOP_SCORER" &&
         (playerName === null || playerName === undefined || playerName === "")
     ) {
         return { ok: false, error: "Player name required" };

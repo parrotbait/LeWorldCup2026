@@ -164,7 +164,6 @@ export const bonusKindEnum = pgEnum("bonus_kind", [
     "GROUP_WINNER",
     "DARK_HORSE",
     "WOODEN_SPOON",
-    "FIRST_GOAL_SCORER",
     // Anti-bonuses — reward picks that excel at being rubbish.
     "PANTOMIME_VILLAIN", // most yellow + red cards
     "SIEVE", // most goals conceded
@@ -184,7 +183,7 @@ export const bonusPicks = pgTable(
         groupLetter: text("group_letter").default("").notNull(),
         // Team-based picks (winner, group winner, dark horse, wooden spoon, anti-bonuses).
         teamId: integer("team_id").references(() => teams.id),
-        // Free-form for player-based picks (top scorer, first goal scorer)
+        // Free-form for player-based picks (top scorer)
         // until we model players-of-teams. Stored as written so we can match leniently.
         playerName: text("player_name"),
         createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -226,7 +225,6 @@ export const settings = pgTable("settings", {
     // Resolved values (set by admin once known).
     winnerTeamId: integer("winner_team_id").references(() => teams.id),
     topScorerName: text("top_scorer_name"),
-    firstGoalScorerName: text("first_goal_scorer_name"),
 });
 
 // ---------------------------------------------------------------------------
