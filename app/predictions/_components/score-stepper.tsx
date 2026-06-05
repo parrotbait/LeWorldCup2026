@@ -188,33 +188,33 @@ export function ScoreStepper({
                 <span className="min-w-[140px] font-medium">{awayName}</span>
                 <span className="text-lg">{flag(awayCode)}</span>
             </div>
-            <div className="min-h-[14px] text-center font-display text-[10px] uppercase tracking-wider">
+            <div className="mt-1 min-h-[18px] text-center font-display uppercase tracking-wider">
                 {settled ? (
-                    <span>
+                    <span className="text-sm sm:text-base">
                         <span className="opacity-60">
                             full time {actualHome}–{actualAway}
                         </span>
                         <span className="mx-2 opacity-30">·</span>
                         {hasPick === false ? (
-                            <span className="text-tournament">no pick — 0 pts</span>
+                            <span className="font-bold text-tournament">no pick — 0 pts</span>
                         ) : isExact ? (
-                            <span className="text-pitch">+{pts} exact</span>
+                            <span className="font-bold text-pitch">+{pts} exact</span>
                         ) : pts > 0 ? (
-                            <span className="opacity-80">+{pts} result</span>
+                            <span className="font-semibold">+{pts} result</span>
                         ) : (
-                            <span className="opacity-40">missed — 0 pts</span>
+                            <span className="opacity-50">missed — 0 pts</span>
                         )}
                     </span>
                 ) : status === "saving" ? (
-                    <span className="opacity-50">saving…</span>
+                    <span className="text-xs opacity-50">saving…</span>
                 ) : status === "error" ? (
-                    <span className="text-tournament">{errorMsg}</span>
+                    <span className="text-xs text-tournament">{errorMsg}</span>
                 ) : locked ? (
-                    <span className="opacity-50">locked 🔒</span>
+                    <span className="text-xs opacity-50">locked 🔒</span>
                 ) : !bothFilled ? (
-                    <span className="opacity-30">enter both scores to save</span>
+                    <span className="text-xs opacity-30">enter both scores to save</span>
                 ) : matchesSaved ? (
-                    <span className="opacity-40">saved</span>
+                    <span className="text-xs opacity-40">saved</span>
                 ) : null}
             </div>
         </div>
