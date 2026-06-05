@@ -120,9 +120,44 @@ export function ScoreStepper({
 
     return (
         <div className="flex flex-col gap-1">
-            <div className="flex items-center justify-center gap-2 sm:gap-3">
+            {/* Mobile: stacked rows — one per team. Avoids horizontal scroll on phones. */}
+            <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-2 sm:hidden">
+                <span className="text-base">{flag(homeCode)}</span>
+                <span className="truncate font-medium">{homeName}</span>
+                <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={2}
+                    disabled={locked}
+                    value={home}
+                    onChange={handleChange(setHome)}
+                    onBlur={save}
+                    onKeyDown={handleEnter}
+                    aria-label={`${homeName} score`}
+                    className={inputClass}
+                />
+                <span className="text-base">{flag(awayCode)}</span>
+                <span className="truncate font-medium">{awayName}</span>
+                <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={2}
+                    disabled={locked}
+                    value={away}
+                    onChange={handleChange(setAway)}
+                    onBlur={save}
+                    onKeyDown={handleEnter}
+                    aria-label={`${awayName} score`}
+                    className={inputClass}
+                />
+            </div>
+
+            {/* Desktop: original single-row layout. */}
+            <div className="hidden items-center justify-center gap-3 sm:flex">
                 <span className="text-lg">{flag(homeCode)}</span>
-                <span className="min-w-0 flex-1 truncate text-right font-medium sm:flex-none sm:min-w-[140px]">{homeName}</span>
+                <span className="min-w-[140px] text-right font-medium">{homeName}</span>
                 <input
                     type="text"
                     inputMode="numeric"
@@ -150,7 +185,7 @@ export function ScoreStepper({
                     aria-label={`${awayName} score`}
                     className={inputClass}
                 />
-                <span className="min-w-0 flex-1 truncate font-medium sm:flex-none sm:min-w-[140px]">{awayName}</span>
+                <span className="min-w-[140px] font-medium">{awayName}</span>
                 <span className="text-lg">{flag(awayCode)}</span>
             </div>
             <div className="min-h-[14px] text-center font-display text-[10px] uppercase tracking-wider">
