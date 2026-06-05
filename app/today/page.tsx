@@ -8,7 +8,8 @@ import { requireSession } from "@/lib/auth";
 import { flag, formatKickoff } from "@/lib/utils";
 import { isExact, predictionPoints } from "@/lib/scoring";
 
-// Always fresh — match scores tick during play and the page is the live one.
+// Always fresh — picks reveal at kickoff and the daily sync may run between
+// renders.
 export const revalidate = 0;
 
 const ROUND_LABEL: Record<string, string> = {
@@ -33,12 +34,14 @@ interface PlayerPickRow {
     isJoker: boolean;
 }
 
-export default async function LivePage() {
+export default async function TodayPage() {
     await requireSession();
 
-    // "Recently" = anything that kicked off in the last 24h. Tweak if needed.
+    // Show fixtures from the past 24h plus anything kicking off in the next
+    // 24h — that covers "today's slate" across timezones without us having
+    // to be clever about midnight rollover.
     const since = new Date(Date.now() - 24 * 60 * 60_000);
-    const until = new Date(Date.now() + 5 * 60_000);
+    const until = new Date(Date.now() + 24 * 60 * 60_000);
 
     const home = alias(teams, "home");
     const away = alias(teams, "away");
@@ -63,11 +66,7 @@ export default async function LivePage() {
         .where(
             or(
                 eq(matches.status, "LIVE"),
-                and(
-                    eq(matches.status, "FINISHED"),
-                    gte(matches.kickoff, since),
-                    lte(matches.kickoff, until),
-                ),
+                and(gte(matches.kickoff, since), lte(matches.kickoff, until)),
             ),
         )
         .orderBy(asc(matches.kickoff));
@@ -147,16 +146,16 @@ export default async function LivePage() {
             <NavBar />
             <main className="mx-auto max-w-3xl px-6 py-8">
                 <header>
-                    <h1 className="font-display text-2xl uppercase tracking-widest">Live</h1>
+                    <h1 className="font-display text-2xl uppercase tracking-widest">Today</h1>
                     <p className="mt-1 text-xs opacity-60">
-                        In-play and recently-finished matches. Picks revealed at kickoff. Live
-                        points reflect the current scoreline — they finalise at full-time.
+                        Today&rsquo;s fixtures and everyone&rsquo;s picks (revealed at kickoff).
+                        Scores sync once a day, so finals and points settle the morning after.
                     </p>
                 </header>
 
                 {liveOrRecent.length === 0 ? (
                     <p className="mt-12 text-center text-sm opacity-60">
-                        No live action right now.
+                        No matches in today&rsquo;s window.
                         {upcoming[0] !== undefined ? (
                             <>
                                 {" "}Next kickoff: <strong>{formatKickoff(upcoming[0].kickoff)}</strong>.
@@ -192,7 +191,11 @@ export default async function LivePage() {
                                                     : "opacity-60"
                                             }`}
                                         >
-                                            {m.status === "LIVE" ? "● live" : "full time"}
+                                            {m.status === "LIVE"
+                                                ? "● live"
+                                                : m.status === "FINISHED"
+                                                  ? "full time"
+                                                  : "scheduled"}
                                         </span>
                                     </header>
 

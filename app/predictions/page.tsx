@@ -99,7 +99,7 @@ export default async function PredictionsPage() {
     return (
         <>
             <NavBar />
-            <main className="mx-auto max-w-3xl px-6 py-8">
+            <main className="mx-auto max-w-3xl px-3 py-6 sm:px-6 sm:py-8">
                 <header>
                     <h1 className="font-display text-2xl uppercase tracking-widest">Predictions</h1>
                     <p className="mt-1 text-xs opacity-60">
@@ -154,7 +154,7 @@ export default async function PredictionsPage() {
                                             return (
                                                 <li
                                                     key={m.id}
-                                                    className="grid grid-cols-[100px_1fr] items-center gap-4 py-4 text-sm"
+                                                    className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-3 py-4 text-sm sm:grid-cols-[100px_1fr] sm:gap-4"
                                                 >
                                                     <div className="font-display text-xs opacity-60">
                                                         <div>{formatTime(m.kickoff)}</div>

@@ -6,6 +6,17 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
+ * Predictions lock this many ms before each match's kickoff. Gives a small
+ * fairness margin for clock skew and for late-running data sources.
+ */
+export const PICK_LOCK_BUFFER_MS = 15 * 60_000;
+
+/** Effective lock time for a match — kickoff minus the buffer. */
+export function pickLockTime(kickoff: Date): number {
+    return kickoff.getTime() - PICK_LOCK_BUFFER_MS;
+}
+
+/**
  * The display timezone for every kickoff and lock countdown in the UI.
  *
  * We're all in GMT/BST so render uniformly in Europe/London regardless of

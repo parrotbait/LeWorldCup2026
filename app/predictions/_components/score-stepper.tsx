@@ -120,9 +120,9 @@ export function ScoreStepper({
 
     return (
         <div className="flex flex-col gap-1">
-            <div className="flex items-center justify-center gap-3">
+            <div className="flex items-center justify-center gap-2 sm:gap-3">
                 <span className="text-lg">{flag(homeCode)}</span>
-                <span className="min-w-[140px] text-right font-medium">{homeName}</span>
+                <span className="min-w-0 flex-1 truncate text-right font-medium sm:flex-none sm:min-w-[140px]">{homeName}</span>
                 <input
                     type="text"
                     inputMode="numeric"
@@ -150,7 +150,7 @@ export function ScoreStepper({
                     aria-label={`${awayName} score`}
                     className={inputClass}
                 />
-                <span className="min-w-[140px] font-medium">{awayName}</span>
+                <span className="min-w-0 flex-1 truncate font-medium sm:flex-none sm:min-w-[140px]">{awayName}</span>
                 <span className="text-lg">{flag(awayCode)}</span>
             </div>
             <div className="min-h-[14px] text-center font-display text-[10px] uppercase tracking-wider">
