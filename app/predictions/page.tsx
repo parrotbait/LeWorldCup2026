@@ -4,7 +4,7 @@ import { db } from "@/db/client";
 import { matches, predictions, teams } from "@/db/schema";
 import { NavBar } from "@/app/_components/navbar";
 import { requireSession } from "@/lib/auth";
-import { formatDayLong, formatTime } from "@/lib/utils";
+import { formatDayLong, formatTime, pickLockTime } from "@/lib/utils";
 import { isExact, predictionPoints } from "@/lib/scoring";
 import { ScoreStepper } from "./_components/score-stepper";
 
@@ -27,7 +27,7 @@ function lockMessage(kickoff: Date, locked: boolean, tbd: boolean): string {
     if (locked) {
         return "locked";
     }
-    const ms = kickoff.getTime() - Date.now();
+    const ms = pickLockTime(kickoff) - Date.now();
     if (ms <= 0) {
         return "locked";
     }
@@ -134,7 +134,7 @@ export default async function PredictionsPage() {
                                             // meaningful pick to make against placeholders.
                                             const locked =
                                                 tbd ||
-                                                m.kickoff.getTime() <= now ||
+                                                pickLockTime(m.kickoff) <= now ||
                                                 m.status !== "SCHEDULED";
                                             const settled = m.homeScore !== null && m.awayScore !== null;
                                             const earned =

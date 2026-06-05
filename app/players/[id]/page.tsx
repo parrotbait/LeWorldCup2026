@@ -15,7 +15,7 @@ import {
 } from "@/db/schema";
 import { NavBar } from "@/app/_components/navbar";
 import { requireSession } from "@/lib/auth";
-import { flag, formatKickoff } from "@/lib/utils";
+import { flag, formatKickoff, pickLockTime } from "@/lib/utils";
 import { computeBonusPointsByPlayer, predictionPoints } from "@/lib/scoring";
 
 export const revalidate = 30;
@@ -128,7 +128,7 @@ export default async function PlayerProfilePage({ params }: PageProps) {
             predictionsFiled += 1;
         }
         const matchKickedOff =
-            m.kickoff.getTime() <= now || m.status !== "SCHEDULED";
+            pickLockTime(m.kickoff) <= now || m.status !== "SCHEDULED";
         const revealed = isMe || matchKickedOff;
         const base = predictionPoints(m, pred);
         const isJoker = jokerByRound.get(m.round) === m.id;

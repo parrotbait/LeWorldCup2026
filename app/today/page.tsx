@@ -5,7 +5,7 @@ import { db } from "@/db/client";
 import { jokers, matches, players, predictions, teams } from "@/db/schema";
 import { NavBar } from "@/app/_components/navbar";
 import { requireSession } from "@/lib/auth";
-import { flag, formatKickoff } from "@/lib/utils";
+import { flag, formatKickoff, pickLockTime } from "@/lib/utils";
 import { isExact, predictionPoints } from "@/lib/scoring";
 
 // Always fresh — picks reveal at kickoff and the daily sync may run between
@@ -166,6 +166,9 @@ export default async function TodayPage() {
                     <div className="mt-8 space-y-8">
                         {liveOrRecent.map((m) => {
                             const rows = pickByMatch.get(m.id) ?? [];
+                            const revealed =
+                                pickLockTime(m.kickoff) <= Date.now() ||
+                                m.status !== "SCHEDULED";
                             return (
                                 <section key={m.id} className="rounded border border-ink/15">
                                     <header className="flex items-baseline justify-between border-b border-ink/15 px-4 py-3">
@@ -178,7 +181,9 @@ export default async function TodayPage() {
                                                 <span className="mr-2">{flag(m.homeCode ?? "")}</span>
                                                 {m.homeName ?? "TBD"}
                                                 <span className="mx-3 opacity-50">
-                                                    {m.homeScore ?? 0} – {m.awayScore ?? 0}
+                                                    {m.status === "SCHEDULED"
+                                                        ? "vs"
+                                                        : `${m.homeScore ?? 0} – ${m.awayScore ?? 0}`}
                                                 </span>
                                                 {m.awayName ?? "TBD"}
                                                 <span className="ml-2">{flag(m.awayCode ?? "")}</span>
@@ -202,6 +207,10 @@ export default async function TodayPage() {
                                     {rows.length === 0 ? (
                                         <p className="px-4 py-6 text-center text-xs opacity-60">
                                             No players in the league yet.
+                                        </p>
+                                    ) : !revealed ? (
+                                        <p className="px-4 py-6 text-center text-xs opacity-60">
+                                            Picks reveal 15 min before kickoff.
                                         </p>
                                     ) : (
                                         <ul className="divide-y divide-ink/10 text-sm">

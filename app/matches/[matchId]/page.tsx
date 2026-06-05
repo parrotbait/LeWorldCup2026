@@ -6,7 +6,7 @@ import { db } from "@/db/client";
 import { jokers, matches, players, predictions, teams } from "@/db/schema";
 import { NavBar } from "@/app/_components/navbar";
 import { requireSession } from "@/lib/auth";
-import { flag, formatKickoffLong } from "@/lib/utils";
+import { flag, formatKickoffLong, pickLockTime } from "@/lib/utils";
 import { predictionPoints } from "@/lib/scoring";
 
 export const revalidate = 0;
@@ -63,10 +63,10 @@ export default async function MatchDetailPage({ params }: PageProps) {
         notFound();
     }
 
-    // Reveal everyone's picks if either signal says the match has started:
-    // kickoff has passed OR status has moved off SCHEDULED (LIVE/FINISHED).
+    // Reveal everyone's picks once predictions have locked: 15 min before
+    // kickoff, OR the moment status moves off SCHEDULED.
     const kickedOff =
-        matchRow.kickoff.getTime() <= Date.now() || matchRow.status !== "SCHEDULED";
+        pickLockTime(matchRow.kickoff) <= Date.now() || matchRow.status !== "SCHEDULED";
 
     // Visibility gate: until kickoff, players see only their own pick.
     // After kickoff, every player is listed — even those who didn't file
