@@ -1,12 +1,46 @@
+import Image from "next/image";
 import Link from "next/link";
 import { NavBar } from "@/app/_components/navbar";
-import { requireSession } from "@/lib/auth";
+import { getSession } from "@/lib/auth";
 
 export default async function RulesPage() {
-    await requireSession().catch(() => undefined);
+    // /rules is the one route that's intentionally readable without logging
+    // in (it's linked from the login page). NavBar itself calls
+    // requireSession() and would redirect a guest back to / on render — so
+    // we branch on getSession() here and show a minimal guest header.
+    const session = await getSession();
     return (
         <>
-            <NavBar />
+            {session !== null ? (
+                <NavBar />
+            ) : (
+                <header className="border-b border-rule">
+                    <div className="mx-auto flex max-w-5xl items-center gap-2 px-6 py-3">
+                        <Link
+                            href="/"
+                            className="flex items-center gap-2 font-display text-xs uppercase tracking-[0.3em]"
+                        >
+                            <Image
+                                src="/world-cup-logo.png"
+                                alt="FIFA World Cup 2026"
+                                width={28}
+                                height={36}
+                                priority
+                                className="h-9 w-auto"
+                            />
+                            <span>
+                                <span className="text-tournament">LeWorldCup</span> 2026
+                            </span>
+                        </Link>
+                        <Link
+                            href="/"
+                            className="ml-auto text-xs text-ink-muted hover:text-tournament"
+                        >
+                            ← back to login
+                        </Link>
+                    </div>
+                </header>
+            )}
             <main className="mx-auto max-w-2xl px-6 py-8 text-[15px] leading-relaxed">
                 <h1 className="font-display text-2xl uppercase tracking-widest">Rules</h1>
                 <p className="mt-2 text-sm opacity-70">
