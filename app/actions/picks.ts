@@ -4,10 +4,11 @@ import { and, asc, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db/client";
-import { bonusPicks, jokers, matches, predictions, settings } from "@/db/schema";
+import { bonusPicks, jokers, matches, predictions, settings, teams, auditLog } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
 import { pickLockTime } from "@/lib/utils";
 import { getTournamentLockState } from "@/lib/tournament-lock";
+import { findPlayer } from "@/lib/players";
 
 const scoreSchema = z.coerce.number().int().min(0).max(20);
 
@@ -72,6 +73,14 @@ export async function savePredictionAction(formData: FormData): Promise<SaveResu
             },
         });
 
+    // Audit-log every prediction save. Disputes ("I filed a pick, why's
+    // it not counted?") need a record we can point at.
+    await db.insert(auditLog).values({
+        actor: `player:${session.playerId}`,
+        action: "save-prediction",
+        detail: JSON.stringify({ matchId, homeScore, awayScore }),
+    });
+
     revalidatePath("/predictions");
     revalidatePath("/leaderboard");
     revalidatePath(`/matches/${matchId}`);
@@ -82,9 +91,13 @@ export async function savePredictionAction(formData: FormData): Promise<SaveResu
 // Bonus picks
 // ---------------------------------------------------------------------------
 
+// GROUP_WINNER is deliberately omitted: cut from the v1 picks UI per
+// docs/game-design.md §2.3. The DB enum and scoring engine retain support
+// for it so historical/sim data still computes correctly.
 const bonusKindSchema = z.enum([
     "WINNER",
     "TOP_SCORER",
+    "MOST_ASSISTS",
     "DARK_HORSE",
     "WOODEN_SPOON",
     "PANTOMIME_VILLAIN",
@@ -129,10 +142,50 @@ export async function saveBonusAction(formData: FormData): Promise<SaveResult> {
         return { ok: false, error: "Team required" };
     }
     if (
-        kind === "TOP_SCORER" &&
-        (playerName === null || playerName === undefined || playerName === "")
+        kind === "TOP_SCORER" || kind === "MOST_ASSISTS"
     ) {
-        return { ok: false, error: "Player name required" };
+        if (playerName === null || playerName === undefined || playerName === "") {
+            return { ok: false, error: "Player name required" };
+        }
+    }
+    // Player-stat bonuses must resolve to a real player from the official
+    // squad lists. We persist the canonical "LAST First" form so admin
+    // resolution and /players profile pages render uniformly.
+    let canonicalPlayerName: string | null = playerName ?? null;
+    if (
+        (kind === "TOP_SCORER" || kind === "MOST_ASSISTS") &&
+        playerName !== null &&
+        playerName !== undefined
+    ) {
+        const found = findPlayer(playerName);
+        if (found === null) {
+            return { ok: false, error: "Pick a player from the list" };
+        }
+        canonicalPlayerName = found.displayName;
+    }
+
+    // Pot-based eligibility for the team-bound bonuses. Defends against a
+    // hand-crafted POST that bypasses the UI's pre-filtered pot lists:
+    //   - DARK_HORSE: only teams NOT in pot 1.
+    //   - MIGHTY_FALLEN: only teams in pot 1.
+    // If the team has no pot set yet (data not loaded) we let it through —
+    // pre-tournament we can't reliably reject.
+    if ((kind === "DARK_HORSE" || kind === "MIGHTY_FALLEN") && teamId !== null && teamId !== undefined) {
+        const team = (
+            await db
+                .select({ pot: teams.pot })
+                .from(teams)
+                .where(eq(teams.id, teamId))
+                .limit(1)
+        )[0];
+        if (team !== undefined && team.pot !== null) {
+            if (kind === "DARK_HORSE" && team.pot === 1) {
+                return { ok: false, error: "Dark horse must be a non-Pot-1 team" };
+            }
+            if (kind === "MIGHTY_FALLEN" && team.pot !== 1) {
+                return { ok: false, error: "Mighty Fallen must be a Pot-1 team" };
+            }
+        }
     }
 
     await db
@@ -142,13 +195,13 @@ export async function saveBonusAction(formData: FormData): Promise<SaveResult> {
             kind,
             groupLetter: "",
             teamId: teamId ?? null,
-            playerName: playerName ?? null,
+            playerName: canonicalPlayerName,
         })
         .onConflictDoUpdate({
             target: [bonusPicks.playerId, bonusPicks.kind, bonusPicks.groupLetter],
             set: {
                 teamId: teamId ?? null,
-                playerName: playerName ?? null,
+                playerName: canonicalPlayerName,
                 updatedAt: new Date(),
             },
         });

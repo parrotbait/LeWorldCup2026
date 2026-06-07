@@ -1,0 +1,14 @@
+In bonuses I'd like to make a couple of changes. 1) I want to separate out Golden boot from Tournament winner, Dark Horse and Wooden Spoon, into it's own section for
+    players. Then I want to add a _new_ bonus, for most assists. Please update tests, documentation and migration steps to add this in (what is needed for production?).
+    If there's a draw each person gets the bonus (this should be stated in rules, the same goes for top goalscorer).
+    I'd like for the current top goals scorer (populated from Football Data) to be shown, if there's multiple players then show "5 players". Is there anywhere we can
+  link
+    to to show the current top scorer and assist for players to review themselves? It would be great to be able to show the same current best for other awards that have
+    progress, such as Dark Horse, The Sieve, Pantomime Villain - but these should only be populated with enough data e.g. at least one round of games.
+
+  To achieve all of this, use a team of agents - an expert software engineer, a QA engineer responsible for quality, a UX expert, a gamer expert, a database migration
+  expert and a PM to coordinate work.
+
+  ----
+
+  I'd like to change the styling for the site. I want to add in the world cup logo in a few places, as well as improve the color scheme. I added in a PDF that contains some of the color schemes used in the world cup at data/FWC26_Match Colour Designation_v2_27.05.2026.pdf, please sample some of the hex colors there, I'd like to test on each iteration as they're quite bright and in your face so I wnat to see how they work. 

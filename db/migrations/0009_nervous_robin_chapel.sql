@@ -1,0 +1,1 @@
+ALTER TYPE "public"."bonus_kind" ADD VALUE IF NOT EXISTS 'MOST_ASSISTS';

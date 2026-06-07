@@ -1,0 +1,372 @@
+/**
+ * "Currently leading" calculations for /bonuses cards and the /stats page.
+ *
+ * Three flavours:
+ *  - Player-stat leaders (Golden Boot, Most Assists) come from football-data
+ *    /competitions/WC/scorers, cached 5 min via Next data-cache.
+ *  - Team-progress leaders (Dark Horse, Sieve, Wooden Spoon, Tournament
+ *    Winner) come from our own `matches` table — no extra API call.
+ *  - Pantomime Villain is hidden ("data n/a"). Football-data's free tier
+ *    does not surface card counts in /scorers; admin resolves manually.
+ *
+ * Team leaders are hidden until at least one match has FINISHED, so empty-
+ * tournament cards stay quiet instead of showing nonsense like
+ * "Currently: 0 conceded".
+ */
+
+import { eq } from "drizzle-orm";
+import { db as dbInstance } from "@/db/client";
+import { matches, teams } from "@/db/schema";
+import { fetchScorers, type FdScorer } from "@/lib/football-data";
+import { findPlayer } from "@/lib/players";
+import { topByMetric } from "@/lib/live-leaders-pure";
+
+export type LiveLeader =
+    | { kind: "single"; displayName: string; metric: number; teamCode?: string }
+    | { kind: "tied-pair"; names: [string, string]; metric: number; teamCodes?: [string, string] }
+    | { kind: "tied-many"; count: number; metric: number; subjectPlural: string }
+    | { kind: "unavailable"; reason: string }
+    | { kind: "hidden"; reason: "no_rounds_played" | "no_data_yet" };
+
+type DB = typeof dbInstance;
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+async function hasAnyRoundCompleted(db: DB): Promise<boolean> {
+    const finished = await db
+        .select({ id: matches.id })
+        .from(matches)
+        .where(eq(matches.status, "FINISHED"))
+        .limit(1);
+    return finished.length > 0;
+}
+
+function asPlayerLeader(
+    top: { value: number; tied: FdScorer[] },
+    subjectPlural: "players",
+): LiveLeader {
+    if (top.tied.length === 1) {
+        const s = top.tied[0]!;
+        // Map FD's free-form name to our canonical squad-list display name
+        // when we can; otherwise fall back to FD's name.
+        const canonical = findPlayer(s.player.name);
+        return {
+            kind: "single",
+            displayName: canonical?.displayName ?? s.player.name,
+            metric: top.value,
+            teamCode: s.team.tla ?? undefined,
+        };
+    }
+    if (top.tied.length === 2) {
+        const a = top.tied[0]!;
+        const b = top.tied[1]!;
+        return {
+            kind: "tied-pair",
+            names: [
+                findPlayer(a.player.name)?.displayName ?? a.player.name,
+                findPlayer(b.player.name)?.displayName ?? b.player.name,
+            ],
+            metric: top.value,
+            teamCodes: [a.team.tla ?? "", b.team.tla ?? ""],
+        };
+    }
+    return {
+        kind: "tied-many",
+        count: top.tied.length,
+        metric: top.value,
+        subjectPlural,
+    };
+}
+
+interface TeamRow {
+    id: number;
+    code: string;
+    name: string;
+}
+
+function asTeamLeader(
+    top: { value: number; tied: TeamRow[] },
+    subjectPlural: "teams",
+): LiveLeader {
+    if (top.tied.length === 1) {
+        const t = top.tied[0]!;
+        return {
+            kind: "single",
+            displayName: t.name,
+            metric: top.value,
+            teamCode: t.code,
+        };
+    }
+    if (top.tied.length === 2) {
+        const a = top.tied[0]!;
+        const b = top.tied[1]!;
+        return {
+            kind: "tied-pair",
+            names: [a.name, b.name],
+            metric: top.value,
+            teamCodes: [a.code, b.code],
+        };
+    }
+    return {
+        kind: "tied-many",
+        count: top.tied.length,
+        metric: top.value,
+        subjectPlural,
+    };
+}
+
+// ---------------------------------------------------------------------------
+// Player-stat leaders
+// ---------------------------------------------------------------------------
+
+async function fetchScorersOrNull(): Promise<FdScorer[] | null> {
+    try {
+        return await fetchScorers();
+    } catch {
+        return null;
+    }
+}
+
+export async function getTopScorerLeader(): Promise<LiveLeader> {
+    const scorers = await fetchScorersOrNull();
+    if (scorers === null) {
+        return { kind: "unavailable", reason: "fd_fetch_failed" };
+    }
+    if (scorers.length === 0) {
+        return { kind: "hidden", reason: "no_data_yet" };
+    }
+    const top = topByMetric(scorers, (s) => s.goals);
+    if (top === null) {
+        return { kind: "hidden", reason: "no_data_yet" };
+    }
+    return asPlayerLeader(top, "players");
+}
+
+export async function getMostAssistsLeader(): Promise<LiveLeader> {
+    const scorers = await fetchScorersOrNull();
+    if (scorers === null) {
+        return { kind: "unavailable", reason: "fd_fetch_failed" };
+    }
+    // Free tier may return null assists. If every row is null, hide.
+    if (scorers.every((s) => s.assists === null)) {
+        return { kind: "unavailable", reason: "assists_not_in_free_tier" };
+    }
+    const top = topByMetric(scorers, (s) => s.assists);
+    if (top === null) {
+        return { kind: "hidden", reason: "no_data_yet" };
+    }
+    return asPlayerLeader(top, "players");
+}
+
+// ---------------------------------------------------------------------------
+// Team-progress leaders
+// ---------------------------------------------------------------------------
+
+const ROUND_RANK: Record<string, number> = {
+    GROUP: 0,
+    R32: 1,
+    R16: 2,
+    QF: 3,
+    SF: 4,
+    THIRD: 5,
+    FINAL: 6,
+};
+
+interface TeamProgress extends TeamRow {
+    pot: number | null;
+    furthestRoundRank: number;
+    goalsFor: number;
+    goalsAgainst: number;
+}
+
+async function loadTeamProgress(db: DB): Promise<TeamProgress[]> {
+    const allTeams = await db.select().from(teams);
+    const allMatches = await db.select().from(matches);
+
+    const byId = new Map<number, TeamProgress>();
+    for (const t of allTeams) {
+        byId.set(t.id, {
+            id: t.id,
+            code: t.code,
+            name: t.name,
+            pot: t.pot,
+            furthestRoundRank: -1,
+            goalsFor: 0,
+            goalsAgainst: 0,
+        });
+    }
+    for (const m of allMatches) {
+        if (m.homeTeamId !== null) {
+            const p = byId.get(m.homeTeamId);
+            if (p !== undefined) {
+                const rank = ROUND_RANK[m.round] ?? -1;
+                if (rank > p.furthestRoundRank) {
+                    p.furthestRoundRank = rank;
+                }
+            }
+        }
+        if (m.awayTeamId !== null) {
+            const p = byId.get(m.awayTeamId);
+            if (p !== undefined) {
+                const rank = ROUND_RANK[m.round] ?? -1;
+                if (rank > p.furthestRoundRank) {
+                    p.furthestRoundRank = rank;
+                }
+            }
+        }
+        if (
+            m.status === "FINISHED" &&
+            m.homeScore !== null &&
+            m.awayScore !== null &&
+            m.homeTeamId !== null &&
+            m.awayTeamId !== null
+        ) {
+            const home = byId.get(m.homeTeamId);
+            const away = byId.get(m.awayTeamId);
+            if (home !== undefined && away !== undefined) {
+                home.goalsFor += m.homeScore;
+                home.goalsAgainst += m.awayScore;
+                away.goalsFor += m.awayScore;
+                away.goalsAgainst += m.homeScore;
+            }
+        }
+    }
+    return Array.from(byId.values());
+}
+
+export async function getDarkHorseLeader(db: DB = dbInstance): Promise<LiveLeader> {
+    if (!(await hasAnyRoundCompleted(db))) {
+        return { kind: "hidden", reason: "no_rounds_played" };
+    }
+    const all = await loadTeamProgress(db);
+    const eligible = all.filter((t) => t.pot !== 1 && t.furthestRoundRank > 0);
+    if (eligible.length === 0) {
+        return { kind: "hidden", reason: "no_data_yet" };
+    }
+    // Best non-Pot-1 finish; tiebreak GD then GF.
+    const top = topByMetric(eligible, (t) => t.furthestRoundRank);
+    if (top === null) {
+        return { kind: "hidden", reason: "no_data_yet" };
+    }
+    if (top.tied.length === 1) {
+        return asTeamLeader(top, "teams");
+    }
+    // Multiple teams at the same furthest round — tiebreak.
+    const withGd = top.tied.map((t) => ({ ...t, gd: t.goalsFor - t.goalsAgainst }));
+    const bestGd = Math.max(...withGd.map((t) => t.gd));
+    const gdTied = withGd.filter((t) => t.gd === bestGd);
+    if (gdTied.length === 1) {
+        return asTeamLeader({ value: top.value, tied: gdTied }, "teams");
+    }
+    const bestGf = Math.max(...gdTied.map((t) => t.goalsFor));
+    const finalTied = gdTied.filter((t) => t.goalsFor === bestGf);
+    return asTeamLeader({ value: top.value, tied: finalTied }, "teams");
+}
+
+export async function getSieveLeader(db: DB = dbInstance): Promise<LiveLeader> {
+    if (!(await hasAnyRoundCompleted(db))) {
+        return { kind: "hidden", reason: "no_rounds_played" };
+    }
+    const all = await loadTeamProgress(db);
+    const top = topByMetric(all, (t) => t.goalsAgainst);
+    if (top === null) {
+        return { kind: "hidden", reason: "no_data_yet" };
+    }
+    return asTeamLeader(top, "teams");
+}
+
+export async function getWoodenSpoonLeader(db: DB = dbInstance): Promise<LiveLeader> {
+    if (!(await hasAnyRoundCompleted(db))) {
+        return { kind: "hidden", reason: "no_rounds_played" };
+    }
+    // Worst overall finish. We approximate by lowest furthestRoundRank, with
+    // tiebreaks favouring fewer goals scored. Pre-knockouts this is a
+    // multi-way tie among group-stage teams.
+    const all = await loadTeamProgress(db);
+    const worstRank = Math.min(...all.map((t) => t.furthestRoundRank));
+    const tied = all.filter((t) => t.furthestRoundRank === worstRank);
+    if (tied.length === 0) {
+        return { kind: "hidden", reason: "no_data_yet" };
+    }
+    if (tied.length === 1) {
+        return asTeamLeader({ value: worstRank, tied }, "teams");
+    }
+    // Tiebreak: fewest goals scored, then most conceded.
+    const minGf = Math.min(...tied.map((t) => t.goalsFor));
+    const gfTied = tied.filter((t) => t.goalsFor === minGf);
+    if (gfTied.length === 1) {
+        return asTeamLeader({ value: worstRank, tied: gfTied }, "teams");
+    }
+    const maxGa = Math.max(...gfTied.map((t) => t.goalsAgainst));
+    const finalTied = gfTied.filter((t) => t.goalsAgainst === maxGa);
+    return asTeamLeader({ value: worstRank, tied: finalTied }, "teams");
+}
+
+export async function getTournamentWinnerLeader(db: DB = dbInstance): Promise<LiveLeader> {
+    // Only meaningful after the FINAL has been settled. Until then we don't
+    // pretend to know — the chip stays hidden.
+    const finalRow = (
+        await db
+            .select({ winnerTeamId: matches.winnerTeamId })
+            .from(matches)
+            .where(eq(matches.round, "FINAL"))
+            .limit(1)
+    )[0];
+    if (
+        finalRow === undefined ||
+        finalRow.winnerTeamId === null ||
+        finalRow.winnerTeamId === undefined
+    ) {
+        return { kind: "hidden", reason: "no_data_yet" };
+    }
+    const team = (
+        await db
+            .select({ id: teams.id, code: teams.code, name: teams.name })
+            .from(teams)
+            .where(eq(teams.id, finalRow.winnerTeamId))
+            .limit(1)
+    )[0];
+    if (team === undefined) {
+        return { kind: "hidden", reason: "no_data_yet" };
+    }
+    return { kind: "single", displayName: team.name, metric: 1, teamCode: team.code };
+}
+
+export async function getMightyFallenLeader(db: DB = dbInstance): Promise<LiveLeader> {
+    // Pot-1 teams that didn't make R32 (i.e. crashed out at the group stage).
+    if (!(await hasAnyRoundCompleted(db))) {
+        return { kind: "hidden", reason: "no_rounds_played" };
+    }
+    const all = await loadTeamProgress(db);
+    // Only count once knockouts have begun — until R32 fixtures are filled,
+    // we can't distinguish "still playing groups" from "didn't qualify".
+    const r32Played = all.some((t) => t.furthestRoundRank >= ROUND_RANK.R32);
+    if (!r32Played) {
+        return { kind: "hidden", reason: "no_rounds_played" };
+    }
+    const fallen = all.filter((t) => t.pot === 1 && t.furthestRoundRank < ROUND_RANK.R32);
+    if (fallen.length === 0) {
+        return { kind: "hidden", reason: "no_data_yet" };
+    }
+    if (fallen.length === 1) {
+        const t = fallen[0]!;
+        return { kind: "single", displayName: t.name, metric: 1, teamCode: t.code };
+    }
+    if (fallen.length === 2) {
+        const a = fallen[0]!;
+        const b = fallen[1]!;
+        return {
+            kind: "tied-pair",
+            names: [a.name, b.name],
+            metric: 1,
+            teamCodes: [a.code, b.code],
+        };
+    }
+    return { kind: "tied-many", count: fallen.length, metric: 1, subjectPlural: "teams" };
+}
+
+export async function getPantomimeVillainLeader(): Promise<LiveLeader> {
+    return { kind: "unavailable", reason: "cards_not_in_free_tier" };
+}

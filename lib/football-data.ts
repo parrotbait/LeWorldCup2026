@@ -36,15 +36,34 @@ interface FdTeam {
     tla: string | null;
 }
 
-async function fd<T>(path: string): Promise<T> {
+interface FdScorer {
+    player: { id: number; name: string; position: string | null; dateOfBirth: string | null };
+    team: { id: number; name: string; tla: string | null };
+    goals: number;
+    assists: number | null;
+    penalties: number | null;
+}
+
+async function fd<T>(path: string, opts?: { revalidate?: number; tags?: string[] }): Promise<T> {
     if (env.FOOTBALL_DATA_TOKEN === "") {
         throw new Error("FOOTBALL_DATA_TOKEN is not set");
     }
-    const res = await fetch(`${BASE}${path}`, {
+    const init: RequestInit & { next?: { revalidate?: number; tags?: string[] } } = {
         headers: { "X-Auth-Token": env.FOOTBALL_DATA_TOKEN },
-        // Always fresh — we cache at the DB layer.
-        cache: "no-store",
-    });
+    };
+    if (opts?.revalidate !== undefined || opts?.tags !== undefined) {
+        init.next = {};
+        if (opts.revalidate !== undefined) {
+            init.next.revalidate = opts.revalidate;
+        }
+        if (opts.tags !== undefined) {
+            init.next.tags = opts.tags;
+        }
+    } else {
+        // Cron + sim path — always fresh.
+        init.cache = "no-store";
+    }
+    const res = await fetch(`${BASE}${path}`, init);
     if (!res.ok) {
         throw new Error(`football-data ${path} failed: ${res.status} ${res.statusText}`);
     }
@@ -61,7 +80,24 @@ export async function fetchMatches(): Promise<FdMatch[]> {
     return data.matches;
 }
 
-export type { FdMatch, FdTeam };
+/**
+ * Top-N goalscorer leaderboard for the WC. Each row carries goals, assists,
+ * and penalty count. The shape covers both the Golden Boot and Most Assists
+ * live-leader displays — same endpoint, different metric.
+ *
+ * Cached for 5 min via Next's data cache so /bonuses and /stats don't
+ * hammer the free tier (10 req/min). Tag `live-leaders` is invalidated by
+ * the cron sync so refreshes can be forced.
+ */
+export async function fetchScorers(): Promise<FdScorer[]> {
+    const data = await fd<{ scorers: FdScorer[] }>(
+        "/competitions/WC/scorers?limit=100",
+        { revalidate: 300, tags: ["live-leaders"] },
+    );
+    return data.scorers;
+}
+
+export type { FdMatch, FdTeam, FdScorer };
 
 /**
  * Map football-data stage names → our `roundEnum` values.

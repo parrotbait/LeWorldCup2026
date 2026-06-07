@@ -1,16 +1,34 @@
 import Link from "next/link";
+import { desc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { bonusPicks, bonusResolutions, matches, players, predictions, jokers } from "@/db/schema";
+import { auditLog, bonusPicks, bonusResolutions, matches, players, predictions, jokers } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
 import { buildLeaderboard, computeBonusPointsByPlayer } from "@/lib/scoring";
 import { NavBar } from "@/app/_components/navbar";
 
 export const revalidate = 30;
 
+function relativeAgo(d: Date): string {
+    const ms = Date.now() - d.getTime();
+    if (ms < 60_000) {
+        return "just now";
+    }
+    const mins = Math.floor(ms / 60_000);
+    if (mins < 60) {
+        return `${mins} min ago`;
+    }
+    const hours = Math.floor(mins / 60);
+    if (hours < 48) {
+        return `${hours}h ago`;
+    }
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+}
+
 export default async function LeaderboardPage() {
     const session = await requireSession();
 
-    const [allPlayers, allMatches, allPredictions, allJokers, allBonusPicks, allResolutions] =
+    const [allPlayers, allMatches, allPredictions, allJokers, allBonusPicks, allResolutions, lastSync] =
         await Promise.all([
             db.select().from(players),
             db.select().from(matches),
@@ -18,6 +36,12 @@ export default async function LeaderboardPage() {
             db.select().from(jokers),
             db.select().from(bonusPicks),
             db.select().from(bonusResolutions),
+            db
+                .select({ at: auditLog.at })
+                .from(auditLog)
+                .where(eq(auditLog.action, "sync-results"))
+                .orderBy(desc(auditLog.id))
+                .limit(1),
         ]);
 
     const bonusPointsByPlayer = computeBonusPointsByPlayer({
@@ -78,6 +102,11 @@ export default async function LeaderboardPage() {
                 <h1 className="font-display text-2xl uppercase tracking-widest">Standings</h1>
                 <p className="mt-1 text-xs opacity-60">
                     Tie-breakers: total → exact predictions → bonuses → KO results → signup
+                </p>
+                <p className="mt-1 text-[11px] uppercase tracking-wider opacity-50">
+                    {lastSync[0] !== undefined
+                        ? `last synced ${relativeAgo(lastSync[0].at)} · ${lastSync[0].at.toISOString().replace("T", " ").slice(0, 16)}Z`
+                        : "no sync yet"}
                 </p>
 
                 <table className="mt-6 w-full text-sm tabular">

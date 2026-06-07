@@ -8,6 +8,10 @@
  *   pnpm snapshot --out=data/2026-06-08.json      → custom path
  *
  * Restore later with `pnpm restore [--in=path]`.
+ *
+ * NOTE: this snapshot is teams+matches ONLY. It does NOT capture player
+ * picks. For a full rewind including predictions/bonuses/jokers/audit log,
+ * use `pnpm db:backup` (scripts/backup.ts).
  */
 
 import "./_load-env";

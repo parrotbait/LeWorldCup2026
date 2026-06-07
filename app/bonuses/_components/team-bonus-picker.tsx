@@ -24,6 +24,8 @@ interface Props {
     options: TeamOption[];
     selectedTeamId: number | null;
     locked: boolean;
+    /** Optional small badge to flag anti-bonuses, e.g. "AVOID". */
+    badge?: string;
 }
 
 export function TeamBonusPicker({
@@ -34,6 +36,7 @@ export function TeamBonusPicker({
     options,
     selectedTeamId,
     locked,
+    badge,
 }: Props) {
     const [value, setValue] = useState<number | "">(selectedTeamId ?? "");
     const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -65,7 +68,14 @@ export function TeamBonusPicker({
     return (
         <div className="rounded border border-ink/15 p-4">
             <div className="flex items-baseline justify-between gap-3">
-                <h3 className="font-display text-sm uppercase tracking-wider">{label}</h3>
+                <h3 className="flex items-center gap-2 font-display text-sm uppercase tracking-wider">
+                    {label}
+                    {badge !== undefined ? (
+                        <span className="rounded-sm bg-tournament/10 px-1.5 py-0.5 font-display text-[9px] uppercase tracking-widest text-tournament">
+                            {badge}
+                        </span>
+                    ) : null}
+                </h3>
                 <span className="font-display text-xs text-tournament">{points}</span>
             </div>
             <p className="mt-1 text-xs opacity-60">{description}</p>

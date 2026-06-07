@@ -1,20 +1,28 @@
 @import "tailwindcss";
 
 :root {
-    /* Vintage Scoreboard palette (docs/tech-stack.md §7) */
+    /* WC2026 official bid palette + warm paper bg.
+     * Hermes blue replaces the old ink; Torch Red and Average Green become
+     * the loud accents we already lean on; Light Gray fills in for borders
+     * / muted chips. Paper stays a warm cream so the gold of the trophy
+     * logo doesn't clash. */
     --paper: #f4ecd8;
-    --ink: #1b2a41;
-    --pitch: #2e6f40;
-    --tournament: #c03221;
-    --mustard: #e2a829;
+    --ink: #2a398d;          /* Hermes — primary text + dark UI */
+    --ink-muted: #474a4a;    /* Dark Heather Grey — secondary text */
+    --pitch: #3cac3b;         /* Average Green — pitch / "got it" / live */
+    --tournament: #e61d25;    /* Torch Red — alerts, primary brand accent */
+    --mustard: #e2a829;       /* Kept for highlights (joker badge etc.) */
+    --rule: #d1d4d1;          /* Light Gray — borders + dividers */
 }
 
 @theme inline {
     --color-paper: var(--paper);
     --color-ink: var(--ink);
+    --color-ink-muted: var(--ink-muted);
     --color-pitch: var(--pitch);
     --color-tournament: var(--tournament);
     --color-mustard: var(--mustard);
+    --color-rule: var(--rule);
     --font-display: var(--font-dm-mono), ui-monospace, monospace;
     --font-sans: var(--font-inter), system-ui, sans-serif;
 }
@@ -29,6 +37,8 @@ html, body {
     :root {
         --paper: #13161c;
         --ink: #f4ecd8;
+        --ink-muted: #d1d4d1;
+        --rule: #474a4a;
     }
 }
 

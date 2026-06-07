@@ -17,6 +17,7 @@ Where rules carry forward from our **2022 game** (`LeWorldCup2022.pdf`), they ar
 | Joker — doubles one knockout match per round (R32 / R16 / QF only) | **×2** | **Hidden in the v1 UI** — re-introduce later. Applies to whatever match score above resolves to. `[2026 new, deferred]` |
 | Wooden spoon (worst-placed team in worst group) | **5** | `[2022 carry-forward]` |
 | Top scorer / Golden Boot | **10** | `[2022 carry-forward]` |
+| Most assists | **10** | Top assister(s). Shared payout same as Golden Boot. `[2026 new]` |
 | Dark horse — per round survived | **2 / 4 / 6 / 10 / 15 / 20** | R32 / R16 / QF / SF / Final / Champion. Max 57. `[2026 new]` |
 | Tournament winner | **25** | `[2022 carry-forward]` |
 
@@ -51,6 +52,13 @@ All bonus picks lock at the moment **the first match of the tournament starts** 
 - **Shared boot:** if FIFA awards the Golden Boot to multiple players (rare, but tiebreakers can fail), every player who picked any of the joint-winners gets the full 10 pts.
 - **Injured / withdrawn before tournament:** player auto-replaced via in-app prompt **before tournament kickoff** only. After kickoff, no replacement — you took the risk.
 - **Not in final squad:** treated as not playing; no replacement after kickoff.
+
+### 2.2b Most Assists — 10 pts `[2026 new]`
+- Pick one player from any of the 48 squads. Mirrors Golden Boot mechanically.
+- Awarded if your player tops the tournament assist count.
+- **Shared:** if multiple players are tied at the top, every player who picked any of the tied winners gets the full 10 pts.
+- **Source:** football-data.org `/scorers` exposes per-player `assists`. If the free tier ever stops returning assists, admin resolves manually from FIFA's official stats.
+- Same injury / withdrawal handling as Golden Boot.
 
 ### 2.3 Group Winners — REMOVED in v1
 Originally on the list (3 pts × 12 groups, max 36) but cut from the v1 picks UI to keep bonus selection manageable. Schema retains the `GROUP_WINNER` enum value for any historical / sim data; no new picks can be made.

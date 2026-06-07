@@ -4,8 +4,10 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db/client";
-import { auditLog, bonusResolutions, matches, settings } from "@/db/schema";
+import { auditLog, bonusPicks, bonusResolutions, matches, players, settings } from "@/db/schema";
 import { isAdmin } from "@/lib/auth";
+import { findPlayer } from "@/lib/players";
+import { syncResultsFromFootballData } from "@/lib/sync";
 
 async function ensureAdmin(): Promise<void> {
     if (!(await isAdmin())) {
@@ -129,6 +131,7 @@ export async function setTournamentKickoffAction(formData: FormData): Promise<Ad
 const bonusKindSchema = z.enum([
     "WINNER",
     "TOP_SCORER",
+    "MOST_ASSISTS",
     "GROUP_WINNER",
     "DARK_HORSE",
     "WOODEN_SPOON",
@@ -165,7 +168,22 @@ export async function saveBonusResolutionAction(formData: FormData): Promise<Adm
     }
     const groupLetter = (formData.get("groupLetter") as string | null) ?? "";
     const teamIds = parseTeamIdList(formData.get("teamIds") as string | null);
-    const playerNames = parsePlayerNameList(formData.get("playerNames") as string | null);
+    const rawNames = parsePlayerNameList(formData.get("playerNames") as string | null);
+    // Snap player names to canonical "LAST First" form. The chip multi-select
+    // already only emits canonical names, but we re-validate to defend against
+    // hand-crafted POSTs.
+    let playerNames = rawNames;
+    if (kind.data === "TOP_SCORER" || kind.data === "MOST_ASSISTS") {
+        const canonical: string[] = [];
+        for (const n of rawNames) {
+            const found = findPlayer(n);
+            if (found === null) {
+                return { ok: false, error: `Unknown player: "${n}"` };
+            }
+            canonical.push(found.displayName);
+        }
+        playerNames = canonical;
+    }
 
     await db
         .insert(bonusResolutions)
@@ -193,5 +211,123 @@ export async function saveBonusResolutionAction(formData: FormData): Promise<Adm
     revalidatePath("/admin/bonuses");
     revalidatePath("/leaderboard");
     revalidatePath("/me");
+    return { ok: true };
+}
+
+export interface AdminSyncResult extends AdminResult {
+    teamCount?: number;
+    matchCount?: number;
+    syncErrors?: string[];
+}
+
+export async function triggerSyncAction(): Promise<AdminSyncResult> {
+    await ensureAdmin();
+    try {
+        const result = await syncResultsFromFootballData("admin");
+        revalidatePath("/leaderboard");
+        revalidatePath("/today");
+        revalidatePath("/predictions");
+        revalidatePath("/admin/dashboard");
+        revalidatePath("/admin/matches");
+        return {
+            ok: true,
+            teamCount: result.teamCount,
+            matchCount: result.matchCount,
+            syncErrors: result.errors,
+        };
+    } catch (e) {
+        return { ok: false, error: (e as Error).message };
+    }
+}
+
+const adminBonusSchema = z.object({
+    playerId: z.coerce.number().int().positive(),
+    kind: z.enum([
+        "WINNER",
+        "TOP_SCORER",
+        "MOST_ASSISTS",
+        "DARK_HORSE",
+        "WOODEN_SPOON",
+        "PANTOMIME_VILLAIN",
+        "SIEVE",
+        "MIGHTY_FALLEN",
+    ]),
+    groupLetter: z.string().optional().default(""),
+    teamId: z.coerce.number().int().positive().optional().or(z.literal("").transform(() => undefined)),
+    playerName: z.string().optional().or(z.literal("").transform(() => undefined)),
+});
+
+/**
+ * Set a bonus pick on behalf of a player. Bypasses the tournament-kickoff
+ * lock so admin can backfill bonuses for late joiners; every call is
+ * audit-logged with the actor as "admin" and the target player ID.
+ */
+export async function adminSetBonusForPlayerAction(formData: FormData): Promise<AdminResult> {
+    await ensureAdmin();
+    const parsed = adminBonusSchema.safeParse({
+        playerId: formData.get("playerId"),
+        kind: formData.get("kind"),
+        groupLetter: formData.get("groupLetter") ?? "",
+        teamId: formData.get("teamId"),
+        playerName: formData.get("playerName"),
+    });
+    if (!parsed.success) {
+        return { ok: false, error: parsed.error.errors[0]?.message ?? "Invalid input" };
+    }
+    const { playerId, kind, groupLetter } = parsed.data;
+    let { teamId, playerName } = parsed.data;
+
+    const target = (
+        await db.select({ id: players.id }).from(players).where(eq(players.id, playerId)).limit(1)
+    )[0];
+    if (target === undefined) {
+        return { ok: false, error: "Player not found" };
+    }
+
+    if (kind === "TOP_SCORER" || kind === "MOST_ASSISTS") {
+        if (playerName === undefined || playerName === "") {
+            return { ok: false, error: `Player name required for ${kind}` };
+        }
+        const found = findPlayer(playerName);
+        if (found === null) {
+            return { ok: false, error: `Unknown player: "${playerName}"` };
+        }
+        playerName = found.displayName;
+        teamId = undefined;
+    } else {
+        if (teamId === undefined) {
+            return { ok: false, error: "Team required" };
+        }
+        playerName = undefined;
+    }
+
+    await db
+        .insert(bonusPicks)
+        .values({
+            playerId,
+            kind,
+            groupLetter,
+            teamId: teamId ?? null,
+            playerName: playerName ?? null,
+        })
+        .onConflictDoUpdate({
+            target: [bonusPicks.playerId, bonusPicks.kind, bonusPicks.groupLetter],
+            set: {
+                teamId: teamId ?? null,
+                playerName: playerName ?? null,
+                updatedAt: new Date(),
+            },
+        });
+
+    await db.insert(auditLog).values({
+        actor: "admin",
+        action: "admin-set-bonus",
+        detail: JSON.stringify({ playerId, kind, groupLetter, teamId: teamId ?? null, playerName: playerName ?? null }),
+    });
+
+    revalidatePath("/leaderboard");
+    revalidatePath("/me");
+    revalidatePath(`/players/${playerId}`);
+    revalidatePath("/admin/dashboard");
     return { ok: true };
 }

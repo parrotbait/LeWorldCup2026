@@ -15,6 +15,7 @@ import {
     setAdminCookie,
     setSessionCookie,
 } from "@/lib/auth";
+import { getTournamentLockState } from "@/lib/tournament-lock";
 
 const PASSWORD_MIN = 6;
 const RESET_TOKEN_TTL_MINUTES = 60;
@@ -59,6 +60,16 @@ export async function signUpAction(
 
     if (inviteCode !== env.INVITE_CODE) {
         return { error: "Invite code is wrong. Ask the admin." };
+    }
+
+    // Once the tournament has kicked off, signup must go through admin.
+    // Late joiners can't file picks for matches already started, can't pick
+    // bonuses, and can't pick a joker for the round in progress — better to
+    // route them to the admin than silently strand them.
+    if ((await getTournamentLockState()).locked) {
+        return {
+            error: "Tournament has kicked off — ask the admin to add you as a late joiner.",
+        };
     }
 
     const nameTaken = await db

@@ -126,6 +126,7 @@ export function isExact(
 export const BONUS_POINTS = {
     WINNER: 25,
     TOP_SCORER: 10,
+    MOST_ASSISTS: 10, // mirrors Golden Boot — top assister(s) of the tournament
     GROUP_WINNER: 3, // per correct group, max 12 × 3 = 36
     WOODEN_SPOON: 5,
     // Anti-bonuses — reward picking who'll be rubbish.
@@ -213,6 +214,7 @@ export function deriveDarkHorseStage(
 export type BonusKind =
     | "WINNER"
     | "TOP_SCORER"
+    | "MOST_ASSISTS"
     | "GROUP_WINNER"
     | "DARK_HORSE"
     | "WOODEN_SPOON"
@@ -242,7 +244,15 @@ export interface BonusComputeInput {
 }
 
 function normalizeName(s: string): string {
-    return s.trim().toLocaleLowerCase();
+    // NFD-decompose, strip combining marks, collapse whitespace, casefold.
+    // Mirrors lib/players.ts so a TOP_SCORER pick stored as "MBAPPÉ Kylian"
+    // matches an admin resolution typed as "Mbappe Kylian" or "Kylian Mbappé".
+    return s
+        .normalize("NFD")
+        .replace(/\p{Diacritic}/gu, "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toLocaleLowerCase();
 }
 
 export function computeBonusPointsByPlayer(input: BonusComputeInput): Map<number, number> {
@@ -276,6 +286,16 @@ export function computeBonusPointsByPlayer(input: BonusComputeInput): Map<number
                     const norm = normalizeName(pick.playerName);
                     if (r.playerNames.some((n) => normalizeName(n) === norm)) {
                         credit(pick.playerId, BONUS_POINTS.TOP_SCORER);
+                    }
+                }
+                break;
+            }
+            case "MOST_ASSISTS": {
+                const r = resByKey.get("MOST_ASSISTS:");
+                if (r !== undefined && pick.playerName !== null) {
+                    const norm = normalizeName(pick.playerName);
+                    if (r.playerNames.some((n) => normalizeName(n) === norm)) {
+                        credit(pick.playerId, BONUS_POINTS.MOST_ASSISTS);
                     }
                 }
                 break;

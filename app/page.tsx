@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
@@ -16,16 +17,26 @@ export default async function LandingPage({ searchParams }: PageProps) {
     const resetOk = params.reset === "ok";
 
     return (
-        <main className="mx-auto max-w-md px-6 pt-16 pb-24">
-            <header className="mb-10">
-                <p className="font-display text-xs uppercase tracking-[0.3em] text-tournament">
-                    LeWorldCup
-                </p>
-                <h1 className="mt-1 text-5xl font-bold leading-none">2026</h1>
-                <p className="mt-3 text-sm opacity-70">
-                    Private pick&apos;em for the FIFA World Cup 2026. Predict every match,
-                    lock in your bonuses, and try not to embarrass yourself.
-                </p>
+        <main className="mx-auto max-w-md px-6 pt-12 pb-24">
+            <header className="mb-10 flex items-start gap-5">
+                <Image
+                    src="/world-cup-logo.png"
+                    alt="FIFA World Cup 2026"
+                    width={120}
+                    height={156}
+                    priority
+                    className="h-32 w-auto shrink-0"
+                />
+                <div className="flex-1 pt-1">
+                    <p className="font-display text-xs uppercase tracking-[0.3em] text-tournament">
+                        LeWorldCup
+                    </p>
+                    <h1 className="mt-1 text-5xl font-bold leading-none">2026</h1>
+                    <p className="mt-3 text-sm text-ink-muted">
+                        Private pick&apos;em for the FIFA World Cup 2026. Predict every match,
+                        lock in your bonuses, and try not to embarrass yourself.
+                    </p>
+                </div>
             </header>
 
             <div className="dashed-rule mb-8" />
@@ -38,7 +49,7 @@ export default async function LandingPage({ searchParams }: PageProps) {
 
             <AuthForm />
 
-            <div className="mt-10 text-xs opacity-60">
+            <div className="mt-10 text-xs text-ink-muted">
                 <Link href="/rules" className="underline-offset-2 hover:underline">
                     Read the rules first →
                 </Link>

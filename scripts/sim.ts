@@ -7,7 +7,10 @@
  *
  *   pnpm sim reset                       — wipe all sim data
  *   pnpm sim setup [--seed=N] [--players=12]
- *   pnpm sim play [--up-to=GROUP|R32|R16|QF|SF|FINAL]
+ *   pnpm sim play [--up-to=R32|R16|QF|SF|FINAL]
+ *     Plays each round in turn, advancing the bracket. With --up-to=ROUND it
+ *     stops *before* settling ROUND — i.e. the bracket is drawn but the matches
+ *     are unplayed. Omit --up-to to play the entire tournament.
  *   pnpm sim resolve                     — set bonus resolutions from actual outcomes
  *   pnpm sim leaderboard                 — print current standings
  *   pnpm sim run [--seed=N] [--players=12]   — reset + setup + play full + resolve + print
@@ -144,6 +147,7 @@ const FAKE_NAMES = [
 const FAKE_GOALSCORERS = [
     "Sky O. Striker", "Boots Magee", "Hat Trick", "Net Buster",
     "Goalden Glove", "Off-Side Otis", "Far-Post Fred", "Header Helga",
+    "Penelope Quickfeet", "Tap-In Tony", "Curl Cassidy", "Volley Vince",
 ];
 
 // ---------------------------------------------------------------------------
@@ -328,6 +332,11 @@ async function setup(args: Record<string, string>): Promise<void> {
             kind: "TOP_SCORER",
             playerName: pick(rng, FAKE_GOALSCORERS),
         });
+        bonusInserts.push({
+            playerId: player.id,
+            kind: "MOST_ASSISTS",
+            playerName: pick(rng, FAKE_GOALSCORERS),
+        });
     }
     await db.insert(bonusPicks).values(bonusInserts);
     console.log(`✓ ${bonusInserts.length} random bonus picks filed`);
@@ -365,17 +374,20 @@ const ROUND_ORDER: Round[] = ["GROUP", "R32", "R16", "QF", "SF", "THIRD", "FINAL
 
 async function play(args: Record<string, string>): Promise<void> {
     const seed = Number(args.seed ?? "1");
-    const upTo = (args["up-to"] ?? "FINAL").toUpperCase() as Round;
-    if (!ROUND_ORDER.includes(upTo)) {
+    const upToRaw = args["up-to"]?.toUpperCase();
+    const upTo = upToRaw === undefined ? undefined : (upToRaw as Round);
+    if (upTo !== undefined && !ROUND_ORDER.includes(upTo)) {
         throw new Error(`unknown --up-to value: ${upTo}`);
     }
     const rng = rngFromSeed(seed + 1000);
 
+    // --up-to=ROUND means: draw to ROUND (fill its bracket) but stop before
+    // settling its matches. Omitting --up-to plays the whole tournament.
     for (const round of ROUND_ORDER) {
-        await settleRound(round, rng);
         if (round === upTo) {
             break;
         }
+        await settleRound(round, rng);
         if (round === "GROUP") {
             await fillR32(rng);
         } else if (round !== "THIRD" && round !== "FINAL") {
@@ -662,12 +674,16 @@ async function resolve(): Promise<void> {
     }
     const pantomime = pickHighest(cardsCount);
 
-    // Top scorer isn't tracked in sim — just pick a fake name.
+    // Top scorer / most assists aren't tracked in sim — just pick fake names
+    // from the pool used to seed picks. Two distinct names so the bonuses
+    // resolve to different winners and we exercise both code paths.
     const topScorerName = "Sky O. Striker";
+    const topAssistsName = "Penelope Quickfeet";
 
     const upserts: { kind: any; groupLetter: string; teamIds: number[]; playerNames: string[] }[] = [
         { kind: "WINNER", groupLetter: "", teamIds: winnerTeamId !== null && winnerTeamId !== undefined ? [winnerTeamId] : [], playerNames: [] },
         { kind: "TOP_SCORER", groupLetter: "", teamIds: [], playerNames: [topScorerName] },
+        { kind: "MOST_ASSISTS", groupLetter: "", teamIds: [], playerNames: [topAssistsName] },
         { kind: "WOODEN_SPOON", groupLetter: "", teamIds: worst !== undefined ? [worst.teamId] : [], playerNames: [] },
         { kind: "PANTOMIME_VILLAIN", groupLetter: "", teamIds: pantomime, playerNames: [] },
         { kind: "SIEVE", groupLetter: "", teamIds: sieve, playerNames: [] },
@@ -806,7 +822,8 @@ function theoreticalCeiling(): number {
 async function run(args: Record<string, string>): Promise<void> {
     await reset();
     await setup(args);
-    await play({ ...args, "up-to": "FINAL" });
+    const { ["up-to"]: _ignored, ...rest } = args;
+    await play(rest);
     await resolve();
     await printLeaderboard();
 }
@@ -901,7 +918,7 @@ async function main(): Promise<void> {
             break;
         default:
             console.log(
-                "Usage: pnpm sim <reset|setup|play|play-next|play-match|resolve|leaderboard|run> [--seed=N] [--players=12] [--up-to=GROUP|R32|R16|QF|SF|FINAL] [--id=<matchId>] [--home=N] [--away=N]",
+                "Usage: pnpm sim <reset|setup|play|play-next|play-match|resolve|leaderboard|run> [--seed=N] [--players=12] [--up-to=R32|R16|QF|SF|FINAL] [--id=<matchId>] [--home=N] [--away=N]",
             );
             process.exit(1);
     }

@@ -75,6 +75,8 @@ export default async function AdminMatchesPage() {
                                 initialHome={m.homeScore}
                                 initialAway={m.awayScore}
                                 overridden={m.adminOverridden}
+                                homeName={m.homeName ?? "TBD"}
+                                awayName={m.awayName ?? "TBD"}
                             />
                         </li>
                     ))

@@ -1,16 +1,19 @@
-import { count } from "drizzle-orm";
+import { count, desc } from "drizzle-orm";
 import Link from "next/link";
 import { db } from "@/db/client";
 import { auditLog, matches, players } from "@/db/schema";
 import { adminLogoutAction } from "@/app/actions/auth";
 import { requireAdmin } from "@/lib/auth";
+import { SyncNowButton } from "./_sync-now-button";
+
+export const revalidate = 0;
 
 export default async function AdminDashboardPage() {
     await requireAdmin();
     const [[playerCount], [matchCount], recentLog] = await Promise.all([
         db.select({ c: count() }).from(players),
         db.select({ c: count() }).from(matches),
-        db.select().from(auditLog).orderBy(auditLog.id).limit(20),
+        db.select().from(auditLog).orderBy(desc(auditLog.id)).limit(50),
     ]);
 
     return (
@@ -43,10 +46,8 @@ export default async function AdminDashboardPage() {
                         — set the resolved value for each bonus (winner, golden boot, sieve, etc.). Drives bonus payouts on the leaderboard.
                     </li>
                     <li>
-                        Trigger results sync:
-                        <code className="ml-2 rounded bg-ink/10 px-2 py-0.5 text-xs">
-                            curl -H &quot;Authorization: Bearer $CRON_SECRET&quot; /api/cron/sync-results
-                        </code>
+                        <div className="mb-2">Trigger results sync:</div>
+                        <SyncNowButton />
                     </li>
                 </ul>
             </section>

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { db } from "@/db/client";
 import { bonusResolutions, teams } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth";
+import { allRosterPlayers } from "@/lib/players";
 import { TeamResolutionEditor } from "./_team-resolution-editor";
 import { PlayerNameResolutionEditor } from "./_player-name-resolution-editor";
 
@@ -56,8 +57,31 @@ export default async function AdminBonusesPage() {
                     kind="TOP_SCORER"
                     label="Golden Boot"
                     points="10 pts"
-                    description="Top scorer name(s). Joint winners go in comma-separated."
+                    description="Top scorer(s). Click to add joint winners; click × to remove."
                     initialNames={find("TOP_SCORER")?.playerNames ?? []}
+                    roster={allRosterPlayers().map((p) => ({
+                        displayName: p.displayName,
+                        firstName: p.firstName,
+                        lastName: p.lastName,
+                        position: p.position,
+                        teamCode: p.teamCode,
+                        teamName: p.teamName,
+                    }))}
+                />
+                <PlayerNameResolutionEditor
+                    kind="MOST_ASSISTS"
+                    label="Most Assists"
+                    points="10 pts"
+                    description="Top assister(s). Same rules — joint winners share the full points."
+                    initialNames={find("MOST_ASSISTS")?.playerNames ?? []}
+                    roster={allRosterPlayers().map((p) => ({
+                        displayName: p.displayName,
+                        firstName: p.firstName,
+                        lastName: p.lastName,
+                        position: p.position,
+                        teamCode: p.teamCode,
+                        teamName: p.teamName,
+                    }))}
                 />
                 <TeamResolutionEditor
                     kind="WOODEN_SPOON"

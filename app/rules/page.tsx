@@ -42,23 +42,44 @@ export default async function RulesPage() {
 
                 <section className="mt-8">
                     <h2 className="font-display text-base uppercase tracking-wider">Bonuses</h2>
+                    <p className="mt-2 text-sm opacity-70">
+                        Two flavours: <strong>Players</strong> (pick a person from the squad list)
+                        and <strong>Teams</strong> (pick a country).
+                    </p>
+                    <h3 className="mt-4 font-display text-xs uppercase tracking-[0.25em] opacity-70">Players</h3>
+                    <ul className="mt-2 list-disc space-y-1 pl-6">
+                        <li><strong>Golden Boot</strong> (top scorer) — 10 pts</li>
+                        <li><strong>Most Assists</strong> — 10 pts</li>
+                    </ul>
+                    <h3 className="mt-4 font-display text-xs uppercase tracking-[0.25em] opacity-70">Teams</h3>
                     <ul className="mt-2 list-disc space-y-1 pl-6">
                         <li><strong>Tournament winner</strong> — 25 pts</li>
-                        <li><strong>Top scorer (Golden Boot)</strong> — 10 pts (shared boot? everyone who picked any joint winner gets 10)</li>
                         <li><strong>Dark horse</strong> (any team not in Pot 1) — 2 / 6 / 12 / 22 / 37 / 57 cumulative as they survive each round</li>
-                        <li><strong>Wooden spoon</strong> (worst team in worst group) — 5 pts</li>
-                    </ul>
-                    <p className="mt-2 text-sm opacity-70">All bonuses lock at tournament kickoff.</p>
-                </section>
-
-                <section className="mt-8">
-                    <h2 className="font-display text-base uppercase tracking-wider">Hall of Shame (anti-bonuses)</h2>
-                    <p className="mt-2 text-sm opacity-70">Reward picks that nail who&apos;s going to be rubbish.</p>
-                    <ul className="mt-2 list-disc space-y-1 pl-6">
-                        <li><strong>Pantomime villain</strong> — most yellow + red cards across the tournament. 5 pts</li>
+                        <li><strong>Wooden spoon</strong> — 5 pts</li>
+                        <li><strong>Pantomime villain</strong> — most yellow + red cards. 5 pts</li>
                         <li><strong>The Sieve</strong> — most goals conceded. 5 pts</li>
                         <li><strong>How the mighty have fallen</strong> — a Pot-1 team that crashes out in the group stage. 8 pts</li>
                     </ul>
+                    <p className="mt-3 text-sm opacity-70">All bonuses lock at the tournament&apos;s opening whistle.</p>
+                </section>
+
+                <section className="mt-8">
+                    <h2 className="font-display text-base uppercase tracking-wider">Ties pay everyone</h2>
+                    <p className="mt-2">
+                        If two or more players or teams finish level on the metric that decides a
+                        bonus (Golden Boot, Most Assists, Wooden Spoon, Sieve, Pantomime Villain,
+                        Mighty Fallen, Dark Horse), every player who picked any of the tied
+                        options receives the <strong>full points</strong>. We do not split.
+                    </p>
+                    <p className="mt-2 text-sm opacity-70">
+                        Tiebreakers used to decide who&apos;s actually leading: Golden Boot / Most
+                        Assists per football-data.org (FIFA wins if it differs at full-time);
+                        Sieve = most goals conceded across all matches (penalty-shootout goals
+                        don&apos;t count); Pantomime Villain = most yellow + red cards combined,
+                        resolved by admin from FIFA&apos;s disciplinary record (the free API
+                        doesn&apos;t expose cards, so the live indicator is hidden); Dark Horse =
+                        best finish among non-Pot-1 teams; Wooden Spoon = worst finish overall.
+                    </p>
                 </section>
 
                 <section className="mt-8">

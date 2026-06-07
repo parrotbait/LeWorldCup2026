@@ -137,6 +137,7 @@ describe("BONUS_POINTS sanity", () => {
     it("matches the published values", () => {
         expect(BONUS_POINTS.WINNER).toBe(25);
         expect(BONUS_POINTS.TOP_SCORER).toBe(10);
+        expect(BONUS_POINTS.MOST_ASSISTS).toBe(10);
         expect(BONUS_POINTS.GROUP_WINNER).toBe(3);
         expect(BONUS_POINTS.WOODEN_SPOON).toBe(5);
         expect(BONUS_POINTS.PANTOMIME_VILLAIN).toBe(5);
@@ -294,6 +295,119 @@ describe("computeBonusPointsByPlayer", () => {
         expect(pts.get(1)).toBe(10);
         expect(pts.get(2)).toBe(10);
         expect(pts.get(3)).toBeUndefined();
+    });
+
+    it("Golden Boot match is diacritic- and whitespace-insensitive", () => {
+        // Pick stored as "MBAPPÉ Kylian", admin-resolved as "Mbappe  Kylian" (no
+        // accent, double-space). Both should still match.
+        const pts = computeBonusPointsByPlayer({
+            picks: [
+                { playerId: 1, kind: "TOP_SCORER", groupLetter: null, teamId: null, playerName: "MBAPPÉ Kylian" },
+                { playerId: 2, kind: "TOP_SCORER", groupLetter: null, teamId: null, playerName: "müller thomas" },
+            ],
+            resolutions: [
+                {
+                    kind: "TOP_SCORER",
+                    groupLetter: "",
+                    teamIds: [],
+                    playerNames: ["Mbappe  Kylian", "MULLER Thomas"],
+                },
+            ],
+            matches: [],
+        });
+        expect(pts.get(1)).toBe(10);
+        expect(pts.get(2)).toBe(10);
+    });
+
+    it("credits MOST_ASSISTS to the single winner only", () => {
+        const pts = computeBonusPointsByPlayer({
+            picks: [
+                { playerId: 1, kind: "MOST_ASSISTS", groupLetter: null, teamId: null, playerName: "DE BRUYNE Kevin" },
+                { playerId: 2, kind: "MOST_ASSISTS", groupLetter: null, teamId: null, playerName: "MESSI Lionel" },
+            ],
+            resolutions: [
+                {
+                    kind: "MOST_ASSISTS",
+                    groupLetter: "",
+                    teamIds: [],
+                    playerNames: ["DE BRUYNE Kevin"],
+                },
+            ],
+            matches: [],
+        });
+        expect(pts.get(1)).toBe(10);
+        expect(pts.get(2)).toBeUndefined();
+    });
+
+    it("credits MOST_ASSISTS to every player who picked any of a 3-way tie", () => {
+        const pts = computeBonusPointsByPlayer({
+            picks: [
+                { playerId: 1, kind: "MOST_ASSISTS", groupLetter: null, teamId: null, playerName: "Bellingham Jude" },
+                { playerId: 2, kind: "MOST_ASSISTS", groupLetter: null, teamId: null, playerName: "Højlund Rasmus" },
+                { playerId: 3, kind: "MOST_ASSISTS", groupLetter: null, teamId: null, playerName: "Doué Désiré" },
+                { playerId: 4, kind: "MOST_ASSISTS", groupLetter: null, teamId: null, playerName: "Foden Phil" },
+            ],
+            resolutions: [
+                {
+                    kind: "MOST_ASSISTS",
+                    groupLetter: "",
+                    teamIds: [],
+                    // Diacritics on the tied list — every picker should still match via normalize.
+                    playerNames: ["BELLINGHAM Jude", "HØJLUND Rasmus", "DOUÉ Désiré"],
+                },
+            ],
+            matches: [],
+        });
+        expect(pts.get(1)).toBe(10);
+        expect(pts.get(2)).toBe(10);
+        expect(pts.get(3)).toBe(10);
+        expect(pts.get(4)).toBeUndefined();
+    });
+
+    it("MOST_ASSISTS with no resolution → no points awarded", () => {
+        const pts = computeBonusPointsByPlayer({
+            picks: [
+                { playerId: 1, kind: "MOST_ASSISTS", groupLetter: null, teamId: null, playerName: "Foden Phil" },
+            ],
+            resolutions: [],
+            matches: [],
+        });
+        expect(pts.get(1)).toBeUndefined();
+    });
+
+    it("MOST_ASSISTS resolution with empty playerNames → no points, no crash", () => {
+        const pts = computeBonusPointsByPlayer({
+            picks: [
+                { playerId: 1, kind: "MOST_ASSISTS", groupLetter: null, teamId: null, playerName: "Foden Phil" },
+            ],
+            resolutions: [
+                { kind: "MOST_ASSISTS", groupLetter: "", teamIds: [], playerNames: [] },
+            ],
+            matches: [],
+        });
+        expect(pts.get(1)).toBeUndefined();
+    });
+
+    it("DARK_HORSE pays both pickers when the team-tie resolves to a shared advancer", () => {
+        // Both players picked Senegal; admin set TWO winnerTeamIds (joint dark horses
+        // for some reason — e.g. tied tournament finish). Both pickers paid full.
+        const pts = computeBonusPointsByPlayer({
+            picks: [
+                { playerId: 1, kind: "DARK_HORSE", groupLetter: null, teamId: 7, playerName: null },
+                { playerId: 2, kind: "DARK_HORSE", groupLetter: null, teamId: 8, playerName: null },
+            ],
+            resolutions: [],
+            matches: [
+                // Senegal (id 7) makes R32, eliminated.
+                { round: "GROUP", homeTeamId: 7, awayTeamId: 99 },
+                { round: "R32", homeTeamId: 7, awayTeamId: 99 },
+                // Morocco (id 8) makes R32, eliminated — same stage.
+                { round: "GROUP", homeTeamId: 8, awayTeamId: 99 },
+                { round: "R32", homeTeamId: 8, awayTeamId: 99 },
+            ],
+        });
+        expect(pts.get(1)).toBe(DARK_HORSE_RUNNING_TOTAL.INTO_R32);
+        expect(pts.get(2)).toBe(DARK_HORSE_RUNNING_TOTAL.INTO_R32);
     });
 
     it("credits a group-winner pick only for the right group", () => {

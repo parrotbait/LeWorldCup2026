@@ -184,6 +184,8 @@ export const bonusKindEnum = pgEnum("bonus_kind", [
     "PANTOMIME_VILLAIN", // most yellow + red cards
     "SIEVE", // most goals conceded
     "MIGHTY_FALLEN", // Pot-1 team that crashes out in the group stage
+    // Player-stat bonus added in 2026-06.
+    "MOST_ASSISTS",
 ]);
 
 export const bonusPicks = pgTable(
