@@ -171,17 +171,18 @@ export default async function PredictionsPage() {
                                             return (
                                                 <li
                                                     key={m.id}
-                                                    className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-3 py-4 text-sm sm:grid-cols-[100px_1fr] sm:gap-4"
+                                                    className="flex flex-col gap-2 py-4 text-sm sm:grid sm:grid-cols-[100px_1fr] sm:items-center sm:gap-4"
                                                 >
-                                                    <div className="font-display text-xs opacity-60">
-                                                        <div>{formatTime(m.kickoff)}</div>
-                                                        <div className="mt-0.5 text-[10px] uppercase opacity-60">
+                                                    {/* Mobile: horizontal strip above the stepper. Desktop: vertical stack in the left column. */}
+                                                    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 font-display text-[11px] uppercase opacity-70 sm:block sm:text-xs sm:opacity-60">
+                                                        <span>{formatTime(m.kickoff)}</span>
+                                                        <span className="opacity-60 sm:mt-0.5 sm:block sm:text-[10px]">
                                                             {ROUND_LABEL[m.round]}
                                                             {m.groupLetter !== null ? ` ${m.groupLetter}` : ""}
-                                                        </div>
-                                                        <div className="mt-0.5 text-[10px] opacity-60">
+                                                        </span>
+                                                        <span className="opacity-60 sm:mt-0.5 sm:block sm:text-[10px]">
                                                             {lockMessage(m.kickoff, locked, tbd)}
-                                                        </div>
+                                                        </span>
                                                     </div>
 
                                                     <ScoreStepper

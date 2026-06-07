@@ -31,13 +31,43 @@ export default async function RulesPage() {
                 </section>
 
                 <section className="mt-8">
-                    <h2 className="font-display text-base uppercase tracking-wider">Extra time &amp; penalties</h2>
-                    <ul className="mt-2 list-disc space-y-1 pl-6">
-                        <li>If a knockout match goes to extra time, scoring uses the <strong>final score after extra time</strong> (not the 90-minute score). A 1–1 prediction earns <em>nothing</em> if the final-after-AET was 2–2; the 2–2 prediction wins the exact bonus.</li>
-                        <li>Penalty shootouts <strong>do not count</strong> for prediction points. A knockout decided on penalties is treated as a draw for scoring — only the AET-final score matters.</li>
-                        <li>Example: regulation 1–1, AET 1–1, pens 4–3 to home. Picks of <strong>1–1</strong> earn the exact bonus; any other draw scoreline earns the result bonus; home-win or away-win picks earn 0.</li>
-                        <li>The match page shows the full breakdown (FT, AET, pens) for transparency, but the canonical "score" used for points is always the AET-inclusive scoreboard at the end of regulation.</li>
-                    </ul>
+                    <h2 className="font-display text-base uppercase tracking-wider">Knockout scoring — extra time &amp; penalties</h2>
+                    <p className="mt-2">
+                        The score we use for scoring is the <strong>scoreboard at the end of
+                        regulation</strong> — that means full-time at 90 minutes, OR the end
+                        of extra time if it went to ET. <strong>Penalty shootouts never count
+                        for scoring.</strong> A knockout decided on pens is a draw for points
+                        purposes — only the AET-inclusive scoreline matters.
+                    </p>
+
+                    <h3 className="mt-4 font-display text-xs uppercase tracking-[0.25em] opacity-70">Three cases</h3>
+                    <ol className="mt-2 list-decimal space-y-3 pl-6">
+                        <li>
+                            <strong>Match settled in 90 min (e.g. 2–1 at full time).</strong>{" "}
+                            Same as group scoring. Pick the exact score → <strong>6 pts</strong>.
+                            Pick the right winner with a different scoreline → <strong>3 pts</strong>.
+                            Pick the wrong winner or a draw → 0.
+                        </li>
+                        <li>
+                            <strong>Match decided in extra time (e.g. 1–1 FT, 2–1 after ET).</strong>{" "}
+                            We use the <strong>2–1</strong> final. Pick of 2–1 → 6 pts exact.
+                            Any other home-win scoreline → 3 pts result. A 1–1 pick earns 0
+                            (the FT score is irrelevant).
+                        </li>
+                        <li>
+                            <strong>Match decided on penalties (e.g. 1–1 FT, 1–1 after ET, pens 4–3).</strong>{" "}
+                            We use the <strong>1–1</strong> AET-final. Pick of 1–1 → 6 pts exact.
+                            Any other draw scoreline (0–0, 2–2, …) → 3 pts result. A
+                            home-win or away-win prediction earns <em>0</em> — even if you
+                            picked the team that went on to win the shootout.
+                        </li>
+                    </ol>
+
+                    <p className="mt-4 text-sm opacity-70">
+                        The match page shows the full breakdown (FT, AET, pens) so you can see
+                        what happened, but the only number used for scoring is the AET-inclusive
+                        regulation score.
+                    </p>
                 </section>
 
                 <section className="mt-8">
