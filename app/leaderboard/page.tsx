@@ -50,8 +50,12 @@ export default async function LeaderboardPage() {
         matches: allMatches.map((m) => ({
             id: m.id,
             round: m.round,
+            status: m.status,
             homeScore: m.homeScore,
             awayScore: m.awayScore,
+            homeTeamId: m.homeTeamId,
+            awayTeamId: m.awayTeamId,
+            winnerTeamId: m.winnerTeamId,
         })),
         predictions: allPredictions.map((p) => ({
             playerId: p.playerId,

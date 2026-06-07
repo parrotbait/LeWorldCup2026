@@ -26,7 +26,17 @@ export default async function RulesPage() {
                         <li>Pick a scoreline for every match.</li>
                         <li>Group stage: <strong>2 pts</strong> for the right result, <strong>4 pts</strong> for an exact score (not additive — exact replaces).</li>
                         <li>Knockout: <strong>3 pts</strong> for the right result, <strong>6 pts</strong> for an exact score.</li>
-                        <li>Predictions lock at each match&apos;s kickoff. After that they&apos;re frozen.</li>
+                        <li>Predictions lock <strong>15 minutes before kickoff</strong>. After that they&apos;re frozen.</li>
+                    </ul>
+                </section>
+
+                <section className="mt-8">
+                    <h2 className="font-display text-base uppercase tracking-wider">Extra time &amp; penalties</h2>
+                    <ul className="mt-2 list-disc space-y-1 pl-6">
+                        <li>If a knockout match goes to extra time, scoring uses the <strong>final score after extra time</strong> (not the 90-minute score). A 1–1 prediction earns <em>nothing</em> if the final-after-AET was 2–2; the 2–2 prediction wins the exact bonus.</li>
+                        <li>Penalty shootouts <strong>do not count</strong> for prediction points. A knockout decided on penalties is treated as a draw for scoring — only the AET-final score matters.</li>
+                        <li>Example: regulation 1–1, AET 1–1, pens 4–3 to home. Picks of <strong>1–1</strong> earn the exact bonus; any other draw scoreline earns the result bonus; home-win or away-win picks earn 0.</li>
+                        <li>The match page shows the full breakdown (FT, AET, pens) for transparency, but the canonical "score" used for points is always the AET-inclusive scoreboard at the end of regulation.</li>
                     </ul>
                 </section>
 
@@ -54,7 +64,7 @@ export default async function RulesPage() {
                 <section className="mt-8">
                     <h2 className="font-display text-base uppercase tracking-wider">Visibility</h2>
                     <p className="mt-2">
-                        Everyone&apos;s picks for a match become visible the moment that match kicks off. Bonuses become visible at tournament kickoff. Until then, only you see your picks.
+                        Everyone&apos;s picks for a match become visible <strong>15 minutes before kickoff</strong> — the same moment predictions lock. Bonuses become visible at tournament kickoff. Until then, only you see your picks.
                     </p>
                 </section>
 

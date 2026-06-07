@@ -36,5 +36,6 @@ drizzle/.snapshot/
 # DB dumps
 *.dump
 *.sql.gz
+backups/
 .vercel
 .env*

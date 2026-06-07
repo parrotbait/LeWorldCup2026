@@ -68,9 +68,23 @@ export async function overrideScoreAction(formData: FormData): Promise<AdminResu
 
 export async function clearOverrideAction(matchId: number): Promise<AdminResult> {
     await ensureAdmin();
+    // Null the score columns too — leaving the typed score in place after the
+    // flag is cleared causes silent stale data on the next cron pass (the
+    // adminOverridden CASE clauses no longer fire, but the values that were
+    // there came from admin input). The next cron sync will populate them
+    // canonically from football-data.
     await db
         .update(matches)
-        .set({ adminOverridden: false })
+        .set({
+            adminOverridden: false,
+            homeScore: null,
+            awayScore: null,
+            homeScoreFt: null,
+            awayScoreFt: null,
+            homeScorePens: null,
+            awayScorePens: null,
+            winnerTeamId: null,
+        })
         .where(eq(matches.id, matchId));
     await db.insert(auditLog).values({
         actor: "admin",

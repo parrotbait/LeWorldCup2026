@@ -38,6 +38,7 @@ export default async function MePage() {
                 status: matches.status,
                 homeTeamId: matches.homeTeamId,
                 awayTeamId: matches.awayTeamId,
+                winnerTeamId: matches.winnerTeamId,
                 homeCode: home.code,
                 homeName: home.name,
                 awayCode: away.code,
@@ -89,6 +90,7 @@ export default async function MePage() {
         const pts = base * (isJoker ? 2 : 1);
         totalPredPts += pts;
         if (
+            m.status === "FINISHED" &&
             pred !== undefined &&
             m.homeScore !== null &&
             m.awayScore !== null &&
@@ -100,7 +102,9 @@ export default async function MePage() {
         return { m, pred, base, pts, isJoker };
     });
 
-    const settledRows = rows.filter((r) => r.m.homeScore !== null);
+    const settledRows = rows.filter(
+        (r) => r.m.status === "FINISHED" && r.m.homeScore !== null,
+    );
 
     return (
         <>

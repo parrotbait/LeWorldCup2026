@@ -1,12 +1,13 @@
 "use server";
 
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { bonusPicks, jokers, matches, predictions, settings } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
 import { pickLockTime } from "@/lib/utils";
+import { getTournamentLockState } from "@/lib/tournament-lock";
 
 const scoreSchema = z.coerce.number().int().min(0).max(20);
 
@@ -46,7 +47,11 @@ export async function savePredictionAction(formData: FormData): Promise<SaveResu
     if (match.homeTeamId === null || match.awayTeamId === null) {
         return { ok: false, error: "Teams not known yet — this fixture is TBD" };
     }
-    if (pickLockTime(match.kickoff) <= Date.now() || match.status !== "SCHEDULED") {
+    if (
+        pickLockTime(match.kickoff) <= Date.now() ||
+        (match.firstLockedAt !== null && match.firstLockedAt.getTime() <= Date.now()) ||
+        match.status !== "SCHEDULED"
+    ) {
         return { ok: false, error: "Picks for this match are locked" };
     }
 
@@ -94,28 +99,7 @@ const saveBonusSchema = z.object({
 });
 
 async function tournamentLocked(): Promise<boolean> {
-    // Bonuses lock the moment the first match has started, by either signal:
-    //   - the earliest kickoff has passed, OR
-    //   - any match has moved off SCHEDULED (cron flipped to LIVE/FINISHED).
-    // Using the actual fixture data (rather than settings.tournament_kickoff)
-    // means the lock can't drift if admin forgets to update the setting.
-    const earliest = (
-        await db
-            .select({ kickoff: matches.kickoff, status: matches.status })
-            .from(matches)
-            .orderBy(asc(matches.kickoff))
-            .limit(1)
-    )[0];
-    if (earliest === undefined) {
-        return false;
-    }
-    if (earliest.kickoff.getTime() <= Date.now()) {
-        return true;
-    }
-    if (earliest.status !== "SCHEDULED") {
-        return true;
-    }
-    return false;
+    return (await getTournamentLockState()).locked;
 }
 
 export async function saveBonusAction(formData: FormData): Promise<SaveResult> {
@@ -204,16 +188,27 @@ export async function saveJokerAction(formData: FormData): Promise<SaveResult> {
     if (match.round !== round) {
         return { ok: false, error: "Match is not in that round" };
     }
-    // Round locks at the first kickoff of that round.
+    // Round locks 15 min before the first kickoff of that round — same
+    // moment predictions for that match start revealing publicly.
+    // POSTPONED/CANCELLED matches are skipped so a delayed earliest match
+    // doesn't strand the rest of the round.
     const earliestRoundMatch = (
         await db
             .select({ kickoff: matches.kickoff })
             .from(matches)
-            .where(eq(matches.round, round))
+            .where(
+                and(
+                    eq(matches.round, round),
+                    inArray(matches.status, ["SCHEDULED", "LIVE", "FINISHED"]),
+                ),
+            )
             .orderBy(matches.kickoff)
             .limit(1)
     )[0];
-    if (earliestRoundMatch !== undefined && earliestRoundMatch.kickoff.getTime() <= Date.now()) {
+    if (
+        earliestRoundMatch !== undefined &&
+        pickLockTime(earliestRoundMatch.kickoff) <= Date.now()
+    ) {
         return { ok: false, error: "Round has started — joker is locked" };
     }
 

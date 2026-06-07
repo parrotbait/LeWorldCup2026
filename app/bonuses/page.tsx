@@ -1,25 +1,25 @@
 import { asc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { bonusPicks, settings, teams } from "@/db/schema";
+import { bonusPicks, teams } from "@/db/schema";
 import { NavBar } from "@/app/_components/navbar";
 import { requireSession } from "@/lib/auth";
 import { TeamBonusPicker } from "./_components/team-bonus-picker";
 import { PlayerNameBonusPicker } from "./_components/player-name-bonus-picker";
 import { formatKickoff } from "@/lib/utils";
+import { getTournamentLockState } from "@/lib/tournament-lock";
 
 export const revalidate = 30;
 
 export default async function BonusesPage() {
     const session = await requireSession();
 
-    const [allTeams, mySetting, myBonuses] = await Promise.all([
+    const [allTeams, lockState, myBonuses] = await Promise.all([
         db.select().from(teams).orderBy(asc(teams.name)),
-        db.select().from(settings).where(eq(settings.id, 1)).limit(1),
+        getTournamentLockState(),
         db.select().from(bonusPicks).where(eq(bonusPicks.playerId, session.playerId)),
     ]);
 
-    const tournamentKickoff = mySetting[0]?.tournamentKickoff;
-    const locked = tournamentKickoff !== undefined && tournamentKickoff.getTime() <= Date.now();
+    const { locked, firstKickoff } = lockState;
 
     const teamOpts = allTeams.map((t) => ({
         id: t.id,
@@ -51,8 +51,8 @@ export default async function BonusesPage() {
                     <span className="font-display text-xs uppercase opacity-60">
                         {locked
                             ? "locked at kickoff 🔒"
-                            : tournamentKickoff !== undefined
-                              ? `lock: ${formatKickoff(tournamentKickoff)}`
+                            : firstKickoff !== null
+                              ? `lock: ${formatKickoff(firstKickoff)}`
                               : ""}
                     </span>
                 </header>

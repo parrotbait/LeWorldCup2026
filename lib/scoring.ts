@@ -43,11 +43,27 @@ const KO_EXACT = 6;
 /**
  * Points awarded for a single prediction against a settled match score.
  *
- * Returns 0 if the match has no score yet, or if result and exact both miss.
- * Exact-score points are NOT additive on top of result points — exact replaces.
+ * Returns 0 if the match has no score yet, isn't finished, or if result and
+ * exact both miss. Exact-score points are NOT additive on top of result
+ * points — exact replaces.
+ *
+ * The "score" here is the final scoreboard score: 90 minutes for group games,
+ * AET-inclusive for knockouts that go to extra time. Penalty-shootout
+ * outcomes are NOT considered for scoring — see docs/game-design.md §3 and
+ * the rules page. A knockout decided on penalties is therefore a draw for
+ * scoring purposes (only an exact-score pick of the AET final pays out).
+ *
+ * `match.status` is required and must be FINISHED — football-data populates a
+ * running `fullTime` score during play, so without this gate every LIVE
+ * match would award provisional points that flip with each goal.
  */
 export function predictionPoints(
-    match: { round: Round; homeScore: number | null; awayScore: number | null },
+    match: {
+        round: Round;
+        homeScore: number | null;
+        awayScore: number | null;
+        status?: string | null;
+    },
     prediction: MatchScore | undefined,
 ): number {
     if (
@@ -55,6 +71,11 @@ export function predictionPoints(
         match.homeScore === null ||
         match.awayScore === null
     ) {
+        return 0;
+    }
+    // Only FINISHED matches award points. LIVE/PAUSED/POSTPONED don't, even
+    // if a running score has been written.
+    if (match.status !== undefined && match.status !== null && match.status !== "FINISHED") {
         return 0;
     }
     const isGroup = match.round === "GROUP";
@@ -75,7 +96,11 @@ export function predictionPoints(
 
 /** Whether this prediction was an exact match. Used for tie-breakers. */
 export function isExact(
-    match: { homeScore: number | null; awayScore: number | null },
+    match: {
+        homeScore: number | null;
+        awayScore: number | null;
+        status?: string | null;
+    },
     prediction: MatchScore | undefined,
 ): boolean {
     if (
@@ -83,6 +108,9 @@ export function isExact(
         match.homeScore === null ||
         match.awayScore === null
     ) {
+        return false;
+    }
+    if (match.status !== undefined && match.status !== null && match.status !== "FINISHED") {
         return false;
     }
     return (
@@ -320,7 +348,16 @@ export interface PlayerLeaderboardRow {
 
 export interface ScoringInput {
     players: { id: number; displayName: string; joinedAt: Date }[];
-    matches: { id: number; round: Round; homeScore: number | null; awayScore: number | null }[];
+    matches: {
+        id: number;
+        round: Round;
+        status: string;
+        homeScore: number | null;
+        awayScore: number | null;
+        homeTeamId: number | null;
+        awayTeamId: number | null;
+        winnerTeamId: number | null;
+    }[];
     predictions: { playerId: number; matchId: number; homeScore: number; awayScore: number }[];
     /** Player → round → matchId chosen as joker for that round. */
     jokers: { playerId: number; round: Round; matchId: number }[];

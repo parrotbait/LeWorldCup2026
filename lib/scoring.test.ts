@@ -54,16 +54,58 @@ describe("predictionPoints — group stage", () => {
     });
 });
 
-describe("predictionPoints — knockout", () => {
-    const m = { round: "QF" as const, homeScore: 3, awayScore: 0 };
-    it("6 for exact", () => {
+describe("predictionPoints — running scores during LIVE matches", () => {
+    // football-data populates score.fullTime mid-match. We must not award
+    // provisional points to predictions until the match is FINISHED.
+    it("0 points for an exact-looking pick while the match is LIVE", () => {
+        const m = { round: "GROUP" as const, status: "LIVE", homeScore: 2, awayScore: 1 };
+        expect(predictionPoints(m, { homeScore: 2, awayScore: 1 })).toBe(0);
+    });
+
+    it("0 points for a correct-result pick while the match is LIVE", () => {
+        const m = { round: "QF" as const, status: "LIVE", homeScore: 1, awayScore: 0 };
+        expect(predictionPoints(m, { homeScore: 2, awayScore: 0 })).toBe(0);
+    });
+
+    it("isExact returns false on a LIVE match even when scores match", () => {
+        const m = { homeScore: 2, awayScore: 1, status: "LIVE" };
+        expect(isExact(m, { homeScore: 2, awayScore: 1 })).toBe(false);
+    });
+
+    it("FINISHED with the same scores does pay out", () => {
+        const m = { round: "GROUP" as const, status: "FINISHED", homeScore: 2, awayScore: 1 };
+        expect(predictionPoints(m, { homeScore: 2, awayScore: 1 })).toBe(4);
+    });
+});
+
+describe("predictionPoints — knockout (AET-inclusive, pens ignored)", () => {
+    // Scoring uses the score at the end of regulation + extra time. Penalty
+    // shootouts are display-only. The DB's homeScore/awayScore is the
+    // AET-final (or 90-min if no ET happened).
+
+    it("90-min knockout, clear winner: 6 exact / 3 result / 0 miss", () => {
+        const m = { round: "QF" as const, homeScore: 3, awayScore: 0 };
         expect(predictionPoints(m, { homeScore: 3, awayScore: 0 })).toBe(6);
-    });
-    it("3 for result", () => {
         expect(predictionPoints(m, { homeScore: 2, awayScore: 1 })).toBe(3);
-    });
-    it("0 for miss", () => {
         expect(predictionPoints(m, { homeScore: 0, awayScore: 1 })).toBe(0);
+    });
+
+    it("AET shifted the score: exact bonus pays on AET-final, not 90-min", () => {
+        // 90-min was 1-1, ET made it 2-2 (decided on pens).
+        // homeScore/awayScore in DB = 2-2 (AET final).
+        const m = { round: "QF" as const, homeScore: 2, awayScore: 2 };
+        // 1-1 prediction is NOT exact — the final-for-scoring is 2-2.
+        expect(predictionPoints(m, { homeScore: 1, awayScore: 1 })).toBe(3); // correct draw → result pts
+        expect(predictionPoints(m, { homeScore: 2, awayScore: 2 })).toBe(6); // exact AET
+    });
+
+    it("knockout decided on pens after AET draw: a draw prediction earns result pts", () => {
+        // 90-min 1-1, ET 1-1 (no goals in ET), pens decide.
+        // We score on AET-final (1-1) and ignore pens entirely.
+        const m = { round: "SF" as const, homeScore: 1, awayScore: 1 };
+        expect(predictionPoints(m, { homeScore: 1, awayScore: 1 })).toBe(6); // exact
+        expect(predictionPoints(m, { homeScore: 0, awayScore: 0 })).toBe(3); // wrong scoreline, right outcome
+        expect(predictionPoints(m, { homeScore: 2, awayScore: 1 })).toBe(0); // home-win prediction misses
     });
 });
 
@@ -112,11 +154,11 @@ describe("buildLeaderboard", () => {
         ],
         matches: [
             // Alice nails an exact group match → 4 pts
-            { id: 10, round: "GROUP" as const, homeScore: 2, awayScore: 1 },
+            { id: 10, round: "GROUP" as const, status: "FINISHED", homeScore: 2, awayScore: 1, homeTeamId: null, awayTeamId: null, winnerTeamId: null },
             // Both pick the same correct knockout result; Alice has joker on it → 3*2 = 6, Bob 3
-            { id: 20, round: "QF" as const, homeScore: 1, awayScore: 0 },
+            { id: 20, round: "QF" as const, status: "FINISHED", homeScore: 1, awayScore: 0, homeTeamId: null, awayTeamId: null, winnerTeamId: null },
             // Unsettled — should not contribute
-            { id: 30, round: "SF" as const, homeScore: null, awayScore: null },
+            { id: 30, round: "SF" as const, status: "SCHEDULED", homeScore: null, awayScore: null, homeTeamId: null, awayTeamId: null, winnerTeamId: null },
         ],
         predictions: [
             { playerId: 1, matchId: 10, homeScore: 2, awayScore: 1 },
@@ -163,7 +205,7 @@ describe("buildLeaderboard tie-breakers", () => {
             { id: 1, displayName: "Early", joinedAt: new Date(t.getTime()) },
             { id: 2, displayName: "Late", joinedAt: new Date(t.getTime() + 60_000) },
         ],
-        matches: [{ id: 1, round: "GROUP" as const, homeScore: 1, awayScore: 1 }],
+        matches: [{ id: 1, round: "GROUP" as const, status: "FINISHED", homeScore: 1, awayScore: 1, homeTeamId: null, awayTeamId: null, winnerTeamId: null }],
         predictions: [
             { playerId: 1, matchId: 1, homeScore: 1, awayScore: 1 }, // 4
             { playerId: 2, matchId: 1, homeScore: 1, awayScore: 1 }, // 4

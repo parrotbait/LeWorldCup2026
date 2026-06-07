@@ -24,6 +24,8 @@ interface FdMatch {
     score: {
         winner: "HOME_TEAM" | "AWAY_TEAM" | "DRAW" | null;
         fullTime: { home: number | null; away: number | null };
+        extraTime?: { home: number | null; away: number | null } | null;
+        penalties?: { home: number | null; away: number | null } | null;
     };
     venue?: string | null;
 }

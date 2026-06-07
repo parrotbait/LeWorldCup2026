@@ -112,13 +112,29 @@ export const matches = pgTable(
         // Match number for human ordering ("1/8 #3", "QF #2", etc.).
         matchNumber: smallint("match_number"),
         kickoff: timestamp("kickoff", { withTimezone: true }).notNull(),
+        // The lock time computed when this match was first ingested. Once a
+        // match has ever passed this point, predictions are permanently
+        // locked even if FIFA later reschedules and the cron pushes kickoff
+        // out — see savePredictionAction. Set on insert, never updated.
+        firstLockedAt: timestamp("first_locked_at", { withTimezone: true }),
         homeTeamId: integer("home_team_id").references(() => teams.id),
         awayTeamId: integer("away_team_id").references(() => teams.id),
-        // Scores at full-time (90 min + ET in knockouts). Null until finished.
+        // Canonical "scoring score": 90-min for groups, AET-final for
+        // knockouts that go to extra time. Penalty shootouts are NOT folded
+        // into this — see homeScorePens/awayScorePens for those. Null until
+        // the match has finished.
         homeScore: smallint("home_score"),
         awayScore: smallint("away_score"),
+        // Display-only: 90-minute score, captured separately so the UI can
+        // show "1–1 FT, 2–2 AET, pens 4–3" without losing detail.
+        homeScoreFt: smallint("home_score_ft"),
+        awayScoreFt: smallint("away_score_ft"),
+        // Display-only: penalty-shootout score. Not used by predictionPoints.
+        homeScorePens: smallint("home_score_pens"),
+        awayScorePens: smallint("away_score_pens"),
         // For knockouts that go to penalties; the team that advances.
-        // Used for advancement-based bonuses, not for prediction scoring.
+        // Used for advancement-based bonuses (dark horse), not for prediction
+        // scoring (see docs/game-design.md §3).
         winnerTeamId: integer("winner_team_id").references(() => teams.id),
         status: matchStatusEnum("status").default("SCHEDULED").notNull(),
         // Allow admin to mark a match as manually overridden so cron won't clobber.

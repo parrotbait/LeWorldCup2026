@@ -55,6 +55,13 @@ export default async function TodayPage() {
             status: matches.status,
             homeScore: matches.homeScore,
             awayScore: matches.awayScore,
+            homeScoreFt: matches.homeScoreFt,
+            awayScoreFt: matches.awayScoreFt,
+            homeScorePens: matches.homeScorePens,
+            awayScorePens: matches.awayScorePens,
+            homeTeamId: matches.homeTeamId,
+            awayTeamId: matches.awayTeamId,
+            winnerTeamId: matches.winnerTeamId,
             homeCode: home.code,
             homeName: home.name,
             awayCode: away.code,
@@ -188,6 +195,32 @@ export default async function TodayPage() {
                                                 {m.awayName ?? "TBD"}
                                                 <span className="ml-2">{flag(m.awayCode ?? "")}</span>
                                             </h2>
+                                            {(() => {
+                                                const wentToET =
+                                                    m.homeScoreFt !== null &&
+                                                    m.awayScoreFt !== null &&
+                                                    m.homeScore !== null &&
+                                                    m.awayScore !== null &&
+                                                    (m.homeScoreFt !== m.homeScore ||
+                                                        m.awayScoreFt !== m.awayScore);
+                                                const wentToPens =
+                                                    m.homeScorePens !== null && m.awayScorePens !== null;
+                                                if (!wentToET && !wentToPens) {
+                                                    return null;
+                                                }
+                                                const parts: string[] = [];
+                                                if (wentToET) {
+                                                    parts.push(`${m.homeScoreFt}–${m.awayScoreFt} FT, AET`);
+                                                }
+                                                if (wentToPens) {
+                                                    parts.push(`pens ${m.homeScorePens}–${m.awayScorePens}`);
+                                                }
+                                                return (
+                                                    <p className="mt-1 font-display text-[10px] uppercase tracking-wider opacity-60">
+                                                        {parts.join(" · ")}
+                                                    </p>
+                                                );
+                                            })()}
                                         </div>
                                         <span
                                             className={`font-display text-[10px] uppercase tracking-widest ${

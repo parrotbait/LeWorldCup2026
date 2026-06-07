@@ -70,30 +70,75 @@ export async function GET(request: NextRequest) {
                 }
             }
 
+            // Map football-data's winner enum to our team-id reference. Group
+            // matches that ended in a draw (or any unfinished match) leave
+            // winnerTeamId null; knockouts decided on penalties surface the
+            // actual advancer here even though `score.fullTime` is a draw.
+            const winnerTeamId =
+                m.score.winner === "HOME_TEAM"
+                    ? (homeTeam?.id ?? null)
+                    : m.score.winner === "AWAY_TEAM"
+                      ? (awayTeam?.id ?? null)
+                      : null;
+
+            // Canonical "scoring score": AET-final if extra time happened,
+            // otherwise 90-min. Penalty shootouts are display-only — we keep
+            // them in dedicated columns and never fold them into homeScore.
+            const ftHome = m.score.fullTime.home;
+            const ftAway = m.score.fullTime.away;
+            const etHome = m.score.extraTime?.home ?? null;
+            const etAway = m.score.extraTime?.away ?? null;
+            const pensHome = m.score.penalties?.home ?? null;
+            const pensAway = m.score.penalties?.away ?? null;
+            const scoringHome = etHome ?? ftHome;
+            const scoringAway = etAway ?? ftAway;
+
+            const newKickoff = new Date(m.utcDate);
+            // First-time lock cutoff for this fixture: 15 min before its
+            // ORIGINAL kickoff. Drizzle won't overwrite this on conflict
+            // because we omit it from the `set:` clause below.
+            const firstLockedAt = new Date(newKickoff.getTime() - 15 * 60_000);
+
             await db
                 .insert(matches)
                 .values({
                     externalId: m.id,
                     round: mapStage(m.stage),
                     groupLetter,
-                    kickoff: new Date(m.utcDate),
+                    kickoff: newKickoff,
+                    firstLockedAt,
                     homeTeamId: homeTeam?.id,
                     awayTeamId: awayTeam?.id,
-                    homeScore: m.score.fullTime.home,
-                    awayScore: m.score.fullTime.away,
+                    homeScore: scoringHome,
+                    awayScore: scoringAway,
+                    homeScoreFt: ftHome,
+                    awayScoreFt: ftAway,
+                    homeScorePens: pensHome,
+                    awayScorePens: pensAway,
+                    winnerTeamId,
                     status,
                     venue: m.venue ?? null,
                 })
                 .onConflictDoUpdate({
                     target: matches.externalId,
                     set: {
-                        kickoff: new Date(m.utcDate),
+                        // Admin-overridden rows are sacred — only the venue
+                        // (cosmetic) and team-id (in case TBDs got resolved)
+                        // may move. Score/status/kickoff/winner are frozen
+                        // until clearOverrideAction. first_locked_at is also
+                        // omitted unconditionally — once a match has ever
+                        // passed its original lock, it stays locked.
+                        kickoff: sql`CASE WHEN ${matches.adminOverridden} THEN ${matches.kickoff} ELSE ${newKickoff} END`,
                         homeTeamId: homeTeam?.id,
                         awayTeamId: awayTeam?.id,
-                        // Don't clobber admin-overridden scores.
-                        homeScore: sql`CASE WHEN ${matches.adminOverridden} THEN ${matches.homeScore} ELSE ${m.score.fullTime.home} END`,
-                        awayScore: sql`CASE WHEN ${matches.adminOverridden} THEN ${matches.awayScore} ELSE ${m.score.fullTime.away} END`,
-                        status,
+                        homeScore: sql`CASE WHEN ${matches.adminOverridden} THEN ${matches.homeScore} ELSE ${scoringHome} END`,
+                        awayScore: sql`CASE WHEN ${matches.adminOverridden} THEN ${matches.awayScore} ELSE ${scoringAway} END`,
+                        homeScoreFt: sql`CASE WHEN ${matches.adminOverridden} THEN ${matches.homeScoreFt} ELSE ${ftHome} END`,
+                        awayScoreFt: sql`CASE WHEN ${matches.adminOverridden} THEN ${matches.awayScoreFt} ELSE ${ftAway} END`,
+                        homeScorePens: sql`CASE WHEN ${matches.adminOverridden} THEN ${matches.homeScorePens} ELSE ${pensHome} END`,
+                        awayScorePens: sql`CASE WHEN ${matches.adminOverridden} THEN ${matches.awayScorePens} ELSE ${pensAway} END`,
+                        winnerTeamId: sql`CASE WHEN ${matches.adminOverridden} THEN ${matches.winnerTeamId} ELSE ${winnerTeamId} END`,
+                        status: sql`CASE WHEN ${matches.adminOverridden} THEN ${matches.status} ELSE ${status} END`,
                         venue: m.venue ?? null,
                     },
                 });

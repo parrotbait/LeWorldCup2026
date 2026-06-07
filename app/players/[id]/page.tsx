@@ -10,13 +10,13 @@ import {
     matches,
     players,
     predictions,
-    settings,
     teams,
 } from "@/db/schema";
 import { NavBar } from "@/app/_components/navbar";
 import { requireSession } from "@/lib/auth";
 import { flag, formatKickoff, pickLockTime } from "@/lib/utils";
 import { computeBonusPointsByPlayer, predictionPoints } from "@/lib/scoring";
+import { getTournamentLockState } from "@/lib/tournament-lock";
 
 export const revalidate = 30;
 
@@ -51,7 +51,7 @@ export default async function PlayerProfilePage({ params }: PageProps) {
     const home = alias(teams, "home");
     const away = alias(teams, "away");
 
-    const [allMatches, theirPredictions, theirBonuses, theirJokers, allTeams, allResolutions, settingsRow] =
+    const [allMatches, theirPredictions, theirBonuses, theirJokers, allTeams, allResolutions, lockState] =
         await Promise.all([
             db
                 .select({
@@ -64,6 +64,7 @@ export default async function PlayerProfilePage({ params }: PageProps) {
                     awayScore: matches.awayScore,
                     homeTeamId: matches.homeTeamId,
                     awayTeamId: matches.awayTeamId,
+                    winnerTeamId: matches.winnerTeamId,
                     homeCode: home.code,
                     homeName: home.name,
                     awayCode: away.code,
@@ -78,7 +79,7 @@ export default async function PlayerProfilePage({ params }: PageProps) {
             db.select().from(jokers).where(eq(jokers.playerId, playerId)),
             db.select().from(teams),
             db.select().from(bonusResolutions),
-            db.select().from(settings).where(eq(settings.id, 1)).limit(1),
+            getTournamentLockState(),
         ]);
 
     const teamById = new Map(allTeams.map((t) => [t.id, t]));
@@ -86,9 +87,9 @@ export default async function PlayerProfilePage({ params }: PageProps) {
     const jokerByRound = new Map(theirJokers.map((j) => [j.round, j.matchId]));
 
     const now = Date.now();
-    const tournamentKickoff = settingsRow[0]?.tournamentKickoff;
-    const tournamentStarted =
-        tournamentKickoff !== undefined && tournamentKickoff.getTime() <= now;
+    // Bonuses reveal at the same boundary the server uses to lock them — i.e.
+    // the moment the first match has kicked off. Same source of truth.
+    const tournamentStarted = lockState.locked;
 
     const theirBonusPoints =
         computeBonusPointsByPlayer({

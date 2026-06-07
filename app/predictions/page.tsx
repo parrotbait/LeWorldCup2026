@@ -31,15 +31,22 @@ function lockMessage(kickoff: Date, locked: boolean, tbd: boolean): string {
     if (ms <= 0) {
         return "locked";
     }
-    const mins = Math.floor(ms / 60_000);
-    if (mins < 60) {
-        return `locks in ${mins}m`;
+    const totalMins = Math.floor(ms / 60_000);
+    // < 1 hour → minutes
+    if (totalMins < 60) {
+        return `locks in ${totalMins}m`;
     }
-    const hours = Math.floor(mins / 60);
-    if (hours < 48) {
-        return `locks in ${hours}h ${mins % 60}m`;
+    const totalHours = Math.floor(totalMins / 60);
+    // 1 hour … under 1 day → hours (with minutes only when under 6h to keep it tidy)
+    if (totalHours < 24) {
+        const remainder = totalMins % 60;
+        if (totalHours < 6 && remainder !== 0) {
+            return `locks in ${totalHours}h ${remainder}m`;
+        }
+        return `locks in ${totalHours}h`;
     }
-    const days = Math.floor(hours / 24);
+    // ≥ 1 day → days
+    const days = Math.floor(totalHours / 24);
     return `locks in ${days}d`;
 }
 
@@ -58,6 +65,9 @@ export default async function PredictionsPage() {
             status: matches.status,
             homeScore: matches.homeScore,
             awayScore: matches.awayScore,
+            homeTeamId: matches.homeTeamId,
+            awayTeamId: matches.awayTeamId,
+            winnerTeamId: matches.winnerTeamId,
             homeCode: home.code,
             homeName: home.name,
             awayCode: away.code,
@@ -136,7 +146,10 @@ export default async function PredictionsPage() {
                                                 tbd ||
                                                 pickLockTime(m.kickoff) <= now ||
                                                 m.status !== "SCHEDULED";
-                                            const settled = m.homeScore !== null && m.awayScore !== null;
+                                            const settled =
+                                                m.status === "FINISHED" &&
+                                                m.homeScore !== null &&
+                                                m.awayScore !== null;
                                             const earned =
                                                 settled && pred !== undefined
                                                     ? predictionPoints(m, {
