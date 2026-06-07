@@ -103,11 +103,37 @@ export default async function LeaderboardPage() {
                 <p className="mt-1 text-xs opacity-60">
                     Tie-breakers: total → exact predictions → bonuses → KO results → signup
                 </p>
-                <p className="mt-1 text-[11px] uppercase tracking-wider opacity-50">
-                    {lastSync[0] !== undefined
-                        ? `last synced ${relativeAgo(lastSync[0].at)} · ${lastSync[0].at.toISOString().replace("T", " ").slice(0, 16)}Z`
-                        : "no sync yet"}
-                </p>
+                {(() => {
+                    const lastAt = lastSync[0]?.at;
+                    if (lastAt === undefined) {
+                        return (
+                            <p className="mt-1 text-[11px] uppercase tracking-wider opacity-50">
+                                no sync yet
+                            </p>
+                        );
+                    }
+                    const ageMs = Date.now() - lastAt.getTime();
+                    const stale = ageMs > 12 * 60 * 60_000;
+                    const stamp = lastAt.toISOString().replace("T", " ").slice(0, 16) + "Z";
+                    if (stale) {
+                        return (
+                            <p className="mt-1 inline-flex items-center gap-2 rounded border border-tournament/40 bg-tournament/10 px-2 py-1 font-display text-[11px] uppercase tracking-wider text-tournament">
+                                ⚠ stale — last synced {relativeAgo(lastAt)} ({stamp})
+                                <Link
+                                    href="/admin/dashboard"
+                                    className="underline underline-offset-2 hover:text-ink"
+                                >
+                                    sync now
+                                </Link>
+                            </p>
+                        );
+                    }
+                    return (
+                        <p className="mt-1 text-[11px] uppercase tracking-wider opacity-50">
+                            last synced {relativeAgo(lastAt)} · {stamp}
+                        </p>
+                    );
+                })()}
 
                 <table className="mt-6 w-full text-sm tabular">
                     <thead className="border-b border-ink/30 text-left font-display text-xs uppercase tracking-wider">

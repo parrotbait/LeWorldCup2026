@@ -43,16 +43,6 @@ export default async function RulesPage() {
             )}
             <main className="mx-auto max-w-2xl px-6 py-8 text-[15px] leading-relaxed">
                 <h1 className="font-display text-2xl uppercase tracking-widest">Rules</h1>
-                <p className="mt-2 text-sm opacity-70">
-                    Plain-English version. The canonical source is{" "}
-                    <a
-                        href="https://github.pie.apple.com/eddie-long/LeWorldCup2026/blob/main/docs/game-design.md"
-                        className="underline"
-                    >
-                        docs/game-design.md
-                    </a>
-                    .
-                </p>
 
                 <section className="mt-8">
                     <h2 className="font-display text-base uppercase tracking-wider">Match predictions</h2>
