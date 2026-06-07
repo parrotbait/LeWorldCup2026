@@ -417,20 +417,73 @@ async function settleOne(
     }
     let h = opts.home ?? weightedGoal(opts.rng);
     let a = opts.away ?? weightedGoal(opts.rng);
-    // Knockouts can't draw — if the user explicitly chose a draw we let it
-    // through (they're testing something), otherwise nudge.
-    if (m.round !== "GROUP" && h === a && opts.home === undefined && opts.away === undefined) {
-        if (opts.rng() < 0.5) h += 1;
-        else a += 1;
+
+    // Group matches finish at 90 min — no ET, no pens, no FT-vs-AET split.
+    // Knockouts that are level after 90 go to extra time; ET sometimes
+    // produces a goal, otherwise pens decide it. We model both so the sim
+    // exercises the same code paths the real cron will populate.
+    const isKnockout = m.round !== "GROUP";
+    const userPickedScore = opts.home !== undefined || opts.away !== undefined;
+
+    let ftHome: number | null = null;
+    let ftAway: number | null = null;
+    let pensHome: number | null = null;
+    let pensAway: number | null = null;
+
+    if (isKnockout) {
+        // Capture the 90-min score before any ET/pens adjustments.
+        ftHome = h;
+        ftAway = a;
+
+        if (h === a && !userPickedScore) {
+            const path = opts.rng();
+            if (path < 0.6) {
+                // Goal in extra time — one side wins outright.
+                if (opts.rng() < 0.5) {
+                    h += 1;
+                } else {
+                    a += 1;
+                }
+            } else {
+                // Still level through 120 min → pens decide.
+                // h and a stay equal (AET-final is a draw).
+                const homeWinsPens = opts.rng() < 0.5;
+                const winnerScore = 3 + Math.floor(opts.rng() * 3); // 3..5
+                const loserScore = Math.max(0, winnerScore - 1 - Math.floor(opts.rng() * 2));
+                if (homeWinsPens) {
+                    pensHome = winnerScore;
+                    pensAway = loserScore;
+                } else {
+                    pensAway = winnerScore;
+                    pensHome = loserScore;
+                }
+            }
+        }
     }
-    const winnerTeamId = h > a ? m.homeTeamId : a > h ? m.awayTeamId : null;
+
+    const winnerTeamId = !isKnockout
+        ? null
+        : pensHome !== null && pensAway !== null
+          ? pensHome > pensAway
+              ? m.homeTeamId
+              : m.awayTeamId
+          : h > a
+            ? m.homeTeamId
+            : a > h
+              ? m.awayTeamId
+              : null;
+
     await db
         .update(matches)
         .set({
             homeScore: h,
             awayScore: a,
+            homeScoreFt: ftHome,
+            awayScoreFt: ftAway,
+            homeScorePens: pensHome,
+            awayScorePens: pensAway,
             status: "FINISHED",
-            winnerTeamId: m.round === "GROUP" ? null : winnerTeamId,
+            winnerTeamId,
         })
         .where(eq(matches.id, m.id));
 

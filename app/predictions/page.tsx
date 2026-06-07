@@ -65,6 +65,10 @@ export default async function PredictionsPage() {
             status: matches.status,
             homeScore: matches.homeScore,
             awayScore: matches.awayScore,
+            homeScoreFt: matches.homeScoreFt,
+            awayScoreFt: matches.awayScoreFt,
+            homeScorePens: matches.homeScorePens,
+            awayScorePens: matches.awayScorePens,
             homeTeamId: matches.homeTeamId,
             awayTeamId: matches.awayTeamId,
             winnerTeamId: matches.winnerTeamId,
@@ -191,6 +195,10 @@ export default async function PredictionsPage() {
                                                         awayName={m.awayName ?? "TBD"}
                                                         actualHome={m.homeScore}
                                                         actualAway={m.awayScore}
+                                                        actualHomeFt={m.homeScoreFt}
+                                                        actualAwayFt={m.awayScoreFt}
+                                                        actualHomePens={m.homeScorePens}
+                                                        actualAwayPens={m.awayScorePens}
                                                         earnedPoints={earned}
                                                         isExact={exact}
                                                         hasPick={pred !== undefined}

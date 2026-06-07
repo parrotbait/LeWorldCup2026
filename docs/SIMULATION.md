@@ -100,7 +100,7 @@ pnpm sim leaderboard   # after — see the new totals against the same matches+p
 - **No real teams or fixture data.** The 48 teams in `scripts/sim.ts` are plausible WC contenders with made-up pots; the bracket pairs adjacent qualifiers rather than following FIFA's actual draw rules.
 - **No player goalscorers.** Top Scorer is resolved to a fixed fake name (`Sky O. Striker`). Anyone who picked it wins; everyone else doesn't.
 - **No cards data.** Pantomime Villain is approximated by treating the highest-scoring matches as the "most chaotic" — close enough for testing the scoring path.
-- **Knockout matches never go to penalties.** If the random scores tie, the sim nudges one team up by a goal so there's always a winner.
+- **Knockout matches go to extra time and sometimes penalties.** When 90-min scores tie, the sim rolls: 60% chance ET produces a winning goal (FT recorded separately, AET-final is the scoring score), 40% chance pens decide it (FT/AET equal, shootout score on `home_score_pens`/`away_score_pens`, `winner_team_id` set). Same code paths the real cron populates.
 - **Kickoff times are squashed.** All 104 matches are scheduled 30–60 minutes apart starting just after `now`. Don't expect realistic dates.
 
 For the real tournament, fixtures and scores come from `football-data.org` via `pnpm db:seed` plus the cron route. The simulator and the real path live alongside each other — the sim doesn't touch the football-data code.

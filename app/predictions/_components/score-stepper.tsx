@@ -17,6 +17,14 @@ interface Props {
     // actual score and the points the player earned for their pick.
     actualHome?: number | null;
     actualAway?: number | null;
+    // Optional 90-min and pens scores for the AET / pens decoration on
+    // settled knockout rows. When the FT score differs from the AET-final
+    // (homeScore/awayScore) we surface the FT line; when pens decided the
+    // match we surface the shootout score too.
+    actualHomeFt?: number | null;
+    actualAwayFt?: number | null;
+    actualHomePens?: number | null;
+    actualAwayPens?: number | null;
     earnedPoints?: number;
     isExact?: boolean;
     hasPick?: boolean;
@@ -33,6 +41,10 @@ export function ScoreStepper({
     awayName,
     actualHome,
     actualAway,
+    actualHomeFt,
+    actualAwayFt,
+    actualHomePens,
+    actualAwayPens,
     earnedPoints,
     isExact,
     hasPick,
@@ -190,21 +202,60 @@ export function ScoreStepper({
             </div>
             <div className="mt-1 min-h-[18px] text-center font-display uppercase tracking-wider">
                 {settled ? (
-                    <span className="text-sm sm:text-base">
-                        <span className="opacity-60">
-                            full time {actualHome}–{actualAway}
+                    <>
+                        <span className="text-sm sm:text-base">
+                            <span className="opacity-60">
+                                full time {actualHome}–{actualAway}
+                            </span>
+                            <span className="mx-2 opacity-30">·</span>
+                            {hasPick === false ? (
+                                <span className="font-bold text-tournament">no pick — 0 pts</span>
+                            ) : isExact ? (
+                                <span className="font-bold text-pitch">+{pts} exact</span>
+                            ) : pts > 0 ? (
+                                <span className="font-semibold">+{pts} result</span>
+                            ) : (
+                                <span className="opacity-50">missed — 0 pts</span>
+                            )}
                         </span>
-                        <span className="mx-2 opacity-30">·</span>
-                        {hasPick === false ? (
-                            <span className="font-bold text-tournament">no pick — 0 pts</span>
-                        ) : isExact ? (
-                            <span className="font-bold text-pitch">+{pts} exact</span>
-                        ) : pts > 0 ? (
-                            <span className="font-semibold">+{pts} result</span>
-                        ) : (
-                            <span className="opacity-50">missed — 0 pts</span>
-                        )}
-                    </span>
+                        {(() => {
+                            // Decorate the settled label with FT / pens detail
+                            // for knockouts that went to extra time or pens.
+                            // FT score (homeScoreFt/awayScoreFt) is the
+                            // 90-min score; homeScore/awayScore is the AET-
+                            // final. Pens are display-only.
+                            const wentToET =
+                                actualHomeFt !== null &&
+                                actualHomeFt !== undefined &&
+                                actualAwayFt !== null &&
+                                actualAwayFt !== undefined &&
+                                actualHome !== null &&
+                                actualHome !== undefined &&
+                                actualAway !== null &&
+                                actualAway !== undefined &&
+                                (actualHomeFt !== actualHome || actualAwayFt !== actualAway);
+                            const wentToPens =
+                                actualHomePens !== null &&
+                                actualHomePens !== undefined &&
+                                actualAwayPens !== null &&
+                                actualAwayPens !== undefined;
+                            if (!wentToET && !wentToPens) {
+                                return null;
+                            }
+                            const parts: string[] = [];
+                            if (wentToET) {
+                                parts.push(`${actualHomeFt}–${actualAwayFt} FT, AET`);
+                            }
+                            if (wentToPens) {
+                                parts.push(`pens ${actualHomePens}–${actualAwayPens}`);
+                            }
+                            return (
+                                <p className="mt-0.5 text-[10px] opacity-60">
+                                    {parts.join(" · ")}
+                                </p>
+                            );
+                        })()}
+                    </>
                 ) : status === "saving" ? (
                     <span className="text-xs opacity-50">saving…</span>
                 ) : status === "error" ? (

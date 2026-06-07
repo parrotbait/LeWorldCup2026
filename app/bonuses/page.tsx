@@ -1,7 +1,7 @@
 import { asc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { db } from "@/db/client";
-import { bonusPicks, bonusResolutions, teams } from "@/db/schema";
+import { bonusPicks, bonusResolutions, matches, teams } from "@/db/schema";
 import { NavBar } from "@/app/_components/navbar";
 import { requireSession } from "@/lib/auth";
 import { TeamBonusPicker } from "./_components/team-bonus-picker";
@@ -34,6 +34,7 @@ export default async function BonusesPage() {
         lockState,
         myBonuses,
         allResolutions,
+        finalRow,
         topScorerLeader,
         mostAssistsLeader,
         darkHorseLeader,
@@ -46,6 +47,11 @@ export default async function BonusesPage() {
         getTournamentLockState(),
         db.select().from(bonusPicks).where(eq(bonusPicks.playerId, session.playerId)),
         db.select().from(bonusResolutions),
+        db
+            .select({ status: matches.status })
+            .from(matches)
+            .where(eq(matches.round, "FINAL"))
+            .limit(1),
         getTopScorerLeader(),
         getMostAssistsLeader(),
         getDarkHorseLeader(),
@@ -57,11 +63,26 @@ export default async function BonusesPage() {
 
     const { locked, firstKickoff } = lockState;
 
+    // Bonus results are tournament-end facts. Even if admin pre-populates a
+    // resolution row, we only render it as "winner" once the FINAL match has
+    // actually been played. Until then the live-leader chip carries the
+    // story.
+    const tournamentComplete =
+        finalRow[0] !== undefined && finalRow[0].status === "FINISHED";
+
     const teamLookup = new Map(
         allTeams.map((t) => [t.id, { id: t.id, code: t.code, name: t.name }]),
     );
-    const findResolution = (kind: string) =>
-        allResolutions.find((r) => r.kind === kind && r.groupLetter === "");
+    const findResolution = (kind: string) => {
+        if (!tournamentComplete) {
+            // Bonuses don't crystallize until the FINAL has been played. Even
+            // if a resolution row exists (admin pre-populated, sim ran),
+            // suppress it from the UI so the live-leader chip carries the
+            // story until full-time of the final.
+            return undefined;
+        }
+        return allResolutions.find((r) => r.kind === kind && r.groupLetter === "");
+    };
 
     // Fixed-payout bonuses. DARK_HORSE pays a stage-derived amount which we
     // don't recompute here — the chip just shows "you got it" without a
