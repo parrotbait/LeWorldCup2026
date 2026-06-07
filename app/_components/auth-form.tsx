@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useActionState, useState } from "react";
 import { logInAction, signUpAction, type ActionResult } from "@/app/actions/auth";
 
@@ -62,11 +61,8 @@ function LogInForm() {
                 <p className="text-sm text-tournament">{state.error}</p>
             ) : null}
             <SubmitButton pending={pending} idle="Log in" busy="Signing in…" />
-            <p className="text-center text-xs">
-                <Link href="/forgot" className="opacity-60 hover:text-tournament hover:opacity-100">
-                    Forgot password?
-                </Link>
-            </p>
+            {/* Forgot-password flow disabled — admin resets passwords manually
+                via psql. Re-enable by uncommenting and configuring Resend. */}
         </form>
     );
 }
