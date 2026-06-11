@@ -222,19 +222,24 @@ export default async function TodayPage() {
                                                 );
                                             })()}
                                         </div>
-                                        <span
-                                            className={`font-display text-[10px] uppercase tracking-widest ${
-                                                m.status === "LIVE"
-                                                    ? "text-tournament"
-                                                    : "opacity-60"
-                                            }`}
-                                        >
-                                            {m.status === "LIVE"
-                                                ? "● live"
-                                                : m.status === "FINISHED"
-                                                  ? "full time"
-                                                  : "scheduled"}
-                                        </span>
+                                        <div className="flex flex-col items-end gap-0.5 text-right">
+                                            <span className="font-display text-[10px] uppercase tracking-wider opacity-70">
+                                                {formatKickoff(m.kickoff)}
+                                            </span>
+                                            <span
+                                                className={`font-display text-[10px] uppercase tracking-widest ${
+                                                    m.status === "LIVE"
+                                                        ? "text-tournament"
+                                                        : "opacity-60"
+                                                }`}
+                                            >
+                                                {m.status === "LIVE"
+                                                    ? "● live"
+                                                    : m.status === "FINISHED"
+                                                      ? "full time"
+                                                      : "scheduled"}
+                                            </span>
+                                        </div>
                                     </header>
 
                                     {rows.length === 0 ? (
