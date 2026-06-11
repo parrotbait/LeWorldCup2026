@@ -1,13 +1,14 @@
 import { asc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { db } from "@/db/client";
-import { bonusPicks, bonusResolutions, matches, teams } from "@/db/schema";
+import { bonusPicks, bonusResolutions, matches, players, teams } from "@/db/schema";
 import { NavBar } from "@/app/_components/navbar";
 import { requireSession } from "@/lib/auth";
 import { TeamBonusPicker } from "./_components/team-bonus-picker";
 import { PlayerNameBonusPicker } from "./_components/player-name-bonus-picker";
 import { LiveLeaderChip } from "./_components/live-leader-chip";
 import { BonusResultChip } from "./_components/bonus-result-chip";
+import { AllPicksList, type AllPicksGroup } from "./_components/all-picks-list";
 import { formatKickoff } from "@/lib/utils";
 import { getTournamentLockState } from "@/lib/tournament-lock";
 import { allRosterPlayers } from "@/lib/players";import {
@@ -33,6 +34,7 @@ export default async function BonusesPage() {
         allTeams,
         lockState,
         myBonuses,
+        allPicksWithPlayers,
         allResolutions,
         finalRow,
         topScorerLeader,
@@ -46,6 +48,18 @@ export default async function BonusesPage() {
         db.select().from(teams).orderBy(asc(teams.name)),
         getTournamentLockState(),
         db.select().from(bonusPicks).where(eq(bonusPicks.playerId, session.playerId)),
+        db
+            .select({
+                kind: bonusPicks.kind,
+                teamId: bonusPicks.teamId,
+                playerName: bonusPicks.playerName,
+                pickerId: players.id,
+                pickerDisplayName: players.displayName,
+            })
+            .from(bonusPicks)
+            .innerJoin(players, eq(bonusPicks.playerId, players.id))
+            .where(eq(bonusPicks.groupLetter, ""))
+            .orderBy(asc(players.displayName)),
         db.select().from(bonusResolutions),
         db
             .select({ status: matches.status })
@@ -144,6 +158,57 @@ export default async function BonusesPage() {
 
     const findBonus = (kind: string) => myBonuses.find((b) => b.kind === kind);
 
+    // After tournament kickoff, expose every player's pick under each card so
+    // people can scout consensus picks vs contrarian ones. Hidden pre-lock so
+    // late-fillers can't peek. Group by the picked subject, popularity-first.
+    const allPicksByKind = new Map<string, AllPicksGroup[]>();
+    if (locked) {
+        const buckets = new Map<string, Map<string, AllPicksGroup>>();
+        for (const row of allPicksWithPlayers) {
+            let label: string;
+            let teamCode: string | undefined;
+            if (row.teamId !== null) {
+                const team = teamLookup.get(row.teamId);
+                if (team === undefined) {
+                    continue;
+                }
+                label = team.name;
+                teamCode = team.code;
+            } else if (row.playerName !== null) {
+                label = row.playerName;
+            } else {
+                continue;
+            }
+            let kindBucket = buckets.get(row.kind);
+            if (kindBucket === undefined) {
+                kindBucket = new Map();
+                buckets.set(row.kind, kindBucket);
+            }
+            const key = label.toLocaleLowerCase();
+            let group = kindBucket.get(key);
+            if (group === undefined) {
+                group = { label, teamCode, pickers: [] };
+                kindBucket.set(key, group);
+            }
+            group.pickers.push({
+                playerId: row.pickerId,
+                displayName: row.pickerDisplayName,
+                isMe: row.pickerId === session.playerId,
+            });
+        }
+        for (const [kind, bucket] of buckets) {
+            const groups = Array.from(bucket.values()).sort((a, b) => {
+                if (b.pickers.length !== a.pickers.length) {
+                    return b.pickers.length - a.pickers.length;
+                }
+                return a.label.localeCompare(b.label);
+            });
+            allPicksByKind.set(kind, groups);
+        }
+    }
+    const picksFor = (kind: string): AllPicksGroup[] | undefined =>
+        locked ? (allPicksByKind.get(kind) ?? []) : undefined;
+
     const rosterOpts = allRosterPlayers().map((p) => ({
         displayName: p.displayName,
         firstName: p.firstName,
@@ -190,6 +255,7 @@ export default async function BonusesPage() {
                             teamLookup={teamLookup}
                             myPickTeamId={findBonus("WINNER")?.teamId ?? null}
                             earnedPoints={earnedFor("WINNER")}
+                            allPicks={picksFor("WINNER")}
                         >
                             <TeamBonusPicker
                                 kind="WINNER"
@@ -207,6 +273,7 @@ export default async function BonusesPage() {
                             resolution={findResolution("DARK_HORSE")}
                             teamLookup={teamLookup}
                             myPickTeamId={findBonus("DARK_HORSE")?.teamId ?? null}
+                            allPicks={picksFor("DARK_HORSE")}
                         >
                             <TeamBonusPicker
                                 kind="DARK_HORSE"
@@ -225,6 +292,7 @@ export default async function BonusesPage() {
                             teamLookup={teamLookup}
                             myPickTeamId={findBonus("WOODEN_SPOON")?.teamId ?? null}
                             earnedPoints={earnedFor("WOODEN_SPOON")}
+                            allPicks={picksFor("WOODEN_SPOON")}
                         >
                             <TeamBonusPicker
                                 kind="WOODEN_SPOON"
@@ -244,6 +312,7 @@ export default async function BonusesPage() {
                             teamLookup={teamLookup}
                             myPickTeamId={findBonus("PANTOMIME_VILLAIN")?.teamId ?? null}
                             earnedPoints={earnedFor("PANTOMIME_VILLAIN")}
+                            allPicks={picksFor("PANTOMIME_VILLAIN")}
                         >
                             <TeamBonusPicker
                                 kind="PANTOMIME_VILLAIN"
@@ -264,6 +333,7 @@ export default async function BonusesPage() {
                             teamLookup={teamLookup}
                             myPickTeamId={findBonus("SIEVE")?.teamId ?? null}
                             earnedPoints={earnedFor("SIEVE")}
+                            allPicks={picksFor("SIEVE")}
                         >
                             <TeamBonusPicker
                                 kind="SIEVE"
@@ -283,6 +353,7 @@ export default async function BonusesPage() {
                             teamLookup={teamLookup}
                             myPickTeamId={findBonus("MIGHTY_FALLEN")?.teamId ?? null}
                             earnedPoints={earnedFor("MIGHTY_FALLEN")}
+                            allPicks={picksFor("MIGHTY_FALLEN")}
                         >
                             <TeamBonusPicker
                                 kind="MIGHTY_FALLEN"
@@ -309,6 +380,7 @@ export default async function BonusesPage() {
                             resolution={findResolution("TOP_SCORER")}
                             myPickPlayerName={findBonus("TOP_SCORER")?.playerName ?? null}
                             earnedPoints={earnedFor("TOP_SCORER")}
+                            allPicks={picksFor("TOP_SCORER")}
                         >
                             <PlayerNameBonusPicker
                                 kind="TOP_SCORER"
@@ -326,6 +398,7 @@ export default async function BonusesPage() {
                             resolution={findResolution("MOST_ASSISTS")}
                             myPickPlayerName={findBonus("MOST_ASSISTS")?.playerName ?? null}
                             earnedPoints={earnedFor("MOST_ASSISTS")}
+                            allPicks={picksFor("MOST_ASSISTS")}
                         >
                             <PlayerNameBonusPicker
                                 kind="MOST_ASSISTS"
@@ -351,6 +424,7 @@ function PlayerBonusCard({
     resolution,
     myPickPlayerName,
     earnedPoints,
+    allPicks,
 }: {
     children: React.ReactNode;
     leader: LiveLeader;
@@ -358,6 +432,7 @@ function PlayerBonusCard({
     resolution?: { teamIds: number[]; playerNames: string[] } | undefined;
     myPickPlayerName?: string | null;
     earnedPoints?: number;
+    allPicks?: AllPicksGroup[];
 }) {
     const resolved = resolution !== undefined && resolution.playerNames.length > 0;
     return (
@@ -373,6 +448,7 @@ function PlayerBonusCard({
             ) : (
                 <LiveLeaderChip leader={leader} subjectPlural="players" metricLabel={metricLabel} />
             )}
+            {allPicks !== undefined ? <AllPicksList groups={allPicks} /> : null}
         </div>
     );
 }
@@ -386,6 +462,7 @@ function TeamBonusCard({
     teamLookup,
     myPickTeamId,
     earnedPoints,
+    allPicks,
 }: {
     children: React.ReactNode;
     leader: LiveLeader | null;
@@ -395,6 +472,7 @@ function TeamBonusCard({
     teamLookup?: Map<number, { id: number; code: string; name: string }>;
     myPickTeamId?: number | null;
     earnedPoints?: number;
+    allPicks?: AllPicksGroup[];
 }) {
     const resolved = resolution !== undefined && resolution.teamIds.length > 0;
     return (
@@ -411,6 +489,7 @@ function TeamBonusCard({
             ) : leader !== null ? (
                 <LiveLeaderChip leader={leader} subjectPlural={subjectPlural} metricLabel={metricLabel} />
             ) : null}
+            {allPicks !== undefined ? <AllPicksList groups={allPicks} /> : null}
         </div>
     );
 }

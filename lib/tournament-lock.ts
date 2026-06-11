@@ -35,5 +35,19 @@ export async function getTournamentLockState(): Promise<TournamentLockState> {
     //   - the earliest match has moved off SCHEDULED (cron flipped to LIVE/FINISHED).
     const locked =
         earliest.kickoff.getTime() <= Date.now() || earliest.status !== "SCHEDULED";
+
+    // Dev-only override so we can test pre/post-lock UI without waiting on
+    // real fixtures. Ignored in production to keep the bonus deadline
+    // un-foolable. Set TOURNAMENT_LOCK_OVERRIDE=locked or =unlocked.
+    if (process.env.NODE_ENV !== "production") {
+        const override = process.env.TOURNAMENT_LOCK_OVERRIDE;
+        if (override === "locked") {
+            return { locked: true, firstKickoff: earliest.kickoff };
+        }
+        if (override === "unlocked") {
+            return { locked: false, firstKickoff: earliest.kickoff };
+        }
+    }
+
     return { locked, firstKickoff: earliest.kickoff };
 }

@@ -1,12 +1,26 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import Link from "next/link";
 import { db } from "@/db/client";
-import { auditLog, matches, teams } from "@/db/schema";
+import { auditLog, bonusPicks, matches, players, teams } from "@/db/schema";
 import { NavBar } from "@/app/_components/navbar";
 import { requireSession } from "@/lib/auth";
 import { fetchScorers, type FdScorer } from "@/lib/football-data";
 import { findPlayer } from "@/lib/players";
 import { flag } from "@/lib/utils";
+import { getTournamentLockState } from "@/lib/tournament-lock";
+
+interface Picker {
+    playerId: number;
+    displayName: string;
+}
+
+const normalizeName = (s: string): string =>
+    s
+        .normalize("NFD")
+        .replace(/\p{Diacritic}/gu, "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toLocaleLowerCase();
 
 export const revalidate = 300;
 
@@ -69,10 +83,78 @@ async function fetchScorersOrNull(): Promise<FdScorer[] | null> {
     }
 }
 
+interface BonusPickerMaps {
+    /** Pickers for team-based bonuses, keyed by bonus kind then teamId. */
+    byTeam: Map<string, Map<number, Picker[]>>;
+    /** Pickers for player-name bonuses, keyed by bonus kind then normalized canonical name. */
+    byName: Map<string, Map<string, Picker[]>>;
+}
+
+async function loadBonusPickers(): Promise<BonusPickerMaps> {
+    const rows = await db
+        .select({
+            kind: bonusPicks.kind,
+            teamId: bonusPicks.teamId,
+            playerName: bonusPicks.playerName,
+            pickerId: players.id,
+            pickerDisplayName: players.displayName,
+        })
+        .from(bonusPicks)
+        .innerJoin(players, eq(bonusPicks.playerId, players.id))
+        .where(
+            and(
+                inArray(bonusPicks.kind, ["SIEVE", "TOP_SCORER", "MOST_ASSISTS"]),
+                eq(bonusPicks.groupLetter, ""),
+            ),
+        );
+
+    const byTeam = new Map<string, Map<number, Picker[]>>();
+    const byName = new Map<string, Map<string, Picker[]>>();
+    for (const r of rows) {
+        const picker: Picker = { playerId: r.pickerId, displayName: r.pickerDisplayName };
+        if (r.teamId !== null) {
+            let kindMap = byTeam.get(r.kind);
+            if (kindMap === undefined) {
+                kindMap = new Map();
+                byTeam.set(r.kind, kindMap);
+            }
+            const list = kindMap.get(r.teamId) ?? [];
+            list.push(picker);
+            kindMap.set(r.teamId, list);
+        } else if (r.playerName !== null) {
+            // Canonicalize against the roster so "Vini Jr" and "Vinícius Júnior"
+            // bucket the same way as the table row's display name.
+            const canonical = findPlayer(r.playerName);
+            const key = normalizeName(canonical?.displayName ?? r.playerName);
+            let kindMap = byName.get(r.kind);
+            if (kindMap === undefined) {
+                kindMap = new Map();
+                byName.set(r.kind, kindMap);
+            }
+            const list = kindMap.get(key) ?? [];
+            list.push(picker);
+            kindMap.set(key, list);
+        }
+    }
+    const sortPickers = (list: Picker[]): Picker[] =>
+        [...list].sort((a, b) => a.displayName.localeCompare(b.displayName));
+    for (const kindMap of byTeam.values()) {
+        for (const [k, list] of kindMap) {
+            kindMap.set(k, sortPickers(list));
+        }
+    }
+    for (const kindMap of byName.values()) {
+        for (const [k, list] of kindMap) {
+            kindMap.set(k, sortPickers(list));
+        }
+    }
+    return { byTeam, byName };
+}
+
 export default async function StatsPage() {
     await requireSession();
 
-    const [scorers, conceded, lastSync] = await Promise.all([
+    const [scorers, conceded, lastSync, lockState] = await Promise.all([
         fetchScorersOrNull(),
         loadConceded(),
         db
@@ -81,7 +163,20 @@ export default async function StatsPage() {
             .where(eq(auditLog.action, "sync-results"))
             .orderBy(desc(auditLog.id))
             .limit(1),
+        getTournamentLockState(),
     ]);
+
+    // Picks reveal at the same boundary the bonuses page uses — the moment
+    // the first match has kicked off. Pre-lock we skip the query entirely so
+    // late-fillers can't peek at others' picks even via a network probe.
+    const showPickers = lockState.locked;
+    const pickers: BonusPickerMaps = showPickers
+        ? await loadBonusPickers()
+        : { byTeam: new Map(), byName: new Map() };
+    const pickersForTeam = (kind: string, teamId: number): Picker[] =>
+        showPickers ? (pickers.byTeam.get(kind)?.get(teamId) ?? []) : [];
+    const pickersForName = (kind: string, name: string): Picker[] =>
+        showPickers ? (pickers.byName.get(kind)?.get(normalizeName(name)) ?? []) : [];
 
     const topScorers = scorers === null
         ? null
@@ -132,6 +227,13 @@ export default async function StatsPage() {
                             rows={topScorers}
                             valueLabel="Goals"
                             value={(s) => s.goals}
+                            pickersFor={(s) => {
+                                const canonical = findPlayer(s.player.name);
+                                return pickersForName(
+                                    "TOP_SCORER",
+                                    canonical?.displayName ?? s.player.name,
+                                );
+                            }}
                         />
                     )}
                 </section>
@@ -155,6 +257,13 @@ export default async function StatsPage() {
                             rows={topAssists}
                             valueLabel="Assists"
                             value={(s) => s.assists ?? 0}
+                            pickersFor={(s) => {
+                                const canonical = findPlayer(s.player.name);
+                                return pickersForName(
+                                    "MOST_ASSISTS",
+                                    canonical?.displayName ?? s.player.name,
+                                );
+                            }}
                         />
                     )}
                 </section>
@@ -178,17 +287,23 @@ export default async function StatsPage() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {conceded.slice(0, 12).map((r, i) => (
-                                    <tr key={r.teamId} className="border-b border-ink/10 last:border-b-0">
-                                        <td className="py-2 pr-2 opacity-60">{i + 1}</td>
-                                        <td className="py-2 pr-2">
-                                            <span className="mr-2" aria-hidden>{flag(r.code)}</span>
-                                            {r.name}
-                                        </td>
-                                        <td className="py-2 pr-2 text-right opacity-70">{r.matchesPlayed}</td>
-                                        <td className="py-2 pr-2 text-right font-medium">{r.conceded}</td>
-                                    </tr>
-                                ))}
+                                {conceded.slice(0, 12).map((r, i) => {
+                                    const rowPickers = pickersForTeam("SIEVE", r.teamId);
+                                    return (
+                                        <tr key={r.teamId} className="border-b border-ink/10 last:border-b-0">
+                                            <td className="py-2 pr-2 align-top opacity-60">{i + 1}</td>
+                                            <td className="py-2 pr-2 align-top">
+                                                <div>
+                                                    <span className="mr-2" aria-hidden>{flag(r.code)}</span>
+                                                    {r.name}
+                                                </div>
+                                                <PickersLine pickers={rowPickers} />
+                                            </td>
+                                            <td className="py-2 pr-2 text-right align-top opacity-70">{r.matchesPlayed}</td>
+                                            <td className="py-2 pr-2 text-right align-top font-medium">{r.conceded}</td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     )}
@@ -231,10 +346,12 @@ function Table({
     rows,
     valueLabel,
     value,
+    pickersFor,
 }: {
     rows: FdScorer[];
     valueLabel: string;
     value: (s: FdScorer) => number;
+    pickersFor?: (s: FdScorer) => Picker[];
 }) {
     return (
         <table className="mt-3 w-full text-sm tabular">
@@ -249,15 +366,17 @@ function Table({
             <tbody>
                 {rows.map((s, i) => {
                     const canonical = findPlayer(s.player.name);
+                    const rowPickers = pickersFor?.(s) ?? [];
                     return (
                         <tr key={`${s.team.tla}:${s.player.name}`} className="border-b border-ink/10 last:border-b-0">
-                            <td className="py-2 pr-2 opacity-60">{i + 1}</td>
-                            <td className="py-2 pr-2">
-                                <span className="font-medium">
+                            <td className="py-2 pr-2 align-top opacity-60">{i + 1}</td>
+                            <td className="py-2 pr-2 align-top">
+                                <div className="font-medium">
                                     {canonical?.displayName ?? s.player.name}
-                                </span>
+                                </div>
+                                <PickersLine pickers={rowPickers} />
                             </td>
-                            <td className="py-2 pr-2 opacity-80">
+                            <td className="py-2 pr-2 align-top opacity-80">
                                 {s.team.tla !== null ? (
                                     <>
                                         <span className="mr-1.5" aria-hidden>{flag(s.team.tla)}</span>
@@ -269,11 +388,35 @@ function Table({
                                     <span className="opacity-60">{s.team.name}</span>
                                 )}
                             </td>
-                            <td className="py-2 pr-2 text-right font-medium">{value(s)}</td>
+                            <td className="py-2 pr-2 text-right align-top font-medium">{value(s)}</td>
                         </tr>
                     );
                 })}
             </tbody>
         </table>
+    );
+}
+
+function PickersLine({ pickers }: { pickers: Picker[] }) {
+    if (pickers.length === 0) {
+        return null;
+    }
+    return (
+        <div className="mt-0.5 text-[11px] opacity-70">
+            <span className="font-display uppercase tracking-wider opacity-60">
+                Picked by
+            </span>{" "}
+            {pickers.map((p, i) => (
+                <span key={p.playerId}>
+                    {i > 0 ? <span className="opacity-50">, </span> : null}
+                    <Link
+                        href={`/players/${p.playerId}` as never}
+                        className="hover:text-tournament hover:underline"
+                    >
+                        {p.displayName}
+                    </Link>
+                </span>
+            ))}
+        </div>
     );
 }
