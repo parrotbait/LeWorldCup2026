@@ -52,8 +52,11 @@ export async function syncResultsFromFootballData(actor: string): Promise<SyncRe
     const matchErrors: Array<{ externalId: number; message: string }> = [];
     const errors: string[] = [];
 
+    console.log(`[sync ${actor}] start`);
+
     try {
         const fdTeams = await fetchTeams();
+        console.log(`[sync ${actor}] FD returned ${fdTeams.length} teams`);
         for (const t of fdTeams) {
             if (t.tla === null) {
                 continue;
@@ -73,6 +76,7 @@ export async function syncResultsFromFootballData(actor: string): Promise<SyncRe
 
     try {
         const fdMatches = await fetchMatches();
+        console.log(`[sync ${actor}] FD returned ${fdMatches.length} matches`);
         // Track which teams belong to which group as we go — football-data
         // carries the group letter on the match, not on /teams, so we backfill
         // from there.
@@ -217,10 +221,22 @@ export async function syncResultsFromFootballData(actor: string): Promise<SyncRe
                     });
                 matchCount += 1;
                 matchStatusCounts[status] = (matchStatusCounts[status] ?? 0) + 1;
+                const score =
+                    scoringHome !== null && scoringAway !== null
+                        ? `${scoringHome}-${scoringAway}`
+                        : "—";
+                const home = m.homeTeam.tla ?? "TBD";
+                const away = m.awayTeam.tla ?? "TBD";
+                console.log(
+                    `[sync ${actor}] ✓ ext=${m.id} ${home} vs ${away} ` +
+                        `kickoff=${newKickoff.toISOString()} status=${status} score=${score}`,
+                );
             } catch (e) {
                 // One bad row shouldn't sink the rest of the batch — record it
                 // and keep going so the admin can investigate per-match.
-                matchErrors.push({ externalId: m.id, message: describeError(e) });
+                const message = describeError(e);
+                matchErrors.push({ externalId: m.id, message });
+                console.error(`[sync ${actor}] ✗ ext=${m.id} ${message}`);
             }
         }
 
@@ -233,6 +249,12 @@ export async function syncResultsFromFootballData(actor: string): Promise<SyncRe
     }
 
     const durationMs = Date.now() - startedAt;
+
+    console.log(
+        `[sync ${actor}] done teams=${teamCount} matches=${matchCount} ` +
+            `status=${JSON.stringify(matchStatusCounts)} ` +
+            `errors=${errors.length}+${matchErrors.length} duration=${durationMs}ms`,
+    );
 
     await db.insert(auditLog).values({
         actor,
