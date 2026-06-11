@@ -10,7 +10,7 @@ import { LiveLeaderChip } from "./_components/live-leader-chip";
 import { BonusResultChip } from "./_components/bonus-result-chip";
 import { AllPicksList, type AllPicksGroup } from "./_components/all-picks-list";
 import { formatKickoff } from "@/lib/utils";
-import { getTournamentLockState } from "@/lib/tournament-lock";
+import { getBonusLockState } from "@/lib/bonus-lock";
 import { allRosterPlayers } from "@/lib/players";import {
     getDarkHorseLeader,
     getMightyFallenLeader,
@@ -46,7 +46,7 @@ export default async function BonusesPage() {
         pantomimeVillainLeader,
     ] = await Promise.all([
         db.select().from(teams).orderBy(asc(teams.name)),
-        getTournamentLockState(),
+        getBonusLockState(),
         db.select().from(bonusPicks).where(eq(bonusPicks.playerId, session.playerId)),
         db
             .select({
@@ -75,7 +75,7 @@ export default async function BonusesPage() {
         getPantomimeVillainLeader(),
     ]);
 
-    const { locked, firstKickoff } = lockState;
+    const { locked, deadline } = lockState;
 
     // Bonus results are tournament-end facts. Even if admin pre-populates a
     // resolution row, we only render it as "winner" once the FINAL match has
@@ -230,15 +230,15 @@ export default async function BonusesPage() {
                     <h1 className="font-display text-2xl uppercase tracking-widest">Bonuses</h1>
                     <span className="font-display text-xs uppercase opacity-60">
                         {locked
-                            ? "locked at kickoff 🔒"
-                            : firstKickoff !== null
-                              ? `lock: ${formatKickoff(firstKickoff)}`
+                            ? "locked 🔒"
+                            : deadline !== null
+                              ? `lock: ${formatKickoff(deadline)}`
                               : ""}
                     </span>
                 </header>
                 <p className="mt-1 text-xs opacity-60">
-                    All bonuses lock at the tournament&apos;s opening whistle. Ties pay everyone the
-                    full bonus.{" "}
+                    Grace window: bonuses stay open for 24 hours after the opening kickoff. Ties pay
+                    everyone the full bonus.{" "}
                     <Link href={"/stats" as never} className="underline hover:text-tournament">
                         See live stats →
                     </Link>

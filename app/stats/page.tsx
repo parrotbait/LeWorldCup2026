@@ -7,7 +7,7 @@ import { requireSession } from "@/lib/auth";
 import { fetchScorers, type FdScorer } from "@/lib/football-data";
 import { findPlayer } from "@/lib/players";
 import { flag } from "@/lib/utils";
-import { getTournamentLockState } from "@/lib/tournament-lock";
+import { getBonusLockState } from "@/lib/bonus-lock";
 
 interface Picker {
     playerId: number;
@@ -163,12 +163,11 @@ export default async function StatsPage() {
             .where(eq(auditLog.action, "sync-results"))
             .orderBy(desc(auditLog.id))
             .limit(1),
-        getTournamentLockState(),
+        getBonusLockState(),
     ]);
 
-    // Picks reveal at the same boundary the bonuses page uses — the moment
-    // the first match has kicked off. Pre-lock we skip the query entirely so
-    // late-fillers can't peek at others' picks even via a network probe.
+    // Picks reveal at the bonus deadline — same boundary edits use — so
+    // late-fillers can't peek and copy during the grace window.
     const showPickers = lockState.locked;
     const pickers: BonusPickerMaps = showPickers
         ? await loadBonusPickers()

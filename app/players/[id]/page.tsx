@@ -16,7 +16,7 @@ import { NavBar } from "@/app/_components/navbar";
 import { requireSession } from "@/lib/auth";
 import { flag, formatKickoff, pickLockTime } from "@/lib/utils";
 import { computeBonusPointsByPlayer, predictionPoints } from "@/lib/scoring";
-import { getTournamentLockState } from "@/lib/tournament-lock";
+import { getBonusLockState } from "@/lib/bonus-lock";
 
 export const revalidate = 30;
 
@@ -79,7 +79,7 @@ export default async function PlayerProfilePage({ params }: PageProps) {
             db.select().from(jokers).where(eq(jokers.playerId, playerId)),
             db.select().from(teams),
             db.select().from(bonusResolutions),
-            getTournamentLockState(),
+            getBonusLockState(),
         ]);
 
     const teamById = new Map(allTeams.map((t) => [t.id, t]));
@@ -87,9 +87,10 @@ export default async function PlayerProfilePage({ params }: PageProps) {
     const jokerByRound = new Map(theirJokers.map((j) => [j.round, j.matchId]));
 
     const now = Date.now();
-    // Bonuses reveal at the same boundary the server uses to lock them — i.e.
-    // the moment the first match has kicked off. Same source of truth.
-    const tournamentStarted = lockState.locked;
+    // Bonuses reveal at the bonus deadline — same boundary the server uses
+    // to lock writes — to prevent late-fillers from copying others' picks
+    // during the grace window.
+    const bonusesRevealed = lockState.locked;
 
     const theirBonusPoints =
         computeBonusPointsByPlayer({
@@ -141,7 +142,7 @@ export default async function PlayerProfilePage({ params }: PageProps) {
     });
     const settledCount = rows.filter((r) => r.revealed && r.m.homeScore !== null).length;
 
-    const showBonuses = isMe || tournamentStarted;
+    const showBonuses = isMe || bonusesRevealed;
 
     return (
         <>
@@ -272,15 +273,15 @@ export default async function PlayerProfilePage({ params }: PageProps) {
                         <h2 className="font-display text-sm uppercase tracking-wider">
                             Bonus picks
                         </h2>
-                        {!isMe && !tournamentStarted ? (
+                        {!isMe && !bonusesRevealed ? (
                             <span className="font-display text-[10px] uppercase opacity-50">
-                                hidden until tournament kickoff
+                                hidden until bonus deadline
                             </span>
                         ) : null}
                     </header>
                     {!showBonuses ? (
                         <p className="mt-3 text-sm opacity-60">
-                            Bonus picks reveal at the tournament&apos;s opening whistle.
+                            Bonus picks reveal once the bonus deadline has passed.
                         </p>
                     ) : theirBonuses.length === 0 ? (
                         <p className="mt-3 text-sm opacity-60">

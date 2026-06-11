@@ -3,12 +3,15 @@ import { db } from "@/db/client";
 import { matches } from "@/db/schema";
 
 /**
- * Single source of truth for "has the tournament started → lock all bonuses".
+ * Single source of truth for "has the tournament started" — the moment the
+ * first match has actually kicked off (or cron has flipped it off
+ * SCHEDULED). Used to gate concerns that should pivot exactly at kickoff.
  *
  * Used by:
- *  - app/actions/picks.ts saveBonusAction / editBonusPickAction (server enforcement)
- *  - app/bonuses/page.tsx (UI lock state + lock-time display)
- *  - app/players/[id]/page.tsx (reveal others' bonus picks)
+ *  - app/actions/auth.ts (block self-signup; late joiners go through admin)
+ *
+ * NOT used for bonus-pick gating — bonuses have their own deadline with a
+ * grace window past kickoff. See {@link import("./bonus-lock").getBonusLockState}.
  *
  * Anchors on the actual fixture data rather than settings.tournament_kickoff
  * so it can't drift if admin forgets to update the settings row.

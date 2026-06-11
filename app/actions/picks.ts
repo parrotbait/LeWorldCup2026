@@ -7,7 +7,7 @@ import { db } from "@/db/client";
 import { bonusPicks, jokers, matches, predictions, settings, teams, auditLog } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
 import { pickLockTime } from "@/lib/utils";
-import { getTournamentLockState } from "@/lib/tournament-lock";
+import { getBonusLockState } from "@/lib/bonus-lock";
 import { findPlayer } from "@/lib/players";
 
 const scoreSchema = z.coerce.number().int().min(0).max(20);
@@ -111,8 +111,8 @@ const saveBonusSchema = z.object({
     playerName: z.string().trim().max(80).optional().nullable(),
 });
 
-async function tournamentLocked(): Promise<boolean> {
-    return (await getTournamentLockState()).locked;
+async function bonusesLocked(): Promise<boolean> {
+    return (await getBonusLockState()).locked;
 }
 
 export async function saveBonusAction(formData: FormData): Promise<SaveResult> {
@@ -125,7 +125,7 @@ export async function saveBonusAction(formData: FormData): Promise<SaveResult> {
     if (!parsed.success) {
         return { ok: false, error: "Invalid bonus pick" };
     }
-    if (await tournamentLocked()) {
+    if (await bonusesLocked()) {
         return { ok: false, error: "Bonuses are locked — tournament has kicked off" };
     }
     const { kind, teamId, playerName } = parsed.data;
@@ -285,7 +285,7 @@ export async function saveJokerAction(formData: FormData): Promise<SaveResult> {
 
 export async function clearBonusAction(kind: string, groupLetter: string | null): Promise<SaveResult> {
     const session = await requireSession();
-    if (await tournamentLocked()) {
+    if (await bonusesLocked()) {
         return { ok: false, error: "Bonuses are locked" };
     }
     const parsedKind = bonusKindSchema.safeParse(kind);
