@@ -196,7 +196,12 @@ export async function syncResultsFromFootballData(actor: string): Promise<SyncRe
                             // until clearOverrideAction. first_locked_at is also
                             // omitted unconditionally — once a match has ever
                             // passed its original lock, it stays locked.
-                            kickoff: sql`CASE WHEN ${matches.adminOverridden} THEN ${matches.kickoff} ELSE ${newKickoff} END`,
+                            // Inside `sql\`\`` Drizzle can't see the target
+                            // column type, so postgres-js receives a raw
+                            // Date and crashes in its string serializer.
+                            // Convert to ISO; Postgres parses it into the
+                            // timestamptz column the same as a Date would.
+                            kickoff: sql`CASE WHEN ${matches.adminOverridden} THEN ${matches.kickoff} ELSE ${newKickoff.toISOString()} END`,
                             homeTeamId: homeTeam?.id,
                             awayTeamId: awayTeam?.id,
                             homeScore: sql`CASE WHEN ${matches.adminOverridden} THEN ${matches.homeScore} ELSE ${scoringHome} END`,
