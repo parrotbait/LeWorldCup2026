@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { env } from "@/lib/env";
 import { syncResultsFromFootballData } from "@/lib/sync";
 import { sendPickReminders } from "@/lib/reminders";
@@ -30,5 +31,14 @@ export async function GET(request: NextRequest) {
         action: "send-reminders",
         detail: JSON.stringify(reminders),
     });
+    // Bust ISR snapshots for pages that surface match scores / standings.
+    // Mirrors triggerSyncAction so the cron and the admin button behave the
+    // same way — without this, /leaderboard's revalidate=30 snapshot can
+    // serve a pre-sync view for up to 30s.
+    revalidatePath("/leaderboard");
+    revalidatePath("/today");
+    revalidatePath("/predictions");
+    revalidatePath("/admin/dashboard");
+    revalidatePath("/admin/matches");
     return NextResponse.json({ sync, reminders });
 }
