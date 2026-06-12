@@ -347,6 +347,16 @@ export default async function StatsPage() {
                                         </tr>
                                     );
                                 })}
+                                {concededTie !== null ? (
+                                    <tr>
+                                        <td
+                                            colSpan={4}
+                                            className="py-2 pr-2 text-center font-display text-[11px] uppercase tracking-wider opacity-50"
+                                        >
+                                            +{concededTie.count} more on {concededTie.cutoff} conceded
+                                        </td>
+                                    </tr>
+                                ) : null}
                             </tbody>
                         </table>
                     )}
@@ -437,6 +447,16 @@ function Table({
                         </tr>
                     );
                 })}
+                {tieFooterText !== null && tieFooterText !== undefined ? (
+                    <tr>
+                        <td
+                            colSpan={4}
+                            className="py-2 pr-2 text-center font-display text-[11px] uppercase tracking-wider opacity-50"
+                        >
+                            {tieFooterText}
+                        </td>
+                    </tr>
+                ) : null}
             </tbody>
         </table>
     );
