@@ -367,9 +367,7 @@ export default async function StatsPage() {
                         Cards (Pantomime Villain)
                     </h2>
                     <p className="mt-3 text-xs opacity-60">
-                        football-data.org&apos;s free tier doesn&apos;t expose per-team card counts.
-                        Resolved by admin from FIFA&apos;s official disciplinary record at the end
-                        of the tournament.
+                        Only available at the end of the tournament.
                     </p>
                 </section>
 

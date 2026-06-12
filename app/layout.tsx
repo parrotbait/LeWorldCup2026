@@ -23,7 +23,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
     return (
         <html lang="en" className={`${inter.variable} ${dmMono.variable}`}>
-            <body>{children}</body>
+            {/* pb-20 keeps page content above the fixed mobile tab bar (h-14
+                + safe-area inset). md:pb-0 drops the spacer on tablet+ where
+                the top nav is the only nav. */}
+            <body className="pb-20 md:pb-0">{children}</body>
         </html>
     );
 }
