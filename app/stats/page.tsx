@@ -177,20 +177,54 @@ export default async function StatsPage() {
     const pickersForName = (kind: string, name: string): Picker[] =>
         showPickers ? (pickers.byName.get(kind)?.get(normalizeName(name)) ?? []) : [];
 
-    const topScorers = scorers === null
+    // Cap each table at 10 rows. If rows beyond the cap share the same metric
+    // as row 10, surface the count in a "+N more on X goals" footer instead
+    // of dumping every tied player into the table — keeps the page scannable
+    // when the long tail is people on 1 goal / 1 conceded each.
+    const ROW_CAP = 10;
+
+    interface TieFooter {
+        count: number;
+        cutoff: number;
+    }
+    function tieFooter<T>(items: T[], metric: (t: T) => number): TieFooter | null {
+        if (items.length <= ROW_CAP) {
+            return null;
+        }
+        const cutoff = metric(items[ROW_CAP - 1]!);
+        let count = 0;
+        for (let i = ROW_CAP; i < items.length; i += 1) {
+            if (metric(items[i]!) === cutoff) {
+                count += 1;
+            }
+        }
+        if (count === 0) {
+            return null;
+        }
+        return { count, cutoff };
+    }
+
+    const sortedScorers = scorers === null
         ? null
         : [...scorers]
               .filter((s) => s.goals > 0)
-              .sort((a, b) => b.goals - a.goals || (b.assists ?? 0) - (a.assists ?? 0))
-              .slice(0, 10);
+              .sort((a, b) => b.goals - a.goals || (b.assists ?? 0) - (a.assists ?? 0));
+    const topScorers = sortedScorers?.slice(0, ROW_CAP) ?? null;
+    const scorersTie =
+        sortedScorers !== null ? tieFooter(sortedScorers, (s) => s.goals) : null;
 
     const assistsAvailable = scorers !== null && scorers.some((s) => s.assists !== null && s.assists > 0);
-    const topAssists = scorers === null || !assistsAvailable
+    const sortedAssists = scorers === null || !assistsAvailable
         ? null
         : [...scorers]
               .filter((s) => (s.assists ?? 0) > 0)
-              .sort((a, b) => (b.assists ?? 0) - (a.assists ?? 0) || b.goals - a.goals)
-              .slice(0, 10);
+              .sort((a, b) => (b.assists ?? 0) - (a.assists ?? 0) || b.goals - a.goals);
+    const topAssists = sortedAssists?.slice(0, ROW_CAP) ?? null;
+    const assistsTie =
+        sortedAssists !== null ? tieFooter(sortedAssists, (s) => s.assists ?? 0) : null;
+
+    const concededTop = conceded.slice(0, ROW_CAP);
+    const concededTie = tieFooter(conceded, (r) => r.conceded);
 
     const lastSyncAt = lastSync[0]?.at ?? null;
 
@@ -226,6 +260,11 @@ export default async function StatsPage() {
                             rows={topScorers}
                             valueLabel="Goals"
                             value={(s) => s.goals}
+                            tieFooterText={
+                                scorersTie !== null
+                                    ? `+${scorersTie.count} more on ${scorersTie.cutoff} goal${scorersTie.cutoff === 1 ? "" : "s"}`
+                                    : null
+                            }
                             pickersFor={(s) => {
                                 const canonical = findPlayer(s.player.name);
                                 return pickersForName(
@@ -256,6 +295,11 @@ export default async function StatsPage() {
                             rows={topAssists}
                             valueLabel="Assists"
                             value={(s) => s.assists ?? 0}
+                            tieFooterText={
+                                assistsTie !== null
+                                    ? `+${assistsTie.count} more on ${assistsTie.cutoff} assist${assistsTie.cutoff === 1 ? "" : "s"}`
+                                    : null
+                            }
                             pickersFor={(s) => {
                                 const canonical = findPlayer(s.player.name);
                                 return pickersForName(
@@ -286,7 +330,7 @@ export default async function StatsPage() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {conceded.slice(0, 12).map((r, i) => {
+                                {concededTop.map((r, i) => {
                                     const rowPickers = pickersForTeam("SIEVE", r.teamId);
                                     return (
                                         <tr key={r.teamId} className="border-b border-ink/10 last:border-b-0">
@@ -346,11 +390,13 @@ function Table({
     valueLabel,
     value,
     pickersFor,
+    tieFooterText,
 }: {
     rows: FdScorer[];
     valueLabel: string;
     value: (s: FdScorer) => number;
     pickersFor?: (s: FdScorer) => Picker[];
+    tieFooterText?: string | null;
 }) {
     return (
         <table className="mt-3 w-full text-sm tabular">

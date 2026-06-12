@@ -142,8 +142,8 @@ export default async function LeaderboardPage() {
                             <th className="py-2 pr-2">Player</th>
                             <th className="py-2 pr-2 text-right">Pred</th>
                             <th className="py-2 pr-2 text-right">Bonus</th>
-                            <th className="py-2 pr-2 text-right">Total</th>
                             <th className="py-2 pr-2 text-right">Exact</th>
+                            <th className="py-2 pr-2 text-right">Total</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -177,10 +177,10 @@ export default async function LeaderboardPage() {
                                         </td>
                                         <td className="py-2 pr-2 text-right opacity-70">{predPoints}</td>
                                         <td className="py-2 pr-2 text-right opacity-70">{r.bonusPoints}</td>
+                                        <td className="py-2 pr-2 text-right opacity-70">{r.exactCount}</td>
                                         <td className="py-2 pr-2 text-right font-display text-base font-bold">
                                             {r.points}
                                         </td>
-                                        <td className="py-2 pr-2 text-right opacity-70">{r.exactCount}</td>
                                     </tr>
                                 );
                             })

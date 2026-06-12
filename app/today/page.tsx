@@ -75,8 +75,24 @@ export default async function TodayPage() {
                 eq(matches.status, "LIVE"),
                 and(gte(matches.kickoff, since), lte(matches.kickoff, until)),
             ),
-        )
-        .orderBy(asc(matches.kickoff));
+        );
+
+    // Display order: live first (it's literally "now"), then everything else
+    // sorted by absolute time-distance from now — so the very next kickoff
+    // and the just-finished match jostle for #1 based on which is closer in
+    // time, rather than always showing future-first or past-first.
+    const nowMs = Date.now();
+    liveOrRecent.sort((a, b) => {
+        const aLive = a.status === "LIVE";
+        const bLive = b.status === "LIVE";
+        if (aLive !== bLive) {
+            return aLive ? -1 : 1;
+        }
+        return (
+            Math.abs(a.kickoff.getTime() - nowMs) -
+            Math.abs(b.kickoff.getTime() - nowMs)
+        );
+    });
 
     // Find next-kickoff time for the empty-state hint.
     const upcoming = await db
