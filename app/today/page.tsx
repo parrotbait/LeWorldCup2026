@@ -37,10 +37,10 @@ interface PlayerPickRow {
 export default async function TodayPage() {
     await requireSession();
 
-    // Show fixtures from the past 24h plus anything kicking off in the next
-    // 24h — that covers "today's slate" across timezones without us having
-    // to be clever about midnight rollover.
-    const since = new Date(Date.now() - 24 * 60 * 60_000);
+    // Show fixtures from the past 8h plus anything kicking off in the next
+    // 24h. Past window is short on purpose — yesterday's slate doesn't
+    // belong on "today"; users can hop to /matches for the full archive.
+    const since = new Date(Date.now() - 8 * 60 * 60_000);
     const until = new Date(Date.now() + 24 * 60 * 60_000);
 
     const home = alias(teams, "home");
@@ -168,13 +168,22 @@ export default async function TodayPage() {
         <>
             <NavBar />
             <main className="mx-auto max-w-3xl px-6 py-8">
-                <header>
+                <header className="flex flex-wrap items-baseline justify-between gap-2">
                     <h1 className="font-display text-2xl uppercase tracking-widest">Today</h1>
-                    <p className="mt-1 text-xs opacity-60">
-                        Today&rsquo;s fixtures and everyone&rsquo;s picks (revealed at kickoff).
-                        Scores sync once a day, so finals and points settle the morning after.
-                    </p>
+                    <Link
+                        href={"/matches" as never}
+                        className="text-xs underline opacity-60 hover:text-tournament"
+                    >
+                        all matches →
+                    </Link>
                 </header>
+                <p className="mt-1 text-xs opacity-60">
+                    Last 8 hours and the next 24 hours of fixtures, with everyone&rsquo;s picks
+                    (revealed at kickoff). Scores sync twice a day. Want previous matches?{" "}
+                    <Link href={"/matches" as never} className="underline hover:text-tournament">
+                        See all matches →
+                    </Link>
+                </p>
 
                 {liveOrRecent.length === 0 ? (
                     <p className="mt-12 text-center text-sm opacity-60">
