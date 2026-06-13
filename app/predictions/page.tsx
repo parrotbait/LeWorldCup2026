@@ -194,6 +194,7 @@ export default async function PredictionsPage() {
                                                         homeName={m.homeName ?? "TBD"}
                                                         awayCode={m.awayCode ?? ""}
                                                         awayName={m.awayName ?? "TBD"}
+                                                        matchStatus={m.status}
                                                         actualHome={m.homeScore}
                                                         actualAway={m.awayScore}
                                                         actualHomeFt={m.homeScoreFt}

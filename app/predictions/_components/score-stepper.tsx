@@ -13,6 +13,7 @@ interface Props {
     homeName: string;
     awayCode: string;
     awayName: string;
+    matchStatus: "SCHEDULED" | "LIVE" | "FINISHED" | "POSTPONED" | "CANCELLED";
     // Set once the match has finished. When defined, the row shows the
     // actual score and the points the player earned for their pick.
     actualHome?: number | null;
@@ -39,6 +40,7 @@ export function ScoreStepper({
     homeName,
     awayCode,
     awayName,
+    matchStatus,
     actualHome,
     actualAway,
     actualHomeFt,
@@ -127,7 +129,21 @@ export function ScoreStepper({
         parsedHome === lastSavedRef.current.h &&
         parsedAway === lastSavedRef.current.a;
 
-    const settled = actualHome !== null && actualHome !== undefined && actualAway !== null && actualAway !== undefined;
+    const settled =
+        matchStatus === "FINISHED" &&
+        actualHome !== null &&
+        actualHome !== undefined &&
+        actualAway !== null &&
+        actualAway !== undefined;
+    // Live: scores are populated but the match is still running. We surface
+    // them as the current score, NOT the final result, and skip points
+    // language so a missed pick doesn't get marked "missed" mid-match.
+    const live =
+        matchStatus === "LIVE" &&
+        actualHome !== null &&
+        actualHome !== undefined &&
+        actualAway !== null &&
+        actualAway !== undefined;
     const pts = earnedPoints ?? 0;
 
     return (
@@ -201,7 +217,15 @@ export function ScoreStepper({
                 <span className="text-lg">{flag(awayCode)}</span>
             </div>
             <div className="mt-1 min-h-[18px] text-center font-display uppercase tracking-wider">
-                {settled ? (
+                {live ? (
+                    <span className="text-sm sm:text-base">
+                        <span className="text-tournament">● live</span>
+                        <span className="mx-2 opacity-30">·</span>
+                        <span className="opacity-70">
+                            current {actualHome}–{actualAway}
+                        </span>
+                    </span>
+                ) : settled ? (
                     <>
                         <span className="text-sm sm:text-base">
                             <span className="opacity-60">
