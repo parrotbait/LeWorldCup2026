@@ -9,25 +9,38 @@ import { timingSafeEqual } from "node:crypto";
 
 export const dynamic = "force-dynamic";
 
-function safeBearerEqual(header: string | null, secret: string): boolean {
-    if (header === null) {
+function safeStringEqual(a: string, b: string): boolean {
+    if (a.length !== b.length) {
         return false;
     }
-    const expected = `Bearer ${secret}`;
-    if (header.length !== expected.length) {
-        return false;
+    return timingSafeEqual(Buffer.from(a), Buffer.from(b));
+}
+
+function isAuthorized(request: NextRequest, secret: string): boolean {
+    const header = request.headers.get("authorization");
+    if (header !== null && safeStringEqual(header, `Bearer ${secret}`)) {
+        return true;
     }
-    return timingSafeEqual(Buffer.from(header), Buffer.from(expected));
+    const querySecret = request.nextUrl.searchParams.get("secret");
+    if (querySecret !== null && safeStringEqual(querySecret, secret)) {
+        return true;
+    }
+    return false;
 }
 
 export async function GET(request: NextRequest) {
-    if (!safeBearerEqual(request.headers.get("authorization"), env.CRON_SECRET)) {
+    if (!isAuthorized(request, env.CRON_SECRET)) {
         return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
-    const sync = await syncResultsFromFootballData("cron");
+    // Vercel cron requests carry this header; everything else is a manual run
+    // (Shortcut, browser, curl) and is recorded under a distinct actor so the
+    // audit log can distinguish scheduled syncs from on-demand ones.
+    const isVercelCron = request.headers.get("user-agent")?.includes("vercel-cron") ?? false;
+    const actor = isVercelCron ? "cron" : "manual-cron";
+    const sync = await syncResultsFromFootballData(actor);
     const reminders = await sendPickReminders();
     await db.insert(auditLog).values({
-        actor: "cron",
+        actor,
         action: "send-reminders",
         detail: JSON.stringify(reminders),
     });
