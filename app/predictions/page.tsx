@@ -1,12 +1,13 @@
 import { asc, eq } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db/client";
-import { matches, predictions, teams } from "@/db/schema";
+import { matches, predictions, teams, type Match, type Prediction } from "@/db/schema";
 import { NavBar } from "@/app/_components/navbar";
 import { requireSession } from "@/lib/auth";
 import { formatDayLong, formatTime, pickLockTime } from "@/lib/utils";
 import { isExact, predictionPoints } from "@/lib/scoring";
 import { ScoreStepper } from "./_components/score-stepper";
+import { ScrollToDay } from "./_components/scroll-to-day";
 
 export const revalidate = 0;
 
@@ -109,6 +110,19 @@ export default async function PredictionsPage() {
     const dayKeys = Array.from(byDay.keys()).sort();
 
     const now = Date.now();
+    const todayKey = dayKeyFmt.format(new Date(now));
+    // Only group-stage and R32 days get tucked away once they're done — the
+    // later knockout rounds stay visible because they're worth re-checking.
+    const HIDEABLE_ROUNDS = new Set(["GROUP", "R32"]);
+    const isHideable = (k: string) =>
+        k < todayKey && byDay.get(k)!.every((m) => HIDEABLE_ROUNDS.has(m.round));
+    const pastKeys = dayKeys.filter(isHideable);
+    const visibleKeys = dayKeys.filter((k) => !isHideable(k));
+    // Land the user at today if it has matches, otherwise the next upcoming
+    // day — and if the tournament is over, the most recent past day.
+    const upcomingOrLater = visibleKeys.find((k) => k >= todayKey);
+    const anchorKey =
+        upcomingOrLater ?? visibleKeys[visibleKeys.length - 1] ?? null;
 
     return (
         <>
@@ -128,93 +142,135 @@ export default async function PredictionsPage() {
                     </p>
                 ) : (
                     <div className="mt-8 space-y-10">
-                        {dayKeys.map((key) => {
-                            const day = byDay.get(key)!;
-                            return (
-                                <section key={key}>
-                                    <h2 className="font-display text-xs uppercase tracking-[0.25em] text-tournament">
-                                        {formatDayLong(day[0]!.kickoff)}
-                                    </h2>
-                                    <ul className="mt-3 divide-y divide-ink/15">
-                                        {day.map((m) => {
-                                            const pred = predByMatch.get(m.id);
-                                            // TBD when either side hasn't been resolved yet
-                                            // (knockout placeholders before the bracket fills).
-                                            const tbd = m.homeName === null || m.awayName === null;
-                                            // Locked once the match has started by either signal:
-                                            // its kickoff has passed, OR the status has moved on
-                                            // (cron may flip to LIVE early, or admin overrode).
-                                            // Also locked while teams are TBD — there's no
-                                            // meaningful pick to make against placeholders.
-                                            const locked =
-                                                tbd ||
-                                                pickLockTime(m.kickoff) <= now ||
-                                                m.status !== "SCHEDULED";
-                                            const settled =
-                                                m.status === "FINISHED" &&
-                                                m.homeScore !== null &&
-                                                m.awayScore !== null;
-                                            const earned =
-                                                settled && pred !== undefined
-                                                    ? predictionPoints(m, {
-                                                          homeScore: pred.homeScore,
-                                                          awayScore: pred.awayScore,
-                                                      })
-                                                    : 0;
-                                            const exact =
-                                                settled &&
-                                                pred !== undefined &&
-                                                isExact(m, {
-                                                    homeScore: pred.homeScore,
-                                                    awayScore: pred.awayScore,
-                                                });
-                                            return (
-                                                <li
-                                                    key={m.id}
-                                                    className="flex flex-col gap-2 py-4 text-sm sm:grid sm:grid-cols-[100px_1fr] sm:items-center sm:gap-4"
-                                                >
-                                                    {/* Mobile: horizontal strip above the stepper. Desktop: vertical stack in the left column. */}
-                                                    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 font-display text-[11px] uppercase opacity-70 sm:block sm:text-xs sm:opacity-60">
-                                                        <span>{formatTime(m.kickoff)}</span>
-                                                        <span className="opacity-60 sm:mt-0.5 sm:block sm:text-[10px]">
-                                                            {ROUND_LABEL[m.round]}
-                                                            {m.groupLetter !== null ? ` ${m.groupLetter}` : ""}
-                                                        </span>
-                                                        <span className="opacity-60 sm:mt-0.5 sm:block sm:text-[10px]">
-                                                            {lockMessage(m.kickoff, locked, tbd)}
-                                                        </span>
-                                                    </div>
-
-                                                    <ScoreStepper
-                                                        matchId={m.id}
-                                                        initialHome={pred?.homeScore ?? null}
-                                                        initialAway={pred?.awayScore ?? null}
-                                                        locked={locked}
-                                                        homeCode={m.homeCode ?? ""}
-                                                        homeName={m.homeName ?? "TBD"}
-                                                        awayCode={m.awayCode ?? ""}
-                                                        awayName={m.awayName ?? "TBD"}
-                                                        matchStatus={m.status}
-                                                        actualHome={m.homeScore}
-                                                        actualAway={m.awayScore}
-                                                        actualHomeFt={m.homeScoreFt}
-                                                        actualAwayFt={m.awayScoreFt}
-                                                        actualHomePens={m.homeScorePens}
-                                                        actualAwayPens={m.awayScorePens}
-                                                        earnedPoints={earned}
-                                                        isExact={exact}
-                                                        hasPick={pred !== undefined}
-                                                    />
-                                                </li>
-                                            );
-                                        })}
-                                    </ul>
-                                </section>
-                            );
-                        })}
+                        {pastKeys.length > 0 && (
+                            <details className="group">
+                                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-display text-xs uppercase tracking-[0.25em] opacity-60 hover:opacity-100">
+                                    <span>
+                                        Group stage &amp; R32 ({pastKeys.length} {pastKeys.length === 1 ? "day" : "days"})
+                                    </span>
+                                    <span className="text-[10px] opacity-60 group-open:hidden">tap to show</span>
+                                    <span className="hidden text-[10px] opacity-60 group-open:inline">tap to hide</span>
+                                </summary>
+                                <div className="mt-8 space-y-10">
+                                    {pastKeys.map((key) => renderDay(key, byDay.get(key)!, predByMatch, now))}
+                                </div>
+                            </details>
+                        )}
+                        {visibleKeys.map((key) =>
+                            renderDay(key, byDay.get(key)!, predByMatch, now),
+                        )}
                     </div>
                 )}
+                {anchorKey !== null && <ScrollToDay dayKey={anchorKey} />}
             </main>
         </>
+    );
+}
+
+function renderDay(
+    key: string,
+    day: Array<{
+        id: number;
+        kickoff: Date;
+        round: Match["round"];
+        groupLetter: string | null;
+        status: Match["status"];
+        homeScore: number | null;
+        awayScore: number | null;
+        homeScoreFt: number | null;
+        awayScoreFt: number | null;
+        homeScorePens: number | null;
+        awayScorePens: number | null;
+        homeTeamId: number | null;
+        awayTeamId: number | null;
+        winnerTeamId: number | null;
+        homeCode: string | null;
+        homeName: string | null;
+        awayCode: string | null;
+        awayName: string | null;
+    }>,
+    predByMatch: Map<number, Prediction>,
+    now: number,
+) {
+    return (
+        <section key={key} id={`day-${key}`} className="scroll-mt-4">
+            <h2 className="font-display text-xs uppercase tracking-[0.25em] text-tournament">
+                {formatDayLong(day[0]!.kickoff)}
+            </h2>
+            <ul className="mt-3 divide-y divide-ink/15">
+                {day.map((m) => {
+                    const pred = predByMatch.get(m.id);
+                    // TBD when either side hasn't been resolved yet
+                    // (knockout placeholders before the bracket fills).
+                    const tbd = m.homeName === null || m.awayName === null;
+                    // Locked once the match has started by either signal:
+                    // its kickoff has passed, OR the status has moved on
+                    // (cron may flip to LIVE early, or admin overrode).
+                    // Also locked while teams are TBD — there's no
+                    // meaningful pick to make against placeholders.
+                    const locked =
+                        tbd ||
+                        pickLockTime(m.kickoff) <= now ||
+                        m.status !== "SCHEDULED";
+                    const settled =
+                        m.status === "FINISHED" &&
+                        m.homeScore !== null &&
+                        m.awayScore !== null;
+                    const earned =
+                        settled && pred !== undefined
+                            ? predictionPoints(m, {
+                                  homeScore: pred.homeScore,
+                                  awayScore: pred.awayScore,
+                              })
+                            : 0;
+                    const exact =
+                        settled &&
+                        pred !== undefined &&
+                        isExact(m, {
+                            homeScore: pred.homeScore,
+                            awayScore: pred.awayScore,
+                        });
+                    return (
+                        <li
+                            key={m.id}
+                            className="flex flex-col gap-2 py-4 text-sm sm:grid sm:grid-cols-[100px_1fr] sm:items-center sm:gap-4"
+                        >
+                            {/* Mobile: horizontal strip above the stepper. Desktop: vertical stack in the left column. */}
+                            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 font-display text-[11px] uppercase opacity-70 sm:block sm:text-xs sm:opacity-60">
+                                <span>{formatTime(m.kickoff)}</span>
+                                <span className="opacity-60 sm:mt-0.5 sm:block sm:text-[10px]">
+                                    {ROUND_LABEL[m.round]}
+                                    {m.groupLetter !== null ? ` ${m.groupLetter}` : ""}
+                                </span>
+                                <span className="opacity-60 sm:mt-0.5 sm:block sm:text-[10px]">
+                                    {lockMessage(m.kickoff, locked, tbd)}
+                                </span>
+                            </div>
+
+                            <ScoreStepper
+                                matchId={m.id}
+                                initialHome={pred?.homeScore ?? null}
+                                initialAway={pred?.awayScore ?? null}
+                                locked={locked}
+                                homeCode={m.homeCode ?? ""}
+                                homeName={m.homeName ?? "TBD"}
+                                awayCode={m.awayCode ?? ""}
+                                awayName={m.awayName ?? "TBD"}
+                                matchStatus={m.status}
+                                actualHome={m.homeScore}
+                                actualAway={m.awayScore}
+                                actualHomeFt={m.homeScoreFt}
+                                actualAwayFt={m.awayScoreFt}
+                                actualHomePens={m.homeScorePens}
+                                actualAwayPens={m.awayScorePens}
+                                earnedPoints={earned}
+                                isExact={exact}
+                                hasPick={pred !== undefined}
+                            />
+                        </li>
+                    );
+                })}
+            </ul>
+        </section>
     );
 }
