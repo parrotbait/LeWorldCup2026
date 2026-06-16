@@ -197,6 +197,35 @@ describe("buildLeaderboard", () => {
         // Alice predicted match 30 but homeScore is null — points should be 15 not anything more.
         expect(rows[0].points).toBe(15);
     });
+
+    it("LIVE match with a running scoreline does not award points", () => {
+        // Repro for the half-time scoreboard report (2026-06-16): a 2-1 pick
+        // on a group game that's 2-1 at half-time must show 0 points and
+        // 0 exact ticks, not 4 + 1 exact.
+        const liveInput = {
+            players: [
+                { id: 1, displayName: "Alice", joinedAt: new Date(baseDate.getTime()) },
+            ],
+            matches: [
+                {
+                    id: 99,
+                    round: "GROUP" as const,
+                    status: "LIVE",
+                    homeScore: 2,
+                    awayScore: 1,
+                    homeTeamId: null,
+                    awayTeamId: null,
+                    winnerTeamId: null,
+                },
+            ],
+            predictions: [{ playerId: 1, matchId: 99, homeScore: 2, awayScore: 1 }],
+            jokers: [],
+            bonusPointsByPlayer: new Map<number, number>(),
+        };
+        const liveRows = buildLeaderboard(liveInput);
+        expect(liveRows[0].points).toBe(0);
+        expect(liveRows[0].exactCount).toBe(0);
+    });
 });
 
 describe("buildLeaderboard tie-breakers", () => {

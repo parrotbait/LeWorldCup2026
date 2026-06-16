@@ -407,6 +407,15 @@ export function buildLeaderboard(input: ScoringInput): PlayerLeaderboardRow[] {
         let knockoutResults = 0;
 
         for (const match of input.matches) {
+            // Belt-and-braces: standings only ever credit FINISHED matches.
+            // predictionPoints/isExact also gate on this, but enforcing it
+            // here means a future caller that forgets to plumb `status`
+            // through can't accidentally award provisional points against
+            // a running scoreline (e.g. a 2-1 pick on a match that's 2-1
+            // at half-time).
+            if (match.status !== "FINISHED") {
+                continue;
+            }
             const pred = predByPlayerMatch.get(`${player.id}:${match.id}`);
             if (pred === undefined) {
                 continue;
