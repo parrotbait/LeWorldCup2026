@@ -1,46 +1,50 @@
 /**
  * Player line colors for the leaderboard chart.
  *
- * Two hand-tuned palettes — one for the warm "paper" light bg, one for the
- * dark slate bg — share the same hue order so a given player keeps their
- * colour identity across modes (e.g. slot 3 is yellow/gold in both, just
- * darker on light and brighter on dark).
+ * Two hand-tuned 11-colour palettes — one for the warm "paper" light bg,
+ * one for the dark slate bg. Both are ordered so consecutive slots sit on
+ * OPPOSITE sides of the colour wheel (red→blue→yellow→purple→…), guaranteeing
+ * that adjacent player IDs always get visibly distinct colours rather than
+ * neighbouring hues that read as "the same green-ish thing".
  *
- * The active mode is detected at runtime by the chart client via
- * `prefers-color-scheme` (see LeaderboardChartClient). Recharts parses
- * stroke values JS-side for derived effects so we can't use CSS vars here
- * — palettes are committed hex.
+ * Both palettes use the same hue order so a given player keeps their colour
+ * identity across modes (slot 3 is yellow/gold in both, just darker on
+ * cream and brighter on slate).
+ *
+ * Recharts parses stroke values JS-side for derived effects, so we commit
+ * real hex here rather than CSS vars (which it can't evaluate). The active
+ * mode is detected at runtime by the chart client via prefers-color-scheme.
  *
  * Assignment is deterministic by `players.id` ascending — see
  * colorForPlayerId. Modulo-wraps once the league exceeds 11.
  */
 
 export const LEADERBOARD_COLORS_LIGHT: readonly string[] = [
-    "#c41e1e", // red
-    "#1f5fa8", // blue
-    "#b8860b", // gold
-    "#6b3fa0", // purple
-    "#2e7d4f", // green
-    "#b03060", // rose
-    "#0d8a8a", // aqua
-    "#cc5500", // orange
-    "#a040b0", // magenta
-    "#6b8e23", // lime
-    "#5d6770", // slate
+    "#dc2626", // red
+    "#2563eb", // blue
+    "#ca8a04", // gold
+    "#6d28d9", // deep purple
+    "#65a30d", // lime
+    "#c026d3", // magenta
+    "#0891b2", // cyan
+    "#ea580c", // orange
+    "#db2777", // pink
+    "#16a34a", // green
+    "#92400e", // brown
 ];
 
 export const LEADERBOARD_COLORS_DARK: readonly string[] = [
-    "#ff5757", // red
+    "#f87171", // red
     "#60a5fa", // blue
-    "#ffd93d", // gold
-    "#a78bfa", // purple
-    "#4ade80", // green
-    "#fb7185", // rose
-    "#5eead4", // aqua
-    "#ffa53d", // orange
+    "#fcd34d", // gold
+    "#a78bfa", // lavender
+    "#bef264", // lime
     "#e879f9", // magenta
-    "#a8d65d", // lime
-    "#94a3b8", // slate
+    "#22d3ee", // cyan
+    "#fb923c", // orange
+    "#f472b6", // pink
+    "#4ade80", // green
+    "#d6a16a", // tan
 ];
 
 export type LeaderboardColorMode = "light" | "dark";
