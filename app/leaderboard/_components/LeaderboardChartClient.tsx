@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
     CartesianGrid,
@@ -11,7 +11,11 @@ import {
     XAxis,
     YAxis,
 } from "recharts";
-import { LEADERBOARD_COLORS, colorForPlayerId } from "@/lib/leaderboard-colors";
+import {
+    LEADERBOARD_COLORS_LIGHT,
+    colorForPlayerId,
+    type LeaderboardColorMode,
+} from "@/lib/leaderboard-colors";
 
 type SnapshotPoint = {
     snapshotId: number;
@@ -108,14 +112,35 @@ export function LeaderboardChartClient({
 }: Props) {
     const router = useRouter();
     const searchParams = useSearchParams();
+
+    // Detect prefers-color-scheme on the client. Default to "light" during
+    // SSR + initial hydration so the first paint isn't a guess; useEffect
+    // upgrades to the actual mode and listens for OS-level changes (so
+    // toggling theme system-wide live-updates the chart without reload).
+    const [colorMode, setColorMode] = useState<LeaderboardColorMode>("light");
+    useEffect(() => {
+        if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+            return;
+        }
+        const mq = window.matchMedia("(prefers-color-scheme: dark)");
+        setColorMode(mq.matches ? "dark" : "light");
+        const handler = (e: MediaQueryListEvent): void => {
+            setColorMode(e.matches ? "dark" : "light");
+        };
+        mq.addEventListener("change", handler);
+        return () => {
+            mq.removeEventListener("change", handler);
+        };
+    }, []);
+
     const playerIds = useMemo(() => players.map((p) => p.id), [players]);
     const colourByPlayerId = useMemo(() => {
         const map = new Map<number, string>();
         for (const p of players) {
-            map.set(p.id, colorForPlayerId(p.id, playerIds));
+            map.set(p.id, colorForPlayerId(p.id, playerIds, colorMode));
         }
         return map;
-    }, [players, playerIds]);
+    }, [players, playerIds, colorMode]);
 
     const [visiblePlayerIds, setVisiblePlayerIds] = useState<Set<number>>(
         () => new Set(playerIds),
@@ -381,7 +406,7 @@ export function LeaderboardChartClient({
                                 return null;
                             }
                             const isMe = p.id === currentPlayerId;
-                            const stroke = colourByPlayerId.get(p.id) ?? LEADERBOARD_COLORS[0]!;
+                            const stroke = colourByPlayerId.get(p.id) ?? LEADERBOARD_COLORS_LIGHT[0]!;
                             return (
                                 <Line
                                     key={p.id}
@@ -442,7 +467,7 @@ export function LeaderboardChartClient({
                 <div className="flex w-max gap-2">
                     {players.map((p) => {
                         const visible = visiblePlayerIds.has(p.id);
-                        const stroke = colourByPlayerId.get(p.id) ?? LEADERBOARD_COLORS[0]!;
+                        const stroke = colourByPlayerId.get(p.id) ?? LEADERBOARD_COLORS_LIGHT[0]!;
                         const isMe = p.id === currentPlayerId;
                         return (
                             <button
@@ -518,7 +543,7 @@ function ChartTooltip({
                 {visibleRows.map((r) => {
                     const isMe = r.playerId === currentPlayerId;
                     const colour =
-                        colourByPlayerId.get(r.playerId) ?? LEADERBOARD_COLORS[0]!;
+                        colourByPlayerId.get(r.playerId) ?? LEADERBOARD_COLORS_LIGHT[0]!;
                     const deltaText = renderDelta(r.rankDelta, r.pointsDelta);
                     return (
                         <div
