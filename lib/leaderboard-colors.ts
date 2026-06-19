@@ -1,45 +1,46 @@
 /**
  * Player line colors for the leaderboard chart.
  *
- * Hand-picked palette tuned for the warm `paper` background. Each colour is
- * sufficiently distinct from its neighbours that 11 lines on one chart stay
- * tellable apart. The two anchors (tournament red and mustard) match the
- * existing brand tokens; the remaining nine span teal, blue, purple, orange,
- * green, pink, slate, olive and cyan to maximise hue separation.
+ * Returns CSS custom-property references so the actual hex resolves at
+ * render time based on `prefers-color-scheme`. The variables are defined in
+ * `app/globals.css` under `:root` (light) and the dark-mode media query
+ * (dark). Both modes share the same hue order so a given player keeps the
+ * same colour identity across modes — only the lightness/saturation
+ * differs.
  *
  * Assignment is deterministic by `players.id` ascending — see
- * colorForPlayerId. The current league is fixed at 11 players, so the modulo
- * in colorForPlayerId is purely future-proofing; if a 12th player is ever
- * added, palette wraps and we'd revisit the colours then.
+ * colorForPlayerId. Modulo-wraps once the league exceeds 11.
  */
-export const LEADERBOARD_COLORS: readonly string[] = [
-    "#e61d25", // tournament red (anchor)
-    "#e2a829", // mustard (anchor)
-    "#2e7d6c", // deep teal
-    "#1f5fa8", // ink blue
-    "#7b3fa0", // royal purple
-    "#cc5500", // burnt orange
-    "#3a8a3f", // forest green
-    "#b03060", // dusky pink
-    "#5d6770", // slate
-    "#8b6f1f", // olive
-    "#0d8a8a", // dark cyan
-];
+export const LEADERBOARD_COLOR_COUNT = 11;
 
 /**
- * Resolve a stable colour for a player given the league's full player roster.
- *
- * Sorts the supplied ids ascending so a player keeps their colour as long as
- * the league composition is unchanged. Modulo-wraps if the league ever grows
- * past LEADERBOARD_COLORS.length.
+ * Resolve a stable CSS-var colour for a player given the league's full
+ * roster. The returned string is something like `var(--lb-color-3)` which
+ * the browser substitutes per `prefers-color-scheme`.
  */
 export function colorForPlayerId(playerId: number, allPlayerIds: readonly number[]): string {
     const sorted = [...allPlayerIds].sort((a, b) => a - b);
     const index = sorted.indexOf(playerId);
     if (index === -1) {
-        // Defensive: caller passed an id that isn't in the roster. Fall back
-        // to colour 0 rather than throwing — the chart should still render.
-        return LEADERBOARD_COLORS[0]!;
+        return "var(--lb-color-1)";
     }
-    return LEADERBOARD_COLORS[index % LEADERBOARD_COLORS.length]!;
+    const slot = (index % LEADERBOARD_COLOR_COUNT) + 1;
+    return `var(--lb-color-${slot})`;
 }
+
+/**
+ * The CSS-var fallback used when a player id can't be resolved (defensive).
+ * Exposed for components that need a non-undefined colour string while still
+ * loading data.
+ */
+export const FALLBACK_LEADERBOARD_COLOR = "var(--lb-color-1)";
+
+/**
+ * Backwards-compat: a few callers used the array of hex values directly.
+ * Now exposed as the same number of CSS-var references so colours are
+ * mode-aware everywhere they're consumed.
+ */
+export const LEADERBOARD_COLORS: readonly string[] = Array.from(
+    { length: LEADERBOARD_COLOR_COUNT },
+    (_, i) => `var(--lb-color-${i + 1})`,
+);

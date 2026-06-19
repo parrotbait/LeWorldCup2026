@@ -13,6 +13,22 @@
     --tournament: #e61d25;    /* Torch Red — alerts, primary brand accent */
     --mustard: #e2a829;       /* Kept for highlights (joker badge etc.) */
     --rule: #d1d4d1;          /* Light Gray — borders + dividers */
+
+    /* Leaderboard chart palette — 11 hues tuned for the warm paper bg.
+     * Saturated mid-darks read clearly on cream. Order matches dark-mode
+     * variants below so a given player keeps the same colour-family across
+     * modes (e.g. slot 1 is red in both, just lighter in dark). */
+    --lb-color-1:  #c41e1e;  /* red */
+    --lb-color-2:  #1f5fa8;  /* blue */
+    --lb-color-3:  #b8860b;  /* gold */
+    --lb-color-4:  #6b3fa0;  /* purple */
+    --lb-color-5:  #2e7d4f;  /* green */
+    --lb-color-6:  #b03060;  /* rose */
+    --lb-color-7:  #0d8a8a;  /* aqua */
+    --lb-color-8:  #cc5500;  /* orange */
+    --lb-color-9:  #a040b0;  /* magenta */
+    --lb-color-10: #6b8e23;  /* lime */
+    --lb-color-11: #5d6770;  /* slate */
 }
 
 @theme inline {
@@ -39,6 +55,21 @@ html, body {
         --ink: #f4ecd8;
         --ink-muted: #d1d4d1;
         --rule: #474a4a;
+
+        /* Bright variants for the dark bg — pushed to lightness ~65% so
+         * lines stay legible without burning eyes. Same hue order as light
+         * mode so individual players keep their colour identity. */
+        --lb-color-1:  #ff5757;
+        --lb-color-2:  #60a5fa;
+        --lb-color-3:  #ffd93d;
+        --lb-color-4:  #a78bfa;
+        --lb-color-5:  #4ade80;
+        --lb-color-6:  #fb7185;
+        --lb-color-7:  #5eead4;
+        --lb-color-8:  #ffa53d;
+        --lb-color-9:  #e879f9;
+        --lb-color-10: #a8d65d;
+        --lb-color-11: #94a3b8;
     }
 }
 
