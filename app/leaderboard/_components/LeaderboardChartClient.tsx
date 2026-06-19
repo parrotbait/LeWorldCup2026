@@ -74,6 +74,11 @@ const TIME_WINDOW_MS: Partial<Record<RangeKey, number>> = {
     "24h": 24 * 60 * 60 * 1000,
 };
 
+// Default visible range when no ?range= is present. Most leaderboard
+// reads happen mid-tournament — "what just happened?" is the dominant
+// question, so we default to the last 48h instead of the full history.
+const DEFAULT_RANGE: RangeKey = "48h";
+
 function isRangeKey(v: string | undefined): v is RangeKey {
     if (v === undefined) {
         return false;
@@ -147,14 +152,15 @@ export function LeaderboardChartClient({
     );
 
     const [range, setRange] = useState<RangeKey>(() =>
-        isRangeKey(initialRange) ? initialRange : "all",
+        isRangeKey(initialRange) ? initialRange : DEFAULT_RANGE,
     );
 
     function changeRange(next: RangeKey): void {
         setRange(next);
-        // Persist in URL so the choice survives a refresh / share.
+        // Persist in URL so the choice survives a refresh / share. The
+        // default (DEFAULT_RANGE) is implicit — no param needed for it.
         const next_params = new URLSearchParams(searchParams.toString());
-        if (next === "all") {
+        if (next === DEFAULT_RANGE) {
             next_params.delete("range");
         } else {
             next_params.set("range", next);
