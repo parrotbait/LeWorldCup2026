@@ -145,7 +145,21 @@ export default async function RulesPage() {
 
                 <section className="mt-8">
                     <h2 className="font-display text-base uppercase tracking-wider">Tie-breakers</h2>
-                    <ol className="mt-2 list-decimal space-y-1 pl-6">
+                    <p className="mt-2">
+                        <strong>Display rank</strong> on the standings table, the chart&apos;s y-axis,
+                        and the ▲/▼ position-change indicators all use a points-only ranking
+                        (the &quot;1224&quot; system). Two or more players with the same total share
+                        the same rank number; the next distinct points value gets the slot it
+                        would have occupied.
+                    </p>
+                    <p className="mt-2">
+                        <strong>Row order</strong> on the standings table — and the final
+                        prize order at the end of the tournament — uses the full tie-break
+                        chain below. So a player who&apos;s &quot;ahead on tie-breaks&quot; appears
+                        above a tied opponent in the table even when they share a rank
+                        number.
+                    </p>
+                    <ol className="mt-3 list-decimal space-y-1 pl-6">
                         <li>Total points</li>
                         <li>Number of exact-score predictions</li>
                         <li>Bonus points</li>
@@ -153,6 +167,11 @@ export default async function RulesPage() {
                         <li>Earliest signup</li>
                         <li>Coin flip (admin)</li>
                     </ol>
+                    <p className="mt-3 text-sm opacity-70">
+                        Triangles next to your rank show how you&apos;ve moved since the last
+                        snapshot — typically a match finishing or a bonus being resolved.
+                        Green ▲ means you climbed; red ▼ means you slipped.
+                    </p>
                 </section>
 
                 <p className="mt-10 text-sm">

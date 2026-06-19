@@ -480,3 +480,36 @@ export function compareLeaderboardRows(
     }
     return a.playerId - b.playerId;
 }
+
+/**
+ * Standard "1224" competition ranking by total points.
+ *
+ * Two players with identical `points` share a rank; the next distinct points
+ * value receives `rank = (its 0-based index in the sorted list) + 1`. So if
+ * positions 2 and 3 are tied at 40 pts and the player at position 4 has
+ * 35 pts, ranks are 1, 2, 2, 4.
+ *
+ * Used for the **display rank** on the leaderboard table, the y-axis of the
+ * position-over-time chart, and the ▲/▼ position-change indicators. Row
+ * ordering on the table itself still uses the full tie-break comparator
+ * (compareLeaderboardRows) so a player who is "ahead on tie-breaks" appears
+ * above a tied opponent — but they share a rank number.
+ *
+ * Input must be the output of buildLeaderboard (already sorted desc by
+ * points with full tie-breaks resolved).
+ */
+export function computePointsOnlyRank(
+    rows: ReadonlyArray<PlayerLeaderboardRow>,
+): Map<number, number> {
+    const ranks = new Map<number, number>();
+    let currentRank = 1;
+    let lastPoints: number | null = null;
+    rows.forEach((row, index) => {
+        if (lastPoints === null || row.points !== lastPoints) {
+            currentRank = index + 1;
+            lastPoints = row.points;
+        }
+        ranks.set(row.playerId, currentRank);
+    });
+    return ranks;
+}

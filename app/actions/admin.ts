@@ -1,12 +1,18 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { auditLog, bonusPicks, bonusResolutions, matches, players, settings } from "@/db/schema";
 import { isAdmin } from "@/lib/auth";
 import { findPlayer } from "@/lib/players";
+import {
+    computeSnapshotState,
+    fetchMostRecentSnapshotState,
+    loadSnapshotInput,
+    writeSnapshot,
+} from "@/lib/snapshot";
 import { syncResultsFromFootballData } from "@/lib/sync";
 
 async function ensureAdmin(): Promise<void> {
@@ -185,28 +191,86 @@ export async function saveBonusResolutionAction(formData: FormData): Promise<Adm
         playerNames = canonical;
     }
 
-    await db
-        .insert(bonusResolutions)
-        .values({
-            kind: kind.data,
-            groupLetter,
-            teamIds,
-            playerNames,
-        })
-        .onConflictDoUpdate({
-            target: [bonusResolutions.kind, bonusResolutions.groupLetter],
-            set: {
-                teamIds,
-                playerNames,
-                updatedAt: new Date(),
-            },
-        });
+    try {
+        await db.transaction(async (tx) => {
+            // Read existing row first so we can decide whether the upsert
+            // actually changed anything — unchanged saves shouldn't pollute the
+            // chart with phantom BONUS snapshots.
+            const [existing] = await tx
+                .select({
+                    teamIds: bonusResolutions.teamIds,
+                    playerNames: bonusResolutions.playerNames,
+                })
+                .from(bonusResolutions)
+                .where(
+                    and(
+                        eq(bonusResolutions.kind, kind.data),
+                        eq(bonusResolutions.groupLetter, groupLetter),
+                    ),
+                );
 
-    await db.insert(auditLog).values({
-        actor: "admin",
-        action: "save-bonus-resolution",
-        detail: JSON.stringify({ kind: kind.data, groupLetter, teamIds, playerNames }),
-    });
+            const sameTeamIds =
+                existing !== undefined &&
+                existing.teamIds.length === teamIds.length &&
+                existing.teamIds.every((v, i) => v === teamIds[i]);
+            const sameNames =
+                existing !== undefined &&
+                existing.playerNames.length === playerNames.length &&
+                existing.playerNames.every((v, i) => v === playerNames[i]);
+            const changed = !(existing !== undefined && sameTeamIds && sameNames);
+
+            await tx
+                .insert(bonusResolutions)
+                .values({
+                    kind: kind.data,
+                    groupLetter,
+                    teamIds,
+                    playerNames,
+                })
+                .onConflictDoUpdate({
+                    target: [bonusResolutions.kind, bonusResolutions.groupLetter],
+                    set: {
+                        teamIds,
+                        playerNames,
+                        updatedAt: new Date(),
+                    },
+                });
+
+            if (changed) {
+                // Snapshot inside the same transaction so a snapshot failure
+                // rolls back the resolution upsert. The admin sees the error
+                // and can retry — better than silently keeping a resolution
+                // that has no corresponding chart point.
+                const input = await loadSnapshotInput(tx);
+                const state = computeSnapshotState(input);
+                const prior = await fetchMostRecentSnapshotState(tx);
+                await writeSnapshot({
+                    capturedAt: new Date(),
+                    causeKind: "BONUS",
+                    causeMatchId: null,
+                    causeBonusKind: kind.data,
+                    state,
+                    priorState: prior?.state ?? null,
+                    tx,
+                });
+            }
+
+            await tx.insert(auditLog).values({
+                actor: "admin",
+                action: "save-bonus-resolution",
+                detail: JSON.stringify({
+                    kind: kind.data,
+                    groupLetter,
+                    teamIds,
+                    playerNames,
+                    snapshotWritten: changed,
+                }),
+            });
+        });
+    } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        return { ok: false, error: `Failed to save: ${message}` };
+    }
 
     revalidatePath("/admin/bonuses");
     revalidatePath("/leaderboard");

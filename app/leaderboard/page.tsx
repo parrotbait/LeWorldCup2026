@@ -1,10 +1,26 @@
 import Link from "next/link";
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { auditLog, bonusPicks, bonusResolutions, matches, players, predictions, jokers } from "@/db/schema";
+import {
+    auditLog,
+    bonusPicks,
+    bonusResolutions,
+    leaderboardSnapshotRows,
+    leaderboardSnapshots,
+    matches,
+    players,
+    predictions,
+    jokers,
+} from "@/db/schema";
 import { requireSession } from "@/lib/auth";
-import { buildLeaderboard, computeBonusPointsByPlayer } from "@/lib/scoring";
+import {
+    buildLeaderboard,
+    computeBonusPointsByPlayer,
+    computePointsOnlyRank,
+} from "@/lib/scoring";
 import { NavBar } from "@/app/_components/navbar";
+import { ViewToggle } from "./_components/ViewToggle";
+import { LeaderboardChart } from "./_components/LeaderboardChart";
 
 export const revalidate = 30;
 
@@ -25,24 +41,63 @@ function relativeAgo(d: Date): string {
     return `${days}d ago`;
 }
 
-export default async function LeaderboardPage() {
-    const session = await requireSession();
+interface PageProps {
+    searchParams: Promise<{ view?: string; range?: string }>;
+}
 
-    const [allPlayers, allMatches, allPredictions, allJokers, allBonusPicks, allResolutions, lastSync] =
-        await Promise.all([
-            db.select().from(players),
-            db.select().from(matches),
-            db.select().from(predictions),
-            db.select().from(jokers),
-            db.select().from(bonusPicks),
-            db.select().from(bonusResolutions),
-            db
-                .select({ at: auditLog.at })
-                .from(auditLog)
-                .where(eq(auditLog.action, "sync-results"))
-                .orderBy(desc(auditLog.id))
-                .limit(1),
-        ]);
+export default async function LeaderboardPage({ searchParams }: PageProps) {
+    const session = await requireSession();
+    const params = await searchParams;
+    const view: "table" | "chart" = params.view === "chart" ? "chart" : "table";
+
+    const [
+        allPlayers,
+        allMatches,
+        allPredictions,
+        allJokers,
+        allBonusPicks,
+        allResolutions,
+        lastSync,
+        latestSnapshot,
+    ] = await Promise.all([
+        db.select().from(players),
+        db.select().from(matches),
+        db.select().from(predictions),
+        db.select().from(jokers),
+        db.select().from(bonusPicks),
+        db.select().from(bonusResolutions),
+        db
+            .select({ at: auditLog.at })
+            .from(auditLog)
+            .where(eq(auditLog.action, "sync-results"))
+            .orderBy(desc(auditLog.id))
+            .limit(1),
+        db
+            .select({ id: leaderboardSnapshots.id })
+            .from(leaderboardSnapshots)
+            .orderBy(
+                desc(leaderboardSnapshots.capturedAt),
+                desc(leaderboardSnapshots.id),
+            )
+            .limit(1),
+    ]);
+
+    // Pull the most recent snapshot's per-player rankDelta for the ▲/▼
+    // indicator next to each rank in the table.
+    const latestSnapshotId = latestSnapshot[0]?.id;
+    const latestSnapshotRows =
+        latestSnapshotId !== undefined
+            ? await db
+                  .select({
+                      playerId: leaderboardSnapshotRows.playerId,
+                      rankDelta: leaderboardSnapshotRows.rankDelta,
+                  })
+                  .from(leaderboardSnapshotRows)
+                  .where(eq(leaderboardSnapshotRows.snapshotId, latestSnapshotId))
+            : [];
+    const rankDeltaByPlayer = new Map(
+        latestSnapshotRows.map((r) => [r.playerId, r.rankDelta] as const),
+    );
 
     const bonusPointsByPlayer = computeBonusPointsByPlayer({
         picks: allBonusPicks.map((b) => ({
@@ -95,12 +150,19 @@ export default async function LeaderboardPage() {
         bonusPointsByPlayer,
     });
 
+    // Display rank: points-only 1224. Ties share a number; the next distinct
+    // points value gets the slot it would have occupied. The row order of the
+    // table itself still follows the full tie-break comparator, so a player
+    // who's "ahead on tie-breaks" appears above a tied opponent.
+    const pointsOnlyRank = computePointsOnlyRank(rows);
+
     return (
         <>
             <NavBar />
             <main className="mx-auto max-w-3xl px-6 py-8">
                 <h1 className="font-display text-2xl uppercase tracking-widest">Standings</h1>
-                <p className="mt-1 text-xs opacity-60">
+                <ViewToggle active={view} />
+                <p className="mt-2 text-xs opacity-60">
                     Tie-breakers: total → exact predictions → bonuses → KO results → signup
                 </p>
                 {(() => {
@@ -135,59 +197,99 @@ export default async function LeaderboardPage() {
                     );
                 })()}
 
-                <table className="mt-6 w-full text-sm tabular">
-                    <thead className="border-b border-ink/30 text-left font-display text-xs uppercase tracking-wider">
-                        <tr>
-                            <th className="py-2 pr-2">#</th>
-                            <th className="py-2 pr-2">Player</th>
-                            <th className="py-2 pr-2 text-right">Pred</th>
-                            <th className="py-2 pr-2 text-right">Bonus</th>
-                            <th className="py-2 pr-2 text-right">Exact</th>
-                            <th className="py-2 pr-2 text-right">Total</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {rows.length === 0 ? (
+                {view === "chart" ? (
+                    <LeaderboardChart
+                        currentPlayerId={session.playerId}
+                        initialRange={params.range}
+                    />
+                ) : (
+                    <table className="mt-6 w-full text-sm tabular">
+                        <thead className="border-b border-ink/30 text-left font-display text-xs uppercase tracking-wider">
                             <tr>
-                                <td colSpan={6} className="py-8 text-center opacity-60">
-                                    No players yet. Share the invite code.
-                                </td>
+                                <th className="py-2 pr-2">#</th>
+                                <th className="py-2 pr-2">Player</th>
+                                <th className="py-2 pr-2 text-right">Pred</th>
+                                <th className="py-2 pr-2 text-right">Bonus</th>
+                                <th className="py-2 pr-2 text-right">Exact</th>
+                                <th className="py-2 pr-2 text-right">Total</th>
                             </tr>
-                        ) : (
-                            rows.map((r, i) => {
-                                const me = r.playerId === session.playerId;
-                                const predPoints = r.points - r.bonusPoints;
-                                return (
-                                    <tr
-                                        key={r.playerId}
-                                        className={`border-b border-ink/10 ${me ? "bg-mustard/15" : ""}`}
-                                    >
-                                        <td className="py-2 pr-2">{i + 1}</td>
-                                        <td className="py-2 pr-2">
-                                            <Link
-                                                href={`/players/${r.playerId}` as never}
-                                                className="hover:text-tournament hover:underline"
-                                            >
-                                                {i === 0 ? "👑 " : ""}
-                                                {r.displayName}
-                                                {me ? (
-                                                    <span className="ml-2 text-xs opacity-50">(you)</span>
-                                                ) : null}
-                                            </Link>
-                                        </td>
-                                        <td className="py-2 pr-2 text-right opacity-70">{predPoints}</td>
-                                        <td className="py-2 pr-2 text-right opacity-70">{r.bonusPoints}</td>
-                                        <td className="py-2 pr-2 text-right opacity-70">{r.exactCount}</td>
-                                        <td className="py-2 pr-2 text-right font-display text-base font-bold">
-                                            {r.points}
-                                        </td>
-                                    </tr>
-                                );
-                            })
-                        )}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            {rows.length === 0 ? (
+                                <tr>
+                                    <td colSpan={6} className="py-8 text-center opacity-60">
+                                        No players yet. Share the invite code.
+                                    </td>
+                                </tr>
+                            ) : (
+                                rows.map((r) => {
+                                    const me = r.playerId === session.playerId;
+                                    const predPoints = r.points - r.bonusPoints;
+                                    const rank = pointsOnlyRank.get(r.playerId) ?? 0;
+                                    const delta = rankDeltaByPlayer.get(r.playerId) ?? 0;
+                                    return (
+                                        <tr
+                                            key={r.playerId}
+                                            className={`border-b border-ink/10 ${me ? "bg-mustard/15" : ""}`}
+                                        >
+                                            <td className="py-2 pr-2">{rank}</td>
+                                            <td className="py-2 pr-2">
+                                                <Link
+                                                    href={`/players/${r.playerId}` as never}
+                                                    className="hover:text-tournament hover:underline"
+                                                >
+                                                    {rank === 1 ? "👑 " : ""}
+                                                    {r.displayName}
+                                                    {me ? (
+                                                        <span className="ml-2 text-xs opacity-50">
+                                                            (you)
+                                                        </span>
+                                                    ) : null}
+                                                </Link>
+                                                <RankDelta delta={delta} />
+                                            </td>
+                                            <td className="py-2 pr-2 text-right opacity-70">
+                                                {predPoints}
+                                            </td>
+                                            <td className="py-2 pr-2 text-right opacity-70">
+                                                {r.bonusPoints}
+                                            </td>
+                                            <td className="py-2 pr-2 text-right opacity-70">
+                                                {r.exactCount}
+                                            </td>
+                                            <td className="py-2 pr-2 text-right font-display text-base font-bold">
+                                                {r.points}
+                                            </td>
+                                        </tr>
+                                    );
+                                })
+                            )}
+                        </tbody>
+                    </table>
+                )}
             </main>
         </>
+    );
+}
+
+/**
+ * ▲/▼ indicator next to the rank. Renders nothing when |delta| < 1 (no
+ * movement since the last snapshot, or no prior snapshot exists yet).
+ *
+ * Positive delta = moved up the table (lower rank number) → green ▲.
+ * Negative delta = moved down → red ▼.
+ */
+function RankDelta({ delta }: { delta: number }) {
+    if (delta === 0) {
+        return null;
+    }
+    const isUp = delta > 0;
+    const colorClass = isUp ? "text-emerald-700" : "text-tournament";
+    const symbol = isUp ? "▲" : "▼";
+    return (
+        <span className={`ml-2 align-middle font-display text-[10px] ${colorClass}`}>
+            <span className="inline-block translate-y-[0.5px]">{symbol}</span>
+            <span className="ml-0.5">{Math.abs(delta)}</span>
+        </span>
     );
 }

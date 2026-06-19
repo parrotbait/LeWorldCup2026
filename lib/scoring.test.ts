@@ -4,6 +4,7 @@ import {
     DARK_HORSE_RUNNING_TOTAL,
     buildLeaderboard,
     computeBonusPointsByPlayer,
+    computePointsOnlyRank,
     darkHorsePoints,
     deriveDarkHorseStage,
     isExact,
@@ -498,5 +499,76 @@ describe("computeBonusPointsByPlayer", () => {
             matches: [],
         });
         expect(pts.get(1)).toBeUndefined();
+    });
+});
+
+describe("computePointsOnlyRank", () => {
+    function row(playerId: number, points: number) {
+        return {
+            playerId,
+            displayName: `P${playerId}`,
+            points,
+            exactCount: 0,
+            bonusPoints: 0,
+            knockoutResults: 0,
+            joinedAt: new Date("2026-01-01T00:00:00Z"),
+        };
+    }
+
+    it("assigns sequential ranks when nobody is tied", () => {
+        const ranks = computePointsOnlyRank([row(1, 30), row(2, 20), row(3, 10)]);
+        expect(ranks.get(1)).toBe(1);
+        expect(ranks.get(2)).toBe(2);
+        expect(ranks.get(3)).toBe(3);
+    });
+
+    it("shares a rank for tied players and skips the next slot (1224)", () => {
+        const ranks = computePointsOnlyRank([
+            row(1, 30),
+            row(2, 20),
+            row(3, 20),
+            row(4, 10),
+        ]);
+        expect(ranks.get(1)).toBe(1);
+        expect(ranks.get(2)).toBe(2);
+        expect(ranks.get(3)).toBe(2);
+        expect(ranks.get(4)).toBe(4);
+    });
+
+    it("handles ties at the very top", () => {
+        const ranks = computePointsOnlyRank([
+            row(1, 50),
+            row(2, 50),
+            row(3, 30),
+        ]);
+        expect(ranks.get(1)).toBe(1);
+        expect(ranks.get(2)).toBe(1);
+        expect(ranks.get(3)).toBe(3);
+    });
+
+    it("handles all-tied", () => {
+        const ranks = computePointsOnlyRank([row(1, 0), row(2, 0), row(3, 0)]);
+        expect(ranks.get(1)).toBe(1);
+        expect(ranks.get(2)).toBe(1);
+        expect(ranks.get(3)).toBe(1);
+    });
+
+    it("handles a mid-list tie cluster", () => {
+        const ranks = computePointsOnlyRank([
+            row(1, 50),
+            row(2, 40),
+            row(3, 40),
+            row(4, 40),
+            row(5, 30),
+        ]);
+        expect(ranks.get(1)).toBe(1);
+        expect(ranks.get(2)).toBe(2);
+        expect(ranks.get(3)).toBe(2);
+        expect(ranks.get(4)).toBe(2);
+        expect(ranks.get(5)).toBe(5);
+    });
+
+    it("returns an empty map for an empty input", () => {
+        expect(computePointsOnlyRank([]).size).toBe(0);
     });
 });

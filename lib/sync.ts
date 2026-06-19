@@ -15,6 +15,7 @@ import { revalidateTag } from "next/cache";
 import { db } from "@/db/client";
 import { auditLog, matches, teams } from "@/db/schema";
 import { fetchMatches, fetchTeams, mapStage } from "@/lib/football-data";
+import { runSnapshotPipelineQuietly } from "@/lib/snapshot";
 
 export interface SyncResult {
     teamCount: number;
@@ -268,6 +269,12 @@ export async function syncResultsFromFootballData(actor: string): Promise<SyncRe
             durationMs,
         }),
     });
+
+    // Capture leaderboard snapshots for the chart + ▲/▼ indicators. Runs
+    // after the score upserts so it sees the freshest data; failures are
+    // swallowed into auditLog so a snapshot bug never blocks the actual
+    // score sync. Gap detection on the next run replays anything missed.
+    await runSnapshotPipelineQuietly(actor);
 
     // Bust the live-leaders cache so /bonuses + /stats reflect the new data
     // on next request, instead of serving the stale 5-min snapshot.

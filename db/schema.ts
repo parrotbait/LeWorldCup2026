@@ -277,6 +277,88 @@ export const auditLog = pgTable("audit_log", {
     detail: text("detail"),
 });
 
+// ---------------------------------------------------------------------------
+// Leaderboard snapshots — one parent row per capture event, 11 child rows
+// per snapshot (one per player). Powers the position-over-time chart and the
+// ▲/▼ position-change indicators on the leaderboard table.
+//
+// Snapshots fire on:
+//   • TOURNAMENT_START — synthetic anchor at the opening match's kickoff,
+//     all players tied at rank 1 with 0 points.
+//   • MATCH — once per match transitioning to FINISHED, stamped at
+//     `kickoff + 110m` (a deterministic "after the whistle" instant so the
+//     chart's x-axis tracks real match timing rather than cron jitter).
+//   • BONUS — once per `bonusResolutions` save that actually changed the
+//     resolved teams/players, stamped at the moment of save.
+//   • CORRECTION — once per previously-finished match whose score changes
+//     after the fact, stamped at the moment of the correction.
+//
+// Display rank stored here is the **points-only 1224 rank**: tied players
+// share a number, the next distinct points value gets the slot it would
+// have occupied. Row ordering on the leaderboard table still uses the full
+// tie-break comparator (see compareLeaderboardRows in lib/scoring.ts).
+// ---------------------------------------------------------------------------
+export const snapshotCauseEnum = pgEnum("snapshot_cause", [
+    "TOURNAMENT_START",
+    "MATCH",
+    "BONUS",
+    "CORRECTION",
+]);
+
+export const leaderboardSnapshots = pgTable(
+    "leaderboard_snapshots",
+    {
+        id: serial("id").primaryKey(),
+        // The instant on the chart's x-axis. For MATCH snapshots this is
+        // `kickoff + 110m`, NOT the cron's wall-clock — keeps the timeline
+        // honest regardless of when the cron actually ran.
+        capturedAt: timestamp("captured_at", { withTimezone: true }).notNull(),
+        causeKind: snapshotCauseEnum("cause_kind").notNull(),
+        // FK for MATCH and CORRECTION snapshots. Null for TOURNAMENT_START
+        // and BONUS. ON DELETE SET NULL because dropping a match shouldn't
+        // cascade-delete history; the snapshot still records what happened.
+        causeMatchId: integer("cause_match_id").references(() => matches.id, {
+            onDelete: "set null",
+        }),
+        // BonusKind string when causeKind = BONUS; null otherwise. Stored as
+        // text rather than enum to avoid coupling to bonusKindEnum's lifecycle.
+        causeBonusKind: text("cause_bonus_kind"),
+        createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    },
+    (t) => ({
+        capturedAtIdx: index("leaderboard_snapshots_captured_at_idx").on(t.capturedAt),
+        // Composite index drives gap detection: "find FINISHED matches with
+        // no MATCH snapshot" filters by causeKind first, then matches by id.
+        causeMatchIdx: index("leaderboard_snapshots_cause_match_idx").on(
+            t.causeKind,
+            t.causeMatchId,
+        ),
+    }),
+);
+
+export const leaderboardSnapshotRows = pgTable(
+    "leaderboard_snapshot_rows",
+    {
+        snapshotId: integer("snapshot_id")
+            .references(() => leaderboardSnapshots.id, { onDelete: "cascade" })
+            .notNull(),
+        playerId: integer("player_id")
+            .references(() => players.id, { onDelete: "cascade" })
+            .notNull(),
+        // Points-only 1224 rank. See module-level comment above.
+        rank: smallint("rank").notNull(),
+        points: integer("points").notNull(),
+        bonusPoints: integer("bonus_points").notNull(),
+        // Pre-computed at write time so the chart endpoint stays cheap.
+        // Positive rankDelta = moved up the table (lower rank number).
+        rankDelta: smallint("rank_delta").notNull(),
+        pointsDelta: integer("points_delta").notNull(),
+    },
+    (t) => ({
+        pk: primaryKey({ columns: [t.snapshotId, t.playerId] }),
+    }),
+);
+
 // Type exports for ergonomic use elsewhere.
 export type Player = typeof players.$inferSelect;
 export type Team = typeof teams.$inferSelect;
@@ -286,3 +368,5 @@ export type BonusPick = typeof bonusPicks.$inferSelect;
 export type Joker = typeof jokers.$inferSelect;
 export type Settings = typeof settings.$inferSelect;
 export type BonusResolution = typeof bonusResolutions.$inferSelect;
+export type LeaderboardSnapshot = typeof leaderboardSnapshots.$inferSelect;
+export type LeaderboardSnapshotRow = typeof leaderboardSnapshotRows.$inferSelect;

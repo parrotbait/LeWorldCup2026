@@ -26,6 +26,8 @@ import {
     bonusPicks,
     bonusResolutions,
     jokers,
+    leaderboardSnapshotRows,
+    leaderboardSnapshots,
     matches,
     players,
     predictions,
@@ -38,6 +40,7 @@ import {
     computeBonusPointsByPlayer,
     type Round,
 } from "../lib/scoring";
+import { runSnapshotPipelineQuietly, writeSnapshot } from "../lib/snapshot";
 
 // ---------------------------------------------------------------------------
 // Args + tiny seeded RNG (Mulberry32 — fine for sim, not for crypto).
@@ -156,6 +159,8 @@ const FAKE_GOALSCORERS = [
 
 async function reset(): Promise<void> {
     // FK order matters.
+    await db.delete(leaderboardSnapshotRows);
+    await db.delete(leaderboardSnapshots);
     await db.delete(jokers);
     await db.delete(predictions);
     await db.delete(bonusPicks);
@@ -394,6 +399,13 @@ async function play(args: Record<string, string>): Promise<void> {
             await advanceBracket(round);
         }
     }
+
+    // Mirror the real cron: capture leaderboard snapshots after the matches
+    // we just settled. Includes a TOURNAMENT_START anchor on the first run
+    // (added by ensureTournamentStartAnchor) so the chart has a clean
+    // leftmost vertex.
+    await ensureTournamentStartAnchor();
+    await runSnapshotPipelineQuietly("sim");
 }
 
 /**
@@ -908,6 +920,8 @@ async function playNext(args: Record<string, string>): Promise<void> {
     if (await advanceIfRoundComplete(next.round, rng)) {
         console.log(`✓ ${next.round} complete — bracket advanced`);
     }
+    await ensureTournamentStartAnchor();
+    await runSnapshotPipelineQuietly("sim");
 }
 
 async function playMatch(args: Record<string, string>): Promise<void> {
@@ -935,6 +949,52 @@ async function playMatch(args: Record<string, string>): Promise<void> {
             console.log(`✓ ${matchRow.round} complete — bracket advanced`);
         }
     }
+    await ensureTournamentStartAnchor();
+    await runSnapshotPipelineQuietly("sim");
+}
+
+/**
+ * Insert a synthetic TOURNAMENT_START snapshot at the opening match's kickoff
+ * if one doesn't already exist. Mirrors the backfill script — gives the
+ * position-over-time chart a clean "everyone tied at #1" leftmost vertex.
+ *
+ * Idempotent: re-running this is a no-op once the anchor exists.
+ */
+async function ensureTournamentStartAnchor(): Promise<void> {
+    const [existing] = await db
+        .select({ id: leaderboardSnapshots.id })
+        .from(leaderboardSnapshots)
+        .where(eq(leaderboardSnapshots.causeKind, "TOURNAMENT_START"))
+        .limit(1);
+    if (existing !== undefined) {
+        return;
+    }
+    const [first] = await db
+        .select({ kickoff: matches.kickoff })
+        .from(matches)
+        .orderBy(asc(matches.kickoff))
+        .limit(1);
+    if (first === undefined) {
+        return;
+    }
+    const allPlayers = await db.select({ id: players.id }).from(players);
+    if (allPlayers.length === 0) {
+        return;
+    }
+    await writeSnapshot({
+        capturedAt: first.kickoff,
+        causeKind: "TOURNAMENT_START",
+        causeMatchId: null,
+        causeBonusKind: null,
+        state: allPlayers.map((p) => ({
+            playerId: p.id,
+            rank: 1,
+            points: 0,
+            bonusPoints: 0,
+        })),
+        priorState: null,
+    });
+    console.log("✓ TOURNAMENT_START anchor inserted");
 }
 
 // ---------------------------------------------------------------------------
