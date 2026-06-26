@@ -25,8 +25,8 @@ function GapBadge({ diff, label }: { diff: number; label: string }) {
     );
 }
 
-function TotalGap({ diff }: { diff: number }) {
-    if (diff === 0) {
+function TotalGap({ gap, position }: { gap: number; position: "above" | "below" }) {
+    if (gap === 0) {
         return (
             <div className="flex flex-col items-center">
                 <span className="font-display text-sm opacity-50">tied</span>
@@ -34,14 +34,13 @@ function TotalGap({ diff }: { diff: number }) {
             </div>
         );
     }
-    const ahead = diff > 0;
     return (
         <div className="flex flex-col items-center">
-            <span className={`font-display text-sm tabular ${ahead ? "text-pitch" : "text-tournament"}`}>
-                {Math.abs(diff)} pts
+            <span className={`font-display text-sm tabular ${position === "above" ? "text-tournament" : "text-pitch"}`}>
+                {gap} pts
             </span>
             <span className="text-[9px] uppercase tracking-wider opacity-50">
-                {ahead ? "ahead" : "behind"}
+                {position === "above" ? "ahead" : "behind"}
             </span>
         </div>
     );
@@ -65,7 +64,7 @@ export function RivalryTicker({ you, above, below }: Props) {
                         </span>
                         <div className="flex items-center gap-4">
                             <GapBadge diff={you.pointsToday - above.pointsToday} label="today" />
-                            <TotalGap diff={you.totalPoints - above.totalPoints} />
+                            <TotalGap gap={above.totalPoints - you.totalPoints} position="above" />
                         </div>
                     </div>
                 )}
@@ -76,7 +75,7 @@ export function RivalryTicker({ you, above, below }: Props) {
                         </span>
                         <div className="flex items-center gap-4">
                             <GapBadge diff={you.pointsToday - below.pointsToday} label="today" />
-                            <TotalGap diff={you.totalPoints - below.totalPoints} />
+                            <TotalGap gap={you.totalPoints - below.totalPoints} position="below" />
                         </div>
                     </div>
                 )}
