@@ -326,35 +326,10 @@ export async function getTournamentWinnerLeader(db: DB = dbInstance): Promise<Li
 
 export async function getMightyFallenLeader(db: DB = dbInstance): Promise<LiveLeader> {
     // "Mighty fallen" is a binary outcome — a Pot-1 team either crashed out in
-    // groups or didn't. A "currently" chip before that's determined is
-    // misleading. Only show once R32 has begun and we can confirm eliminations.
-    if (!(await hasAnyRoundCompleted(db))) {
-        return { kind: "hidden", reason: "no_rounds_played" };
-    }
-    const all = await loadTeamProgress(db);
-    const r32Played = all.some((t) => t.furthestRoundRank >= ROUND_RANK.R32);
-    if (!r32Played) {
-        return { kind: "hidden", reason: "no_data_yet" };
-    }
-    const fallen = all.filter((t) => t.pot === 1 && t.furthestRoundRank < ROUND_RANK.R32);
-    if (fallen.length === 0) {
-        return { kind: "hidden", reason: "no_data_yet" };
-    }
-    if (fallen.length === 1) {
-        const t = fallen[0]!;
-        return { kind: "single", displayName: t.name, metric: 1, teamCode: t.code };
-    }
-    if (fallen.length === 2) {
-        const a = fallen[0]!;
-        const b = fallen[1]!;
-        return {
-            kind: "tied-pair",
-            names: [a.name, b.name],
-            metric: 1,
-            teamCodes: [a.code, b.code],
-        };
-    }
-    return { kind: "tied-many", count: fallen.length, metric: 1, subjectPlural: "teams" };
+    // groups or didn't. There's no "currently leading" concept here. The result
+    // displays via BonusResultChip once admin resolves it (or no result if no
+    // Pot-1 team was eliminated).
+    return { kind: "hidden", reason: "no_data_yet" };
 }
 
 export async function getPantomimeVillainLeader(): Promise<LiveLeader> {

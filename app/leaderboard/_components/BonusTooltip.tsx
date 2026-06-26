@@ -33,7 +33,7 @@ export function BonusTooltipRow({
             {children}
             {show && entries.length > 0 ? (
                 <td className="relative p-0 w-0">
-                    <div className="absolute right-0 top-0 z-50 hidden lg:block">
+                    <div className="absolute left-2 top-0 z-50 hidden lg:block">
                         <div className="w-64 rounded border border-ink/20 bg-paper p-3 shadow-lg">
                             <p className="font-display text-[10px] uppercase tracking-widest opacity-60">
                                 Bonus breakdown
