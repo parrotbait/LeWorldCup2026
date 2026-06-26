@@ -159,6 +159,16 @@ export type DarkHorseStage =
     | "INTO_FINAL"
     | "WON";
 
+const DARK_HORSE_STAGE_LABEL: Record<DarkHorseStage, string> = {
+    OUT_IN_GROUPS: "out in groups",
+    INTO_R32: "reached R32",
+    INTO_R16: "reached R16",
+    INTO_QF: "reached QF",
+    INTO_SF: "reached SF",
+    INTO_FINAL: "reached Final",
+    WON: "won the tournament",
+};
+
 export function darkHorsePoints(stage: DarkHorseStage): number {
     return DARK_HORSE_RUNNING_TOTAL[stage];
 }
@@ -253,6 +263,139 @@ function normalizeName(s: string): string {
         .replace(/\s+/g, " ")
         .trim()
         .toLocaleLowerCase();
+}
+
+export interface BonusBreakdownEntry {
+    kind: BonusKind;
+    groupLetter: string | null;
+    label: string;
+    pick: string;
+    points: number;
+}
+
+export function computeBonusBreakdownByPlayer(
+    input: BonusComputeInput & {
+        teamLookup?: Map<number, { name: string }>;
+    },
+): Map<number, BonusBreakdownEntry[]> {
+    const resByKey = new Map<string, BonusResolutionLite>();
+    for (const r of input.resolutions) {
+        resByKey.set(`${r.kind}:${r.groupLetter}`, r);
+    }
+    const winner = resByKey.get("WINNER:");
+
+    const breakdownByPlayer = new Map<number, BonusBreakdownEntry[]>();
+    const append = (playerId: number, entry: BonusBreakdownEntry): void => {
+        let arr = breakdownByPlayer.get(playerId);
+        if (arr === undefined) {
+            arr = [];
+            breakdownByPlayer.set(playerId, arr);
+        }
+        arr.push(entry);
+    };
+
+    const teamName = (teamId: number): string =>
+        input.teamLookup?.get(teamId)?.name ?? `Team #${teamId}`;
+
+    const LABELS: Record<string, string> = {
+        WINNER: "Tournament winner",
+        TOP_SCORER: "Golden Boot",
+        MOST_ASSISTS: "Most assists",
+        GROUP_WINNER: "Group winner",
+        DARK_HORSE: "Dark horse",
+        WOODEN_SPOON: "Wooden spoon",
+        PANTOMIME_VILLAIN: "Pantomime villain",
+        SIEVE: "The Sieve",
+        MIGHTY_FALLEN: "Mighty fallen",
+    };
+
+    for (const pick of input.picks) {
+        const label = pick.kind === "GROUP_WINNER"
+            ? `Group ${pick.groupLetter} winner`
+            : (LABELS[pick.kind] ?? pick.kind);
+        const pickDesc = pick.teamId !== null
+            ? teamName(pick.teamId)
+            : (pick.playerName ?? "?");
+
+        switch (pick.kind) {
+            case "WINNER": {
+                const hit = pick.teamId !== null && winner !== undefined && winner.teamIds.includes(pick.teamId);
+                append(pick.playerId, { kind: pick.kind, groupLetter: null, label, pick: pickDesc, points: hit ? BONUS_POINTS.WINNER : 0 });
+                break;
+            }
+            case "TOP_SCORER": {
+                const r = resByKey.get("TOP_SCORER:");
+                let pts = 0;
+                if (r !== undefined && pick.playerName !== null) {
+                    const norm = normalizeName(pick.playerName);
+                    if (r.playerNames.some((n) => normalizeName(n) === norm)) {
+                        pts = BONUS_POINTS.TOP_SCORER;
+                    }
+                }
+                append(pick.playerId, { kind: pick.kind, groupLetter: null, label, pick: pickDesc, points: pts });
+                break;
+            }
+            case "MOST_ASSISTS": {
+                const r = resByKey.get("MOST_ASSISTS:");
+                let pts = 0;
+                if (r !== undefined && pick.playerName !== null) {
+                    const norm = normalizeName(pick.playerName);
+                    if (r.playerNames.some((n) => normalizeName(n) === norm)) {
+                        pts = BONUS_POINTS.MOST_ASSISTS;
+                    }
+                }
+                append(pick.playerId, { kind: pick.kind, groupLetter: null, label, pick: pickDesc, points: pts });
+                break;
+            }
+            case "GROUP_WINNER": {
+                const r = resByKey.get(`GROUP_WINNER:${pick.groupLetter ?? ""}`);
+                const hit = r !== undefined && pick.teamId !== null && r.teamIds.includes(pick.teamId);
+                append(pick.playerId, { kind: pick.kind, groupLetter: pick.groupLetter, label, pick: pickDesc, points: hit ? BONUS_POINTS.GROUP_WINNER : 0 });
+                break;
+            }
+            case "WOODEN_SPOON": {
+                const r = resByKey.get("WOODEN_SPOON:");
+                const hit = r !== undefined && pick.teamId !== null && r.teamIds.includes(pick.teamId);
+                append(pick.playerId, { kind: pick.kind, groupLetter: null, label, pick: pickDesc, points: hit ? BONUS_POINTS.WOODEN_SPOON : 0 });
+                break;
+            }
+            case "PANTOMIME_VILLAIN": {
+                const r = resByKey.get("PANTOMIME_VILLAIN:");
+                const hit = r !== undefined && pick.teamId !== null && r.teamIds.includes(pick.teamId);
+                append(pick.playerId, { kind: pick.kind, groupLetter: null, label, pick: pickDesc, points: hit ? BONUS_POINTS.PANTOMIME_VILLAIN : 0 });
+                break;
+            }
+            case "SIEVE": {
+                const r = resByKey.get("SIEVE:");
+                const hit = r !== undefined && pick.teamId !== null && r.teamIds.includes(pick.teamId);
+                append(pick.playerId, { kind: pick.kind, groupLetter: null, label, pick: pickDesc, points: hit ? BONUS_POINTS.SIEVE : 0 });
+                break;
+            }
+            case "MIGHTY_FALLEN": {
+                const r = resByKey.get("MIGHTY_FALLEN:");
+                const hit = r !== undefined && pick.teamId !== null && r.teamIds.includes(pick.teamId);
+                append(pick.playerId, { kind: pick.kind, groupLetter: null, label, pick: pickDesc, points: hit ? BONUS_POINTS.MIGHTY_FALLEN : 0 });
+                break;
+            }
+            case "DARK_HORSE": {
+                if (pick.teamId === null) {
+                    break;
+                }
+                const stage = deriveDarkHorseStage(pick.teamId, {
+                    matches: input.matches,
+                    winnerTeamIds: winner?.teamIds ?? [],
+                });
+                const stageLabel = DARK_HORSE_STAGE_LABEL[stage];
+                const dhLabel = stage === "OUT_IN_GROUPS"
+                    ? "Dark horse (out in groups)"
+                    : `Dark horse (${stageLabel})`;
+                append(pick.playerId, { kind: pick.kind, groupLetter: null, label: dhLabel, pick: pickDesc, points: darkHorsePoints(stage) });
+                break;
+            }
+        }
+    }
+
+    return breakdownByPlayer;
 }
 
 export function computeBonusPointsByPlayer(input: BonusComputeInput): Map<number, number> {

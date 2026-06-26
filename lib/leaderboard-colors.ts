@@ -2,14 +2,16 @@
  * Player line colors for the leaderboard chart.
  *
  * Two hand-tuned 11-colour palettes — one for the warm "paper" light bg,
- * one for the dark slate bg. Both are ordered so consecutive slots sit on
- * OPPOSITE sides of the colour wheel (red→blue→yellow→purple→…), guaranteeing
- * that adjacent player IDs always get visibly distinct colours rather than
- * neighbouring hues that read as "the same green-ish thing".
+ * one for the dark slate bg. Every pair in a palette is chosen to be
+ * unambiguously distinguishable: no two hues that read as "the same red" or
+ * "the same blue" coexist. Specifically dropped: pink (collides with red),
+ * cyan (collides with blue), lime (collides with green).
+ *
+ * That gives us 8 saturated hues plus 3 distinct neutrals (tan, near-white,
+ * gray), filling 11 slots without confusable pairs.
  *
  * Both palettes use the same hue order so a given player keeps their colour
- * identity across modes (slot 3 is yellow/gold in both, just darker on
- * cream and brighter on slate).
+ * identity across modes (slot 3 is yellow/gold in both).
  *
  * Recharts parses stroke values JS-side for derived effects, so we commit
  * real hex here rather than CSS vars (which it can't evaluate). The active
@@ -21,30 +23,30 @@
 
 export const LEADERBOARD_COLORS_LIGHT: readonly string[] = [
     "#dc2626", // red
-    "#2563eb", // blue
-    "#ca8a04", // gold
-    "#6d28d9", // deep purple
-    "#65a30d", // lime
-    "#c026d3", // magenta
-    "#0891b2", // cyan
     "#ea580c", // orange
-    "#db2777", // pink
+    "#ca8a04", // yellow/gold
     "#16a34a", // green
+    "#0d9488", // teal
+    "#2563eb", // blue
+    "#6d28d9", // deep purple
+    "#c026d3", // magenta
     "#92400e", // brown
+    "#525252", // dark gray
+    "#18181b", // near-black
 ];
 
 export const LEADERBOARD_COLORS_DARK: readonly string[] = [
     "#f87171", // red
-    "#60a5fa", // blue
-    "#fcd34d", // gold
-    "#a78bfa", // lavender
-    "#bef264", // lime
-    "#e879f9", // magenta
-    "#22d3ee", // cyan
     "#fb923c", // orange
-    "#f472b6", // pink
+    "#fcd34d", // gold
     "#4ade80", // green
+    "#14b8a6", // teal
+    "#60a5fa", // blue
+    "#a78bfa", // lavender
+    "#e879f9", // magenta
     "#d6a16a", // tan
+    "#f5f5f4", // near-white
+    "#71717a", // medium gray
 ];
 
 export type LeaderboardColorMode = "light" | "dark";

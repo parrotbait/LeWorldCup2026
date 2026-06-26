@@ -3,6 +3,7 @@ import {
     BONUS_POINTS,
     DARK_HORSE_RUNNING_TOTAL,
     buildLeaderboard,
+    computeBonusBreakdownByPlayer,
     computeBonusPointsByPlayer,
     computePointsOnlyRank,
     darkHorsePoints,
@@ -570,5 +571,191 @@ describe("computePointsOnlyRank", () => {
 
     it("returns an empty map for an empty input", () => {
         expect(computePointsOnlyRank([]).size).toBe(0);
+    });
+});
+
+describe("computeBonusBreakdownByPlayer", () => {
+    const teamLookup = new Map([
+        [1, { name: "Brazil" }],
+        [2, { name: "Germany" }],
+        [7, { name: "France" }],
+        [42, { name: "Senegal" }],
+    ]);
+
+    it("returns an empty map when no picks exist", () => {
+        const result = computeBonusBreakdownByPlayer({
+            picks: [],
+            resolutions: [],
+            matches: [],
+            teamLookup,
+        });
+        expect(result.size).toBe(0);
+    });
+
+    it("returns breakdown entries with correct labels and points for a winner pick", () => {
+        const result = computeBonusBreakdownByPlayer({
+            picks: [
+                { playerId: 1, kind: "WINNER", groupLetter: null, teamId: 7, playerName: null },
+            ],
+            resolutions: [
+                { kind: "WINNER", groupLetter: "", teamIds: [7], playerNames: [] },
+            ],
+            matches: [],
+            teamLookup,
+        });
+        const entries = result.get(1)!;
+        expect(entries).toHaveLength(1);
+        expect(entries[0].label).toBe("Tournament winner");
+        expect(entries[0].pick).toBe("France");
+        expect(entries[0].points).toBe(25);
+    });
+
+    it("returns 0 points for a missed pick", () => {
+        const result = computeBonusBreakdownByPlayer({
+            picks: [
+                { playerId: 1, kind: "WINNER", groupLetter: null, teamId: 2, playerName: null },
+            ],
+            resolutions: [
+                { kind: "WINNER", groupLetter: "", teamIds: [7], playerNames: [] },
+            ],
+            matches: [],
+            teamLookup,
+        });
+        const entries = result.get(1)!;
+        expect(entries[0].points).toBe(0);
+        expect(entries[0].pick).toBe("Germany");
+    });
+
+    it("dark horse label includes stage reached", () => {
+        const result = computeBonusBreakdownByPlayer({
+            picks: [
+                { playerId: 1, kind: "DARK_HORSE", groupLetter: null, teamId: 42, playerName: null },
+            ],
+            resolutions: [],
+            matches: [
+                { round: "GROUP", homeTeamId: 42, awayTeamId: 1 },
+                { round: "R32", homeTeamId: 42, awayTeamId: 2 },
+                { round: "R16", homeTeamId: 42, awayTeamId: 7 },
+                { round: "QF", homeTeamId: 42, awayTeamId: 1 },
+            ],
+            teamLookup,
+        });
+        const entries = result.get(1)!;
+        expect(entries[0].label).toBe("Dark horse (reached QF)");
+        expect(entries[0].pick).toBe("Senegal");
+        expect(entries[0].points).toBe(12);
+    });
+
+    it("dark horse out in groups shows appropriate label with 0 points", () => {
+        const result = computeBonusBreakdownByPlayer({
+            picks: [
+                { playerId: 1, kind: "DARK_HORSE", groupLetter: null, teamId: 42, playerName: null },
+            ],
+            resolutions: [],
+            matches: [
+                { round: "GROUP", homeTeamId: 42, awayTeamId: 1 },
+            ],
+            teamLookup,
+        });
+        const entries = result.get(1)!;
+        expect(entries[0].label).toBe("Dark horse (out in groups)");
+        expect(entries[0].points).toBe(0);
+    });
+
+    it("dark horse won shows tournament win label", () => {
+        const result = computeBonusBreakdownByPlayer({
+            picks: [
+                { playerId: 1, kind: "DARK_HORSE", groupLetter: null, teamId: 42, playerName: null },
+            ],
+            resolutions: [
+                { kind: "WINNER", groupLetter: "", teamIds: [42], playerNames: [] },
+            ],
+            matches: [
+                { round: "GROUP", homeTeamId: 42, awayTeamId: 1 },
+                { round: "R32", homeTeamId: 42, awayTeamId: 2 },
+                { round: "FINAL", homeTeamId: 42, awayTeamId: 7 },
+            ],
+            teamLookup,
+        });
+        const entries = result.get(1)!;
+        expect(entries[0].label).toBe("Dark horse (won the tournament)");
+        expect(entries[0].points).toBe(57);
+    });
+
+    it("group winner label includes group letter", () => {
+        const result = computeBonusBreakdownByPlayer({
+            picks: [
+                { playerId: 1, kind: "GROUP_WINNER", groupLetter: "C", teamId: 1, playerName: null },
+            ],
+            resolutions: [
+                { kind: "GROUP_WINNER", groupLetter: "C", teamIds: [1], playerNames: [] },
+            ],
+            matches: [],
+            teamLookup,
+        });
+        const entries = result.get(1)!;
+        expect(entries[0].label).toBe("Group C winner");
+        expect(entries[0].points).toBe(3);
+    });
+
+    it("player-name bonus uses playerName as pick description", () => {
+        const result = computeBonusBreakdownByPlayer({
+            picks: [
+                { playerId: 1, kind: "TOP_SCORER", groupLetter: null, teamId: null, playerName: "MBAPPÉ Kylian" },
+            ],
+            resolutions: [
+                { kind: "TOP_SCORER", groupLetter: "", teamIds: [], playerNames: ["Mbappe Kylian"] },
+            ],
+            matches: [],
+            teamLookup,
+        });
+        const entries = result.get(1)!;
+        expect(entries[0].label).toBe("Golden Boot");
+        expect(entries[0].pick).toBe("MBAPPÉ Kylian");
+        expect(entries[0].points).toBe(10);
+    });
+
+    it("multiple picks for same player produce multiple breakdown entries", () => {
+        const result = computeBonusBreakdownByPlayer({
+            picks: [
+                { playerId: 1, kind: "WINNER", groupLetter: null, teamId: 7, playerName: null },
+                { playerId: 1, kind: "WOODEN_SPOON", groupLetter: null, teamId: 2, playerName: null },
+                { playerId: 1, kind: "TOP_SCORER", groupLetter: null, teamId: null, playerName: "Kane" },
+            ],
+            resolutions: [
+                { kind: "WINNER", groupLetter: "", teamIds: [7], playerNames: [] },
+                { kind: "WOODEN_SPOON", groupLetter: "", teamIds: [2], playerNames: [] },
+                { kind: "TOP_SCORER", groupLetter: "", teamIds: [], playerNames: ["Someone Else"] },
+            ],
+            matches: [],
+            teamLookup,
+        });
+        const entries = result.get(1)!;
+        expect(entries).toHaveLength(3);
+        expect(entries.find((e) => e.kind === "WINNER")!.points).toBe(25);
+        expect(entries.find((e) => e.kind === "WOODEN_SPOON")!.points).toBe(5);
+        expect(entries.find((e) => e.kind === "TOP_SCORER")!.points).toBe(0);
+    });
+
+    it("total of breakdown entries matches computeBonusPointsByPlayer", () => {
+        const input = {
+            picks: [
+                { playerId: 1, kind: "WINNER" as const, groupLetter: null, teamId: 7, playerName: null },
+                { playerId: 1, kind: "SIEVE" as const, groupLetter: null, teamId: 2, playerName: null },
+                { playerId: 1, kind: "DARK_HORSE" as const, groupLetter: null, teamId: 42, playerName: null },
+            ],
+            resolutions: [
+                { kind: "WINNER" as const, groupLetter: "", teamIds: [7], playerNames: [] },
+                { kind: "SIEVE" as const, groupLetter: "", teamIds: [2], playerNames: [] },
+            ],
+            matches: [
+                { round: "GROUP" as const, homeTeamId: 42, awayTeamId: 1 },
+                { round: "R32" as const, homeTeamId: 42, awayTeamId: 2 },
+            ],
+        };
+        const totalFromPoints = computeBonusPointsByPlayer(input).get(1) ?? 0;
+        const breakdown = computeBonusBreakdownByPlayer({ ...input, teamLookup }).get(1) ?? [];
+        const totalFromBreakdown = breakdown.reduce((sum, e) => sum + e.points, 0);
+        expect(totalFromBreakdown).toBe(totalFromPoints);
     });
 });

@@ -11,16 +11,20 @@ import {
     players,
     predictions,
     jokers,
+    teams,
 } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
 import {
     buildLeaderboard,
+    computeBonusBreakdownByPlayer,
     computeBonusPointsByPlayer,
     computePointsOnlyRank,
 } from "@/lib/scoring";
 import { NavBar } from "@/app/_components/navbar";
 import { ViewToggle } from "./_components/ViewToggle";
 import { LeaderboardChart } from "./_components/LeaderboardChart";
+import { BonusTooltipRow, type BonusTooltipEntry } from "./_components/BonusTooltip";
+import { RefreshDataButton } from "@/app/_components/refresh-data-button";
 
 export const revalidate = 30;
 
@@ -57,6 +61,7 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
         allJokers,
         allBonusPicks,
         allResolutions,
+        allTeams,
         lastSync,
         latestSnapshot,
     ] = await Promise.all([
@@ -66,6 +71,7 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
         db.select().from(jokers),
         db.select().from(bonusPicks),
         db.select().from(bonusResolutions),
+        db.select().from(teams),
         db
             .select({ at: auditLog.at })
             .from(auditLog)
@@ -118,6 +124,29 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
             homeTeamId: m.homeTeamId,
             awayTeamId: m.awayTeamId,
         })),
+    });
+
+    const teamLookup = new Map(allTeams.map((t) => [t.id, { name: t.name }]));
+    const bonusBreakdownByPlayer = computeBonusBreakdownByPlayer({
+        picks: allBonusPicks.map((b) => ({
+            playerId: b.playerId,
+            kind: b.kind,
+            groupLetter: b.groupLetter,
+            teamId: b.teamId,
+            playerName: b.playerName,
+        })),
+        resolutions: allResolutions.map((r) => ({
+            kind: r.kind,
+            groupLetter: r.groupLetter,
+            teamIds: r.teamIds,
+            playerNames: r.playerNames,
+        })),
+        matches: allMatches.map((m) => ({
+            round: m.round,
+            homeTeamId: m.homeTeamId,
+            awayTeamId: m.awayTeamId,
+        })),
+        teamLookup,
     });
 
     const rows = buildLeaderboard({
@@ -196,6 +225,7 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
                         </p>
                     );
                 })()}
+                <RefreshDataButton />
 
                 {view === "chart" ? (
                     <LeaderboardChart
@@ -227,9 +257,16 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
                                     const predPoints = r.points - r.bonusPoints;
                                     const rank = pointsOnlyRank.get(r.playerId) ?? 0;
                                     const delta = rankDeltaByPlayer.get(r.playerId) ?? 0;
+                                    const breakdown = bonusBreakdownByPlayer.get(r.playerId) ?? [];
+                                    const tooltipEntries: BonusTooltipEntry[] = breakdown.map((e) => ({
+                                        label: e.label,
+                                        pick: e.pick,
+                                        points: e.points,
+                                    }));
                                     return (
-                                        <tr
+                                        <BonusTooltipRow
                                             key={r.playerId}
+                                            entries={tooltipEntries}
                                             className={`border-b border-ink/10 ${me ? "bg-mustard/15" : ""}`}
                                         >
                                             <td className="py-2 pr-2">{rank}</td>
@@ -260,13 +297,70 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
                                             <td className="py-2 pr-2 text-right font-display text-base font-bold">
                                                 {r.points}
                                             </td>
-                                        </tr>
+                                        </BonusTooltipRow>
                                     );
                                 })
                             )}
                         </tbody>
                     </table>
                 )}
+
+                {view === "table" && rows.some((r) => r.bonusPoints > 0) ? (
+                    <section className="mt-10">
+                        <h2 className="font-display text-sm uppercase tracking-wider">
+                            Bonus points allocated
+                        </h2>
+                        <p className="mt-1 text-xs opacity-60">
+                            Points awarded from resolved bonus picks across all players.
+                        </p>
+                        <table className="mt-4 w-full text-sm tabular">
+                            <thead className="border-b border-ink/30 text-left font-display text-xs uppercase tracking-wider">
+                                <tr>
+                                    <th className="py-2 pr-2">Player</th>
+                                    <th className="py-2 pr-2">Bonus</th>
+                                    <th className="py-2 pr-2">Pick</th>
+                                    <th className="py-2 pl-2 text-right">Pts</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {rows
+                                    .flatMap((r) => {
+                                        const breakdown = bonusBreakdownByPlayer.get(r.playerId) ?? [];
+                                        return breakdown
+                                            .filter((e) => e.points > 0)
+                                            .map((e) => ({
+                                                playerId: r.playerId,
+                                                displayName: r.displayName,
+                                                ...e,
+                                            }));
+                                    })
+                                    .sort((a, b) => b.points - a.points || a.label.localeCompare(b.label))
+                                    .map((entry) => (
+                                        <tr
+                                            key={`${entry.playerId}-${entry.kind}-${entry.groupLetter ?? ""}`}
+                                            className="border-b border-ink/10"
+                                        >
+                                            <td className="py-2 pr-2">
+                                                <Link
+                                                    href={`/players/${entry.playerId}` as never}
+                                                    className="hover:text-tournament hover:underline"
+                                                >
+                                                    {entry.displayName}
+                                                </Link>
+                                            </td>
+                                            <td className="py-2 pr-2 text-xs opacity-70">
+                                                {entry.label}
+                                            </td>
+                                            <td className="py-2 pr-2">{entry.pick}</td>
+                                            <td className="py-2 pl-2 text-right font-display text-emerald-700">
+                                                {entry.points}
+                                            </td>
+                                        </tr>
+                                    ))}
+                            </tbody>
+                        </table>
+                    </section>
+                ) : null}
             </main>
         </>
     );

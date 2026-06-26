@@ -7,6 +7,7 @@ import { NavBar } from "@/app/_components/navbar";
 import { requireSession } from "@/lib/auth";
 import { flag, formatKickoff, pickLockTime } from "@/lib/utils";
 import { isExact, predictionPoints } from "@/lib/scoring";
+import { RefreshDataButton } from "@/app/_components/refresh-data-button";
 
 // Always fresh — picks reveal at kickoff and the daily sync may run between
 // renders.
@@ -184,6 +185,7 @@ export default async function TodayPage() {
                         See all matches →
                     </Link>
                 </p>
+                <RefreshDataButton />
 
                 {liveOrRecent.length === 0 ? (
                     <p className="mt-12 text-center text-sm opacity-60">

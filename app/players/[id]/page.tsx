@@ -15,7 +15,12 @@ import {
 import { NavBar } from "@/app/_components/navbar";
 import { requireSession } from "@/lib/auth";
 import { flag, formatKickoff, pickLockTime } from "@/lib/utils";
-import { computeBonusPointsByPlayer, predictionPoints } from "@/lib/scoring";
+import {
+    computeBonusBreakdownByPlayer,
+    computeBonusPointsByPlayer,
+    predictionPoints,
+    type BonusBreakdownEntry,
+} from "@/lib/scoring";
 import { getBonusLockState } from "@/lib/bonus-lock";
 
 export const revalidate = 30;
@@ -92,27 +97,35 @@ export default async function PlayerProfilePage({ params }: PageProps) {
     // during the grace window.
     const bonusesRevealed = lockState.locked;
 
+    const bonusInput = {
+        picks: theirBonuses.map((b) => ({
+            playerId: b.playerId,
+            kind: b.kind,
+            groupLetter: b.groupLetter,
+            teamId: b.teamId,
+            playerName: b.playerName,
+        })),
+        resolutions: allResolutions.map((r) => ({
+            kind: r.kind,
+            groupLetter: r.groupLetter,
+            teamIds: r.teamIds,
+            playerNames: r.playerNames,
+        })),
+        matches: allMatches.map((m) => ({
+            round: m.round,
+            homeTeamId: m.homeTeamId,
+            awayTeamId: m.awayTeamId,
+        })),
+    };
+
     const theirBonusPoints =
-        computeBonusPointsByPlayer({
-            picks: theirBonuses.map((b) => ({
-                playerId: b.playerId,
-                kind: b.kind,
-                groupLetter: b.groupLetter,
-                teamId: b.teamId,
-                playerName: b.playerName,
-            })),
-            resolutions: allResolutions.map((r) => ({
-                kind: r.kind,
-                groupLetter: r.groupLetter,
-                teamIds: r.teamIds,
-                playerNames: r.playerNames,
-            })),
-            matches: allMatches.map((m) => ({
-                round: m.round,
-                homeTeamId: m.homeTeamId,
-                awayTeamId: m.awayTeamId,
-            })),
-        }).get(playerId) ?? 0;
+        computeBonusPointsByPlayer(bonusInput).get(playerId) ?? 0;
+
+    const theirBonusBreakdown =
+        computeBonusBreakdownByPlayer({
+            ...bonusInput,
+            teamLookup: teamById,
+        }).get(playerId) ?? [];
 
     let totalPredPts = 0;
     let predictionsFiled = 0;
@@ -170,6 +183,10 @@ export default async function PlayerProfilePage({ params }: PageProps) {
                     <Stat label="Filed" value={predictionsFiled} />
                     <Stat label="Settled" value={settledCount} />
                 </section>
+
+                {showBonuses && theirBonusBreakdown.length > 0 ? (
+                    <BonusBreakdownTable entries={theirBonusBreakdown} />
+                ) : null}
 
                 <section className="mt-10">
                     <header className="flex items-baseline justify-between">
@@ -322,5 +339,56 @@ function Stat({ label, value }: { label: string; value: number }) {
             </div>
             <div className="mt-0.5 font-display text-2xl tabular">{value}</div>
         </div>
+    );
+}
+
+function BonusBreakdownTable({ entries }: { entries: BonusBreakdownEntry[] }) {
+    const total = entries.reduce((acc, e) => acc + e.points, 0);
+    return (
+        <section className="mt-6">
+            <h2 className="font-display text-sm uppercase tracking-wider">
+                Points breakdown
+            </h2>
+            <table className="mt-3 w-full text-sm tabular">
+                <thead className="border-b border-ink/30 text-left font-display text-xs uppercase tracking-wider">
+                    <tr>
+                        <th className="py-2 pr-2">Bonus</th>
+                        <th className="py-2 pr-2">Pick</th>
+                        <th className="py-2 pl-2 text-right">Pts</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {entries.map((e) => (
+                        <tr
+                            key={`${e.kind}-${e.groupLetter ?? ""}`}
+                            className="border-b border-ink/10"
+                        >
+                            <td className="py-2 pr-2 text-xs opacity-70">
+                                {e.label}
+                            </td>
+                            <td className="py-2 pr-2">{e.pick}</td>
+                            <td className="py-2 pl-2 text-right font-display">
+                                {e.points > 0 ? (
+                                    <span className="text-emerald-700">{e.points}</span>
+                                ) : (
+                                    <span className="opacity-30">0</span>
+                                )}
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+                <tfoot className="border-t border-ink/30">
+                    <tr>
+                        <td className="py-2 pr-2 font-display text-xs uppercase tracking-wider">
+                            Total
+                        </td>
+                        <td />
+                        <td className="py-2 pl-2 text-right font-display font-bold">
+                            {total}
+                        </td>
+                    </tr>
+                </tfoot>
+            </table>
+        </section>
     );
 }

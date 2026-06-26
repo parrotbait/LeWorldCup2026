@@ -1,4 +1,4 @@
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { db } from "@/db/client";
 import { bonusPicks, bonusResolutions, matches, players, teams } from "@/db/schema";
@@ -37,6 +37,7 @@ export default async function BonusesPage() {
         allPicksWithPlayers,
         allResolutions,
         finalRow,
+        r32Row,
         topScorerLeader,
         mostAssistsLeader,
         darkHorseLeader,
@@ -66,6 +67,11 @@ export default async function BonusesPage() {
             .from(matches)
             .where(eq(matches.round, "FINAL"))
             .limit(1),
+        db
+            .select({ id: matches.id })
+            .from(matches)
+            .where(and(eq(matches.round, "R32"), eq(matches.status, "FINISHED")))
+            .limit(1),
         getTopScorerLeader(),
         getMostAssistsLeader(),
         getDarkHorseLeader(),
@@ -84,15 +90,17 @@ export default async function BonusesPage() {
     const tournamentComplete =
         finalRow[0] !== undefined && finalRow[0].status === "FINISHED";
 
+    // Some bonuses resolve after groups end (once R32 has been played):
+    // WOODEN_SPOON and MIGHTY_FALLEN are determined by who failed to qualify.
+    const groupsResolved = r32Row.length > 0;
+    const GROUP_STAGE_BONUSES = new Set(["WOODEN_SPOON", "MIGHTY_FALLEN"]);
+
     const teamLookup = new Map(
         allTeams.map((t) => [t.id, { id: t.id, code: t.code, name: t.name }]),
     );
     const findResolution = (kind: string) => {
-        if (!tournamentComplete) {
-            // Bonuses don't crystallize until the FINAL has been played. Even
-            // if a resolution row exists (admin pre-populated, sim ran),
-            // suppress it from the UI so the live-leader chip carries the
-            // story until full-time of the final.
+        const canResolve = tournamentComplete || (groupsResolved && GROUP_STAGE_BONUSES.has(kind));
+        if (!canResolve) {
             return undefined;
         }
         return allResolutions.find((r) => r.kind === kind && r.groupLetter === "");
@@ -293,6 +301,7 @@ export default async function BonusesPage() {
                             myPickTeamId={findBonus("WOODEN_SPOON")?.teamId ?? null}
                             earnedPoints={earnedFor("WOODEN_SPOON")}
                             allPicks={picksFor("WOODEN_SPOON")}
+                            finalized={groupsResolved}
                         >
                             <TeamBonusPicker
                                 kind="WOODEN_SPOON"
@@ -313,6 +322,7 @@ export default async function BonusesPage() {
                             myPickTeamId={findBonus("PANTOMIME_VILLAIN")?.teamId ?? null}
                             earnedPoints={earnedFor("PANTOMIME_VILLAIN")}
                             allPicks={picksFor("PANTOMIME_VILLAIN")}
+                            finalized={tournamentComplete}
                         >
                             <TeamBonusPicker
                                 kind="PANTOMIME_VILLAIN"
@@ -334,6 +344,7 @@ export default async function BonusesPage() {
                             myPickTeamId={findBonus("SIEVE")?.teamId ?? null}
                             earnedPoints={earnedFor("SIEVE")}
                             allPicks={picksFor("SIEVE")}
+                            finalized={tournamentComplete}
                         >
                             <TeamBonusPicker
                                 kind="SIEVE"
@@ -354,6 +365,7 @@ export default async function BonusesPage() {
                             myPickTeamId={findBonus("MIGHTY_FALLEN")?.teamId ?? null}
                             earnedPoints={earnedFor("MIGHTY_FALLEN")}
                             allPicks={picksFor("MIGHTY_FALLEN")}
+                            finalized={groupsResolved}
                         >
                             <TeamBonusPicker
                                 kind="MIGHTY_FALLEN"
@@ -381,6 +393,7 @@ export default async function BonusesPage() {
                             myPickPlayerName={findBonus("TOP_SCORER")?.playerName ?? null}
                             earnedPoints={earnedFor("TOP_SCORER")}
                             allPicks={picksFor("TOP_SCORER")}
+                            finalized={tournamentComplete}
                         >
                             <PlayerNameBonusPicker
                                 kind="TOP_SCORER"
@@ -399,6 +412,7 @@ export default async function BonusesPage() {
                             myPickPlayerName={findBonus("MOST_ASSISTS")?.playerName ?? null}
                             earnedPoints={earnedFor("MOST_ASSISTS")}
                             allPicks={picksFor("MOST_ASSISTS")}
+                            finalized={tournamentComplete}
                         >
                             <PlayerNameBonusPicker
                                 kind="MOST_ASSISTS"
@@ -425,6 +439,7 @@ function PlayerBonusCard({
     myPickPlayerName,
     earnedPoints,
     allPicks,
+    finalized = false,
 }: {
     children: React.ReactNode;
     leader: LiveLeader;
@@ -433,6 +448,7 @@ function PlayerBonusCard({
     myPickPlayerName?: string | null;
     earnedPoints?: number;
     allPicks?: AllPicksGroup[];
+    finalized?: boolean;
 }) {
     const resolved = resolution !== undefined && resolution.playerNames.length > 0;
     return (
@@ -446,7 +462,7 @@ function PlayerBonusCard({
                     earnedPoints={earnedPoints}
                 />
             ) : (
-                <LiveLeaderChip leader={leader} subjectPlural="players" metricLabel={metricLabel} />
+                <LiveLeaderChip leader={leader} subjectPlural="players" metricLabel={metricLabel} finalized={finalized} />
             )}
             {allPicks !== undefined ? <AllPicksList groups={allPicks} /> : null}
         </div>
@@ -463,6 +479,7 @@ function TeamBonusCard({
     myPickTeamId,
     earnedPoints,
     allPicks,
+    finalized = false,
 }: {
     children: React.ReactNode;
     leader: LiveLeader | null;
@@ -473,6 +490,7 @@ function TeamBonusCard({
     myPickTeamId?: number | null;
     earnedPoints?: number;
     allPicks?: AllPicksGroup[];
+    finalized?: boolean;
 }) {
     const resolved = resolution !== undefined && resolution.teamIds.length > 0;
     return (
@@ -487,7 +505,7 @@ function TeamBonusCard({
                     earnedPoints={earnedPoints}
                 />
             ) : leader !== null ? (
-                <LiveLeaderChip leader={leader} subjectPlural={subjectPlural} metricLabel={metricLabel} />
+                <LiveLeaderChip leader={leader} subjectPlural={subjectPlural} metricLabel={metricLabel} finalized={finalized} />
             ) : null}
             {allPicks !== undefined ? <AllPicksList groups={allPicks} /> : null}
         </div>

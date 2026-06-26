@@ -30,3 +30,31 @@ export function topByMetric<T>(
     }
     return { value: best, tied };
 }
+
+export interface WoodenSpoonCandidate {
+    id: number;
+    name: string;
+    points: number;
+    goalsFor: number;
+    goalsAgainst: number;
+}
+
+/**
+ * Sort wooden spoon candidates worst-first: fewest points → worst GD → fewest GF.
+ * Returns a new sorted array (does not mutate input).
+ */
+export function sortWoodenSpoonCandidates<T extends WoodenSpoonCandidate>(
+    candidates: T[],
+): T[] {
+    return [...candidates].sort((a, b) => {
+        if (a.points !== b.points) {
+            return a.points - b.points;
+        }
+        const gdA = a.goalsFor - a.goalsAgainst;
+        const gdB = b.goalsFor - b.goalsAgainst;
+        if (gdA !== gdB) {
+            return gdA - gdB;
+        }
+        return a.goalsFor - b.goalsFor;
+    });
+}

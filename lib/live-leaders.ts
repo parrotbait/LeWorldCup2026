@@ -19,7 +19,7 @@ import { db as dbInstance } from "@/db/client";
 import { matches, teams } from "@/db/schema";
 import { fetchScorers, type FdScorer } from "@/lib/football-data";
 import { findPlayer } from "@/lib/players";
-import { topByMetric } from "@/lib/live-leaders-pure";
+import { topByMetric, sortWoodenSpoonCandidates } from "@/lib/live-leaders-pure";
 
 export type LiveLeader =
     | { kind: "single"; displayName: string; metric: number; teamCode?: string }
@@ -179,6 +179,7 @@ interface TeamProgress extends TeamRow {
     furthestRoundRank: number;
     goalsFor: number;
     goalsAgainst: number;
+    points: number;
 }
 
 async function loadTeamProgress(db: DB): Promise<TeamProgress[]> {
@@ -195,6 +196,7 @@ async function loadTeamProgress(db: DB): Promise<TeamProgress[]> {
             furthestRoundRank: -1,
             goalsFor: 0,
             goalsAgainst: 0,
+            points: 0,
         });
     }
     for (const m of allMatches) {
@@ -230,6 +232,14 @@ async function loadTeamProgress(db: DB): Promise<TeamProgress[]> {
                 home.goalsAgainst += m.awayScore;
                 away.goalsFor += m.awayScore;
                 away.goalsAgainst += m.homeScore;
+                if (m.homeScore > m.awayScore) {
+                    home.points += 3;
+                } else if (m.awayScore > m.homeScore) {
+                    away.points += 3;
+                } else {
+                    home.points += 1;
+                    away.points += 1;
+                }
             }
         }
     }
@@ -237,32 +247,10 @@ async function loadTeamProgress(db: DB): Promise<TeamProgress[]> {
 }
 
 export async function getDarkHorseLeader(db: DB = dbInstance): Promise<LiveLeader> {
-    if (!(await hasAnyRoundCompleted(db))) {
-        return { kind: "hidden", reason: "no_rounds_played" };
-    }
-    const all = await loadTeamProgress(db);
-    const eligible = all.filter((t) => t.pot !== 1 && t.furthestRoundRank > 0);
-    if (eligible.length === 0) {
-        return { kind: "hidden", reason: "no_data_yet" };
-    }
-    // Best non-Pot-1 finish; tiebreak GD then GF.
-    const top = topByMetric(eligible, (t) => t.furthestRoundRank);
-    if (top === null) {
-        return { kind: "hidden", reason: "no_data_yet" };
-    }
-    if (top.tied.length === 1) {
-        return asTeamLeader(top, "teams");
-    }
-    // Multiple teams at the same furthest round — tiebreak.
-    const withGd = top.tied.map((t) => ({ ...t, gd: t.goalsFor - t.goalsAgainst }));
-    const bestGd = Math.max(...withGd.map((t) => t.gd));
-    const gdTied = withGd.filter((t) => t.gd === bestGd);
-    if (gdTied.length === 1) {
-        return asTeamLeader({ value: top.value, tied: gdTied }, "teams");
-    }
-    const bestGf = Math.max(...gdTied.map((t) => t.goalsFor));
-    const finalTied = gdTied.filter((t) => t.goalsFor === bestGf);
-    return asTeamLeader({ value: top.value, tied: finalTied }, "teams");
+    // Dark horse progress is cumulative — a "currently leading" chip doesn't
+    // convey useful information mid-tournament. The bonus breakdown table and
+    // the player profile already show earned points. Hide the chip entirely.
+    return { kind: "hidden", reason: "no_data_yet" };
 }
 
 export async function getSieveLeader(db: DB = dbInstance): Promise<LiveLeader> {
@@ -278,30 +266,32 @@ export async function getSieveLeader(db: DB = dbInstance): Promise<LiveLeader> {
 }
 
 export async function getWoodenSpoonLeader(db: DB = dbInstance): Promise<LiveLeader> {
+    // The wooden spoon goes to the team finishing bottom of their group with
+    // the worst record overall. Until R32 fixtures are filled we can't know
+    // which teams are actually eliminated — showing a "currently" chip before
+    // that point is misleading (it would pick a team still in contention).
     if (!(await hasAnyRoundCompleted(db))) {
         return { kind: "hidden", reason: "no_rounds_played" };
     }
-    // Worst overall finish. We approximate by lowest furthestRoundRank, with
-    // tiebreaks favouring fewer goals scored. Pre-knockouts this is a
-    // multi-way tie among group-stage teams.
     const all = await loadTeamProgress(db);
-    const worstRank = Math.min(...all.map((t) => t.furthestRoundRank));
-    const tied = all.filter((t) => t.furthestRoundRank === worstRank);
-    if (tied.length === 0) {
+    const r32Played = all.some((t) => t.furthestRoundRank >= ROUND_RANK.R32);
+    if (!r32Played) {
         return { kind: "hidden", reason: "no_data_yet" };
     }
-    if (tied.length === 1) {
-        return asTeamLeader({ value: worstRank, tied }, "teams");
+    // Only teams that didn't make R32 are wooden spoon candidates.
+    const eliminated = all.filter((t) => t.furthestRoundRank < ROUND_RANK.R32);
+    if (eliminated.length === 0) {
+        return { kind: "hidden", reason: "no_data_yet" };
     }
-    // Tiebreak: fewest goals scored, then most conceded.
-    const minGf = Math.min(...tied.map((t) => t.goalsFor));
-    const gfTied = tied.filter((t) => t.goalsFor === minGf);
-    if (gfTied.length === 1) {
-        return asTeamLeader({ value: worstRank, tied: gfTied }, "teams");
-    }
-    const maxGa = Math.max(...gfTied.map((t) => t.goalsAgainst));
-    const finalTied = gfTied.filter((t) => t.goalsAgainst === maxGa);
-    return asTeamLeader({ value: worstRank, tied: finalTied }, "teams");
+    // Tiebreak: fewest points → worst goal difference → fewest goals scored.
+    const sorted = sortWoodenSpoonCandidates(eliminated);
+    const worst = sorted[0]!;
+    const tied = sorted.filter((t) => {
+        const gdT = t.goalsFor - t.goalsAgainst;
+        const gdW = worst.goalsFor - worst.goalsAgainst;
+        return t.points === worst.points && gdT === gdW && t.goalsFor === worst.goalsFor;
+    });
+    return asTeamLeader({ value: worst.points, tied }, "teams");
 }
 
 export async function getTournamentWinnerLeader(db: DB = dbInstance): Promise<LiveLeader> {
@@ -335,16 +325,16 @@ export async function getTournamentWinnerLeader(db: DB = dbInstance): Promise<Li
 }
 
 export async function getMightyFallenLeader(db: DB = dbInstance): Promise<LiveLeader> {
-    // Pot-1 teams that didn't make R32 (i.e. crashed out at the group stage).
+    // "Mighty fallen" is a binary outcome — a Pot-1 team either crashed out in
+    // groups or didn't. A "currently" chip before that's determined is
+    // misleading. Only show once R32 has begun and we can confirm eliminations.
     if (!(await hasAnyRoundCompleted(db))) {
         return { kind: "hidden", reason: "no_rounds_played" };
     }
     const all = await loadTeamProgress(db);
-    // Only count once knockouts have begun — until R32 fixtures are filled,
-    // we can't distinguish "still playing groups" from "didn't qualify".
     const r32Played = all.some((t) => t.furthestRoundRank >= ROUND_RANK.R32);
     if (!r32Played) {
-        return { kind: "hidden", reason: "no_rounds_played" };
+        return { kind: "hidden", reason: "no_data_yet" };
     }
     const fallen = all.filter((t) => t.pot === 1 && t.furthestRoundRank < ROUND_RANK.R32);
     if (fallen.length === 0) {
