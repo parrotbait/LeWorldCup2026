@@ -900,6 +900,14 @@ async function run(args: Record<string, string>): Promise<void> {
 async function playNext(args: Record<string, string>): Promise<void> {
     const seed = Number(args.seed ?? "1");
     const rng = rngFromSeed(seed + Date.now());
+    const home = args.home !== undefined ? Number(args.home) : undefined;
+    const away = args.away !== undefined ? Number(args.away) : undefined;
+    if (home !== undefined && (!Number.isInteger(home) || home < 0 || home > 20)) {
+        throw new Error("--home must be an integer 0-20");
+    }
+    if (away !== undefined && (!Number.isInteger(away) || away < 0 || away > 20)) {
+        throw new Error("--away must be an integer 0-20");
+    }
     const next = (
         await db
             .select()
@@ -913,7 +921,7 @@ async function playNext(args: Record<string, string>): Promise<void> {
         );
         return;
     }
-    const out = await settleOne(next.id, { rng });
+    const out = await settleOne(next.id, { home, away, rng });
     console.log(
         `✓ ${out.round}: ${out.homeName} ${out.home}–${out.away} ${out.awayName} (match #${next.id})`,
     );

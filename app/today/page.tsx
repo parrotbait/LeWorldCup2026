@@ -3,6 +3,7 @@ import { alias } from "drizzle-orm/pg-core";
 import Link from "next/link";
 import { db } from "@/db/client";
 import { jokers, matches, players, predictions, teams } from "@/db/schema";
+import { Confetti } from "./_components/confetti";
 import { NavBar } from "@/app/_components/navbar";
 import { requireSession } from "@/lib/auth";
 import { flag, formatKickoff, pickLockTime } from "@/lib/utils";
@@ -36,7 +37,7 @@ interface PlayerPickRow {
 }
 
 export default async function TodayPage() {
-    await requireSession();
+    const session = await requireSession();
 
     // Show fixtures from the past 8h plus anything kicking off in the next
     // 24h. Past window is short on purpose — yesterday's slate doesn't
@@ -204,7 +205,7 @@ export default async function TodayPage() {
                                 pickLockTime(m.kickoff) <= Date.now() ||
                                 m.status !== "SCHEDULED";
                             return (
-                                <section key={m.id} className="rounded border border-ink/15">
+                                <section key={m.id} className="overflow-visible rounded border border-ink/15">
                                     <header className="flex items-baseline justify-between border-b border-ink/15 px-4 py-3">
                                         <div>
                                             <p className="font-display text-[10px] uppercase tracking-[0.25em] text-tournament">
@@ -278,12 +279,60 @@ export default async function TodayPage() {
                                             Picks reveal 15 min before kickoff.
                                         </p>
                                     ) : (
-                                        <ul className="divide-y divide-ink/10 text-sm">
-                                            {rows.map((r) => (
-                                                <li
-                                                    key={r.playerId}
-                                                    className="grid grid-cols-[1fr_auto_auto] items-center gap-4 px-4 py-2"
-                                                >
+                                        <>
+                                            {(() => {
+                                                if (m.status !== "FINISHED") {
+                                                    return null;
+                                                }
+                                                const myRow = rows.find((r) => r.playerId === session.playerId);
+                                                if (myRow === undefined) {
+                                                    return null;
+                                                }
+                                                if (!myRow.hasPick) {
+                                                    return (
+                                                        <div className="relative mx-4 mt-3 mb-2 rounded-lg border border-ink/20 bg-ink/5 px-4 py-3">
+                                                            <p className="font-display text-[10px] uppercase tracking-widest opacity-60">
+                                                                Your prediction
+                                                            </p>
+                                                            <p className="mt-1 font-display text-sm opacity-50">
+                                                                No pick submitted
+                                                            </p>
+                                                        </div>
+                                                    );
+                                                }
+                                                return (
+                                                    <div className={`relative mx-4 mt-3 mb-2 rounded-lg border px-4 py-3 ${myRow.isExact ? "border-pitch/40 bg-pitch/10" : myRow.correctResult ? "border-ink/20 bg-ink/5" : "border-tournament/30 bg-tournament/5"}`}>
+                                                        {myRow.isExact && <Confetti matchId={m.id} />}
+                                                        <p className="font-display text-[10px] uppercase tracking-widest opacity-60">
+                                                            Your prediction
+                                                        </p>
+                                                        <div className="mt-1 flex items-center justify-between">
+                                                            <span className="font-display tabular text-lg">
+                                                                {myRow.homeScore} – {myRow.awayScore}
+                                                            </span>
+                                                            <span className={`font-display tabular text-lg ${myRow.isExact ? "text-pitch" : myRow.correctResult ? "" : "text-tournament"}`}>
+                                                                {myRow.points > 0 ? `+${myRow.points}` : "0"}
+                                                                {myRow.isExact && (
+                                                                    <span className="ml-1 text-[10px] uppercase">
+                                                                        exact
+                                                                    </span>
+                                                                )}
+                                                                {myRow.isJoker && (
+                                                                    <span className="ml-1 text-[10px] text-mustard uppercase">
+                                                                        ×2
+                                                                    </span>
+                                                                )}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })()}
+                                            <ul className="divide-y divide-ink/10 text-sm">
+                                                {rows.filter((r) => m.status !== "FINISHED" || r.playerId !== session.playerId).map((r) => (
+                                                    <li
+                                                        key={r.playerId}
+                                                        className={`grid grid-cols-[1fr_auto_auto] items-center gap-4 px-4 py-2 ${r.isExact ? "bg-pitch/5 ring-1 ring-inset ring-pitch/20" : ""}`}
+                                                    >
                                                     <span>
                                                         <Link
                                                             href={`/players/${r.playerId}` as never}
@@ -327,6 +376,7 @@ export default async function TodayPage() {
                                                 </li>
                                             ))}
                                         </ul>
+                                        </>
                                     )}
                                 </section>
                             );

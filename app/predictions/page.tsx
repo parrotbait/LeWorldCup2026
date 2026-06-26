@@ -6,6 +6,7 @@ import { NavBar } from "@/app/_components/navbar";
 import { requireSession } from "@/lib/auth";
 import { formatDayLong, formatTime, pickLockTime } from "@/lib/utils";
 import { isExact, predictionPoints } from "@/lib/scoring";
+import { getOpenPredictionDeadline } from "@/lib/predictions";
 import { ScoreStepper } from "./_components/score-stepper";
 import { ScrollToDay } from "./_components/scroll-to-day";
 
@@ -134,6 +135,30 @@ export default async function PredictionsPage() {
                         Auto-saves as you tap. Each match locks at its own kickoff.
                     </p>
                 </header>
+
+                {(() => {
+                    const deadline = getOpenPredictionDeadline(
+                        rows,
+                        new Set(predByMatch.keys()),
+                        now,
+                    );
+                    if (deadline === null) {
+                        return null;
+                    }
+                    const totalMins = Math.floor(deadline.nextLockMs / 60_000);
+                    const h = Math.floor(totalMins / 60);
+                    const m = totalMins % 60;
+                    const timeStr = h > 0 ? `${h}h ${m}m` : `${m}m`;
+                    return (
+                        <div className="mt-4 flex items-center gap-2 rounded border border-mustard/40 bg-mustard/10 px-3 py-2 text-xs">
+                            <span className="font-display text-mustard">⏱</span>
+                            <span>
+                                <strong>{deadline.openCount}</strong> {deadline.openCount === 1 ? "pick" : "picks"} still open
+                                — next locks in <strong>{timeStr}</strong>
+                            </span>
+                        </div>
+                    );
+                })()}
 
                 {rows.length === 0 ? (
                     <p className="mt-12 text-center text-sm opacity-60">
