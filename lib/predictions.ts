@@ -29,8 +29,12 @@ export function getOpenPredictionDeadline(
     if (open.length === 0) {
         return null;
     }
+    const nextLockMs = pickLockTime(open[0]!.kickoff) - now;
+    if (nextLockMs > 24 * 60 * 60_000) {
+        return null;
+    }
     return {
         openCount: open.length,
-        nextLockMs: pickLockTime(open[0]!.kickoff) - now,
+        nextLockMs,
     };
 }

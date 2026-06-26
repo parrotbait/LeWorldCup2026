@@ -301,12 +301,6 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
                 })()}
                 <RefreshDataButton />
 
-                {(rivalryAbove !== null || rivalryBelow !== null) && (
-                    <div className="mt-4">
-                        <RivalryTicker you={rivalryYou} above={rivalryAbove} below={rivalryBelow} />
-                    </div>
-                )}
-
                 {view === "chart" ? (
                     <LeaderboardChart
                         currentPlayerId={session.playerId}

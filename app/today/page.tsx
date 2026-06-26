@@ -278,12 +278,6 @@ export default async function TodayPage() {
                 </p>
                 <RefreshDataButton />
 
-                {(rivalryAbove !== null || rivalryBelow !== null) && (
-                    <div className="mt-4">
-                        <RivalryTicker you={rivalryYou} above={rivalryAbove} below={rivalryBelow} />
-                    </div>
-                )}
-
                 {liveOrRecent.length === 0 ? (
                     upcoming[0] !== undefined ? (
                         <CountdownHero nextKickoff={upcoming[0].kickoff.toISOString()} />

@@ -88,4 +88,10 @@ describe("getOpenPredictionDeadline", () => {
         const result = getOpenPredictionDeadline(matches, new Set(), baseNow);
         expect(result!.nextLockMs).toBeLessThan(3 * HOUR);
     });
+
+    it("returns null when next unpredicted lock is more than 24h away", () => {
+        const farKickoff = new Date("2026-06-30T15:00:00Z");
+        const matches = [match({ id: 1, kickoff: farKickoff })];
+        expect(getOpenPredictionDeadline(matches, new Set(), baseNow)).toBeNull();
+    });
 });
