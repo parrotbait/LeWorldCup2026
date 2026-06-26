@@ -1,13 +1,16 @@
-import { and, asc, eq, gte, inArray, lte, or } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lte, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import Link from "next/link";
 import { db } from "@/db/client";
-import { jokers, matches, players, predictions, teams } from "@/db/schema";
+import { jokers, leaderboardSnapshotRows, leaderboardSnapshots, matches, players, predictions, teams } from "@/db/schema";
 import { Confetti } from "./_components/confetti";
+import { CountdownHero } from "./_components/countdown-hero";
 import { NavBar } from "@/app/_components/navbar";
 import { requireSession } from "@/lib/auth";
 import { flag, formatKickoff, pickLockTime } from "@/lib/utils";
-import { isExact, predictionPoints } from "@/lib/scoring";
+import { isExact, predictionPoints, buildLeaderboard, computeBonusPointsByPlayer } from "@/lib/scoring";
+import { computePointsForMatches } from "@/lib/rivalry";
+import { RivalryTicker } from "@/app/_components/rivalry-ticker";
 import { RefreshDataButton } from "@/app/_components/refresh-data-button";
 
 // Always fresh — picks reveal at kickoff and the daily sync may run between
@@ -166,6 +169,93 @@ export default async function TodayPage() {
         }
     }
 
+    // Rivalry ticker: find neighbours in the standings and compare today's points.
+    let rivalryAbove: { displayName: string; pointsToday: number; totalPoints: number } | null = null;
+    let rivalryBelow: { displayName: string; pointsToday: number; totalPoints: number } | null = null;
+    let rivalryYou: { displayName: string; pointsToday: number; totalPoints: number } = {
+        displayName: session.displayName,
+        pointsToday: 0,
+        totalPoints: 0,
+    };
+
+    if (liveOrRecent.length > 0) {
+        const latestSnap = await db
+            .select({ id: leaderboardSnapshots.id })
+            .from(leaderboardSnapshots)
+            .orderBy(desc(leaderboardSnapshots.capturedAt), desc(leaderboardSnapshots.id))
+            .limit(1);
+
+        if (latestSnap[0] !== undefined) {
+            const snapRows = await db
+                .select({
+                    playerId: leaderboardSnapshotRows.playerId,
+                    rank: leaderboardSnapshotRows.rank,
+                    points: leaderboardSnapshotRows.points,
+                })
+                .from(leaderboardSnapshotRows)
+                .where(eq(leaderboardSnapshotRows.snapshotId, latestSnap[0].id));
+
+            const sorted = snapRows.sort((a, b) => a.rank - b.rank);
+            const playerNames = new Map<number, string>();
+            const allP = await db.select({ id: players.id, displayName: players.displayName }).from(players);
+            for (const p of allP) {
+                playerNames.set(p.id, p.displayName);
+            }
+
+            const myIdx = sorted.findIndex((r) => r.playerId === session.playerId);
+            if (myIdx !== -1) {
+                rivalryYou.totalPoints = sorted[myIdx]!.points;
+
+                // Compute today's points per player from today's matches
+                const matchIds = liveOrRecent.map((m) => m.id);
+                const todayPreds = await db.select().from(predictions).where(inArray(predictions.matchId, matchIds));
+                const todayJokers = await db.select().from(jokers).where(inArray(jokers.matchId, matchIds));
+                const todayPoints = computePointsForMatches(
+                    liveOrRecent.map((m) => ({
+                        id: m.id,
+                        round: m.round,
+                        status: m.status,
+                        homeScore: m.homeScore,
+                        awayScore: m.awayScore,
+                        homeTeamId: m.homeTeamId,
+                        awayTeamId: m.awayTeamId,
+                        winnerTeamId: m.winnerTeamId,
+                    })),
+                    todayPreds.map((p) => ({
+                        playerId: p.playerId,
+                        matchId: p.matchId,
+                        homeScore: p.homeScore,
+                        awayScore: p.awayScore,
+                    })),
+                    todayJokers.map((j) => ({
+                        playerId: j.playerId,
+                        matchId: j.matchId,
+                    })),
+                    sorted.map((r) => r.playerId),
+                );
+
+                rivalryYou.pointsToday = todayPoints.get(session.playerId) ?? 0;
+
+                if (myIdx > 0) {
+                    const above = sorted[myIdx - 1]!;
+                    rivalryAbove = {
+                        displayName: playerNames.get(above.playerId) ?? "?",
+                        pointsToday: todayPoints.get(above.playerId) ?? 0,
+                        totalPoints: above.points,
+                    };
+                }
+                if (myIdx < sorted.length - 1) {
+                    const below = sorted[myIdx + 1]!;
+                    rivalryBelow = {
+                        displayName: playerNames.get(below.playerId) ?? "?",
+                        pointsToday: todayPoints.get(below.playerId) ?? 0,
+                        totalPoints: below.points,
+                    };
+                }
+            }
+        }
+    }
+
     return (
         <>
             <NavBar />
@@ -188,15 +278,20 @@ export default async function TodayPage() {
                 </p>
                 <RefreshDataButton />
 
+                {(rivalryAbove !== null || rivalryBelow !== null) && (
+                    <div className="mt-4">
+                        <RivalryTicker you={rivalryYou} above={rivalryAbove} below={rivalryBelow} />
+                    </div>
+                )}
+
                 {liveOrRecent.length === 0 ? (
-                    <p className="mt-12 text-center text-sm opacity-60">
-                        No matches in today&rsquo;s window.
-                        {upcoming[0] !== undefined ? (
-                            <>
-                                {" "}Next kickoff: <strong>{formatKickoff(upcoming[0].kickoff)}</strong>.
-                            </>
-                        ) : null}
-                    </p>
+                    upcoming[0] !== undefined ? (
+                        <CountdownHero nextKickoff={upcoming[0].kickoff.toISOString()} />
+                    ) : (
+                        <p className="mt-12 text-center text-sm opacity-60">
+                            No matches scheduled yet.
+                        </p>
+                    )
                 ) : (
                     <div className="mt-8 space-y-8">
                         {liveOrRecent.map((m) => {
@@ -327,8 +422,43 @@ export default async function TodayPage() {
                                                     </div>
                                                 );
                                             })()}
+                                            {(() => {
+                                                if (m.status !== "FINISHED" && m.status !== "LIVE") {
+                                                    return null;
+                                                }
+                                                const withPick = rows.filter((r) => r.hasPick);
+                                                if (withPick.length === 0) {
+                                                    return null;
+                                                }
+                                                const homeWin = withPick.filter((r) => r.homeScore! > r.awayScore!).length;
+                                                const draw = withPick.filter((r) => r.homeScore! === r.awayScore!).length;
+                                                const awayWin = withPick.length - homeWin - draw;
+                                                const total = withPick.length;
+                                                return (
+                                                    <div className="mx-4 mb-1 mt-2 flex items-center gap-3 text-[10px] uppercase tracking-wider opacity-50">
+                                                        <span>{homeWin}/{total} home</span>
+                                                        <span>{draw}/{total} draw</span>
+                                                        <span>{awayWin}/{total} away</span>
+                                                    </div>
+                                                );
+                                            })()}
                                             <ul className="divide-y divide-ink/10 text-sm">
-                                                {rows.filter((r) => m.status !== "FINISHED" || r.playerId !== session.playerId).map((r) => (
+                                                {(() => {
+                                                    const withPick = rows.filter((r) => r.hasPick);
+                                                    const total = withPick.length;
+                                                    let crowdThreshold = 0;
+                                                    let actualOutcome: "H" | "D" | "A" | null = null;
+                                                    if (m.status === "FINISHED" && m.homeScore !== null && m.awayScore !== null && total > 0) {
+                                                        actualOutcome = m.homeScore > m.awayScore ? "H" : m.homeScore < m.awayScore ? "A" : "D";
+                                                        const matchingCount = withPick.filter((r) => {
+                                                            const o = r.homeScore! > r.awayScore! ? "H" : r.homeScore! < r.awayScore! ? "A" : "D";
+                                                            return o === actualOutcome;
+                                                        }).length;
+                                                        crowdThreshold = matchingCount / total;
+                                                    }
+                                                    return rows.filter((r) => m.status !== "FINISHED" || r.playerId !== session.playerId).map((r) => {
+                                                        const isContrarian = actualOutcome !== null && r.hasPick && (r.correctResult || r.isExact) && crowdThreshold <= 0.2;
+                                                        return (
                                                     <li
                                                         key={r.playerId}
                                                         className={`grid grid-cols-[1fr_auto_auto] items-center gap-4 px-4 py-2 ${r.isExact ? "bg-pitch/5 ring-1 ring-inset ring-pitch/20" : ""}`}
@@ -343,6 +473,11 @@ export default async function TodayPage() {
                                                         {r.isJoker ? (
                                                             <span className="ml-2 font-display text-[10px] text-mustard">
                                                                 joker ×2
+                                                            </span>
+                                                        ) : null}
+                                                        {isContrarian ? (
+                                                            <span className="ml-2 font-display text-[10px] text-mustard" title="Predicted against the crowd and got it right">
+                                                                against the crowd
                                                             </span>
                                                         ) : null}
                                                     </span>
@@ -374,7 +509,9 @@ export default async function TodayPage() {
                                                         ) : null}
                                                     </span>
                                                 </li>
-                                            ))}
+                                                        );
+                                                    });
+                                                })()}
                                         </ul>
                                         </>
                                     )}

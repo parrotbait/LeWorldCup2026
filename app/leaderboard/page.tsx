@@ -20,6 +20,9 @@ import {
     computeBonusPointsByPlayer,
     computePointsOnlyRank,
 } from "@/lib/scoring";
+import { computeStreaks, streakFlames } from "@/lib/streaks";
+import { computePointsForMatches } from "@/lib/rivalry";
+import { RivalryTicker } from "@/app/_components/rivalry-ticker";
 import { NavBar } from "@/app/_components/navbar";
 import { ViewToggle } from "./_components/ViewToggle";
 import { LeaderboardChart } from "./_components/LeaderboardChart";
@@ -185,6 +188,77 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
     // who's "ahead on tie-breaks" appears above a tied opponent.
     const pointsOnlyRank = computePointsOnlyRank(rows);
 
+    const streaks = computeStreaks(
+        allMatches.map((m) => ({
+            id: m.id,
+            kickoff: m.kickoff,
+            round: m.round,
+            status: m.status,
+            homeScore: m.homeScore,
+            awayScore: m.awayScore,
+            homeTeamId: m.homeTeamId,
+            awayTeamId: m.awayTeamId,
+            winnerTeamId: m.winnerTeamId,
+        })),
+        allPredictions.map((p) => ({
+            playerId: p.playerId,
+            matchId: p.matchId,
+            homeScore: p.homeScore,
+            awayScore: p.awayScore,
+        })),
+        allPlayers.map((p) => p.id),
+    );
+
+    // Rivalry ticker: compute today's points from matches in the last 8h + next 24h window.
+    const since = new Date(Date.now() - 8 * 60 * 60_000);
+    const until = new Date(Date.now() + 24 * 60 * 60_000);
+    const todayMatches = allMatches.filter(
+        (m) => m.kickoff >= since && m.kickoff <= until,
+    );
+    const todayMatchIds = new Set(todayMatches.map((m) => m.id));
+    const todayPreds = allPredictions.filter((p) => todayMatchIds.has(p.matchId));
+    const todayJokersList = allJokers.filter((j) => todayMatchIds.has(j.matchId));
+    const todayPoints = computePointsForMatches(
+        todayMatches.map((m) => ({
+            id: m.id,
+            round: m.round,
+            status: m.status,
+            homeScore: m.homeScore,
+            awayScore: m.awayScore,
+            homeTeamId: m.homeTeamId,
+            awayTeamId: m.awayTeamId,
+            winnerTeamId: m.winnerTeamId,
+        })),
+        todayPreds.map((p) => ({
+            playerId: p.playerId,
+            matchId: p.matchId,
+            homeScore: p.homeScore,
+            awayScore: p.awayScore,
+        })),
+        todayJokersList.map((j) => ({
+            playerId: j.playerId,
+            matchId: j.matchId,
+        })),
+        allPlayers.map((p) => p.id),
+    );
+
+    const myIdx = rows.findIndex((r) => r.playerId === session.playerId);
+    const rivalryYou = {
+        displayName: session.displayName,
+        pointsToday: todayPoints.get(session.playerId) ?? 0,
+        totalPoints: myIdx !== -1 ? rows[myIdx]!.points : 0,
+    };
+    const rivalryAbove = myIdx > 0 ? {
+        displayName: rows[myIdx - 1]!.displayName,
+        pointsToday: todayPoints.get(rows[myIdx - 1]!.playerId) ?? 0,
+        totalPoints: rows[myIdx - 1]!.points,
+    } : null;
+    const rivalryBelow = myIdx !== -1 && myIdx < rows.length - 1 ? {
+        displayName: rows[myIdx + 1]!.displayName,
+        pointsToday: todayPoints.get(rows[myIdx + 1]!.playerId) ?? 0,
+        totalPoints: rows[myIdx + 1]!.points,
+    } : null;
+
     return (
         <>
             <NavBar />
@@ -227,6 +301,12 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
                 })()}
                 <RefreshDataButton />
 
+                {(rivalryAbove !== null || rivalryBelow !== null) && (
+                    <div className="mt-4">
+                        <RivalryTicker you={rivalryYou} above={rivalryAbove} below={rivalryBelow} />
+                    </div>
+                )}
+
                 {view === "chart" ? (
                     <LeaderboardChart
                         currentPlayerId={session.playerId}
@@ -258,6 +338,8 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
                                     const rank = pointsOnlyRank.get(r.playerId) ?? 0;
                                     const delta = rankDeltaByPlayer.get(r.playerId) ?? 0;
                                     const breakdown = bonusBreakdownByPlayer.get(r.playerId) ?? [];
+                                    const streak = streaks.get(r.playerId) ?? 0;
+                                    const flames = streakFlames(streak);
                                     const tooltipEntries: BonusTooltipEntry[] = breakdown.map((e) => ({
                                         label: e.label,
                                         pick: e.pick,
@@ -283,6 +365,11 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
                                                         </span>
                                                     ) : null}
                                                 </Link>
+                                                {flames !== "" && (
+                                                    <span className="ml-1 cursor-default" title={`${streak} correct in a row`}>
+                                                        {flames}
+                                                    </span>
+                                                )}
                                                 <RankDelta delta={delta} />
                                             </td>
                                             <td className="py-2 pr-2 text-right opacity-70">
