@@ -422,11 +422,21 @@ export default async function TodayPage() {
                                                             <span className="font-display tabular text-lg">
                                                                 {myRow.homeScore} – {myRow.awayScore}
                                                             </span>
-                                                            {myRow.isJoker && (
-                                                                <span className="font-display text-[10px] text-mustard uppercase">
-                                                                    joker ×2
-                                                                </span>
-                                                            )}
+                                                            <span className="flex items-center gap-2">
+                                                                {myRow.isJoker && (
+                                                                    <span className="font-display text-[10px] text-mustard uppercase">
+                                                                        joker ×2
+                                                                    </span>
+                                                                )}
+                                                                {m.status === "SCHEDULED" && pickLockTime(m.kickoff) > Date.now() && (
+                                                                    <Link
+                                                                        href={`/predictions#match-${m.id}` as never}
+                                                                        className="font-display text-[10px] uppercase tracking-wider text-tournament hover:underline"
+                                                                    >
+                                                                        change →
+                                                                    </Link>
+                                                                )}
+                                                            </span>
                                                         </div>
                                                     </div>
                                                 );

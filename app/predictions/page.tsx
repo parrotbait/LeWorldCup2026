@@ -258,7 +258,8 @@ function renderDay(
                     return (
                         <li
                             key={m.id}
-                            className="flex flex-col gap-2 py-4 text-sm sm:grid sm:grid-cols-[100px_1fr] sm:items-center sm:gap-4"
+                            id={`match-${m.id}`}
+                            className="scroll-mt-4 flex flex-col gap-2 py-4 text-sm sm:grid sm:grid-cols-[100px_1fr] sm:items-center sm:gap-4"
                         >
                             {/* Mobile: horizontal strip above the stepper. Desktop: vertical stack in the left column. */}
                             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 font-display text-[11px] uppercase opacity-70 sm:block sm:text-xs sm:opacity-60">
