@@ -226,28 +226,23 @@ export function ScoreStepper({
                         </span>
                     </span>
                 ) : settled ? (
-                    <>
-                        <span className="text-sm sm:text-base">
+                    <div className={`mx-auto inline-flex flex-col items-center rounded-md border px-3 py-1.5 ${isExact ? "border-pitch/40 bg-pitch/10" : hasPick === false ? "border-tournament/30 bg-tournament/5" : pts > 0 ? "border-ink/20 bg-ink/5" : "border-tournament/30 bg-tournament/5"}`}>
+                        <span className="flex items-center gap-2 text-sm sm:text-base">
                             <span className="opacity-60">
-                                full time {actualHome}–{actualAway}
+                                FT {actualHome}–{actualAway}
                             </span>
-                            <span className="mx-2 opacity-30">·</span>
+                            <span className="opacity-30">·</span>
                             {hasPick === false ? (
-                                <span className="font-bold text-tournament">no pick — 0 pts</span>
+                                <span className="opacity-70">no pick — <span className="font-bold text-tournament">0</span></span>
                             ) : isExact ? (
-                                <span className="font-bold text-pitch">+{pts} exact</span>
+                                <span className="opacity-70">exact <span className="font-bold text-pitch">+{pts}</span></span>
                             ) : pts > 0 ? (
-                                <span className="font-semibold">+{pts} result</span>
+                                <span className="opacity-70">result <span className="font-semibold text-pitch">+{pts}</span></span>
                             ) : (
-                                <span className="opacity-50">missed — 0 pts</span>
+                                <span className="opacity-70">missed <span className="font-bold text-tournament">0</span></span>
                             )}
                         </span>
                         {(() => {
-                            // Decorate the settled label with FT / pens detail
-                            // for knockouts that went to extra time or pens.
-                            // FT score (homeScoreFt/awayScoreFt) is the
-                            // 90-min score; homeScore/awayScore is the AET-
-                            // final. Pens are display-only.
                             const wentToET =
                                 actualHomeFt !== null &&
                                 actualHomeFt !== undefined &&
@@ -274,12 +269,12 @@ export function ScoreStepper({
                                 parts.push(`pens ${actualHomePens}–${actualAwayPens}`);
                             }
                             return (
-                                <p className="mt-0.5 text-[10px] opacity-60">
+                                <span className="text-[10px] opacity-60">
                                     {parts.join(" · ")}
-                                </p>
+                                </span>
                             );
                         })()}
-                    </>
+                    </div>
                 ) : status === "saving" ? (
                     <span className="text-xs opacity-50">saving…</span>
                 ) : status === "error" ? (

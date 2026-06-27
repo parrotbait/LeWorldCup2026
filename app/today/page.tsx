@@ -2,9 +2,10 @@ import { and, asc, desc, eq, gte, inArray, lte, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import Link from "next/link";
 import { db } from "@/db/client";
-import { jokers, leaderboardSnapshotRows, leaderboardSnapshots, matches, players, predictions, teams } from "@/db/schema";
+import { auditLog, jokers, leaderboardSnapshotRows, leaderboardSnapshots, matches, players, predictions, teams } from "@/db/schema";
 import { Confetti } from "./_components/confetti";
 import { CountdownHero } from "./_components/countdown-hero";
+import { ProvisionalBadge } from "./_components/provisional-badge";
 import { NavBar } from "@/app/_components/navbar";
 import { requireSession } from "@/lib/auth";
 import { flag, formatKickoff, pickLockTime } from "@/lib/utils";
@@ -34,7 +35,9 @@ interface PlayerPickRow {
     awayScore: number | null;
     hasPick: boolean;
     points: number;
+    provisionalPoints: number;
     isExact: boolean;
+    isProvisionalExact: boolean;
     correctResult: boolean;
     isJoker: boolean;
 }
@@ -107,6 +110,19 @@ export default async function TodayPage() {
         .orderBy(asc(matches.kickoff))
         .limit(1);
 
+    // Last sync timestamp for the "data as of" staleness indicator on LIVE matches.
+    const hasLiveMatch = liveOrRecent.some((m) => m.status === "LIVE");
+    let lastSyncAt: Date | null = null;
+    if (hasLiveMatch) {
+        const [syncEntry] = await db
+            .select({ at: auditLog.at })
+            .from(auditLog)
+            .where(eq(auditLog.action, "sync-results"))
+            .orderBy(desc(auditLog.id))
+            .limit(1);
+        lastSyncAt = syncEntry?.at ?? null;
+    }
+
     let pickByMatch = new Map<number, PlayerPickRow[]>();
     if (liveOrRecent.length > 0) {
         const matchIds = liveOrRecent.map((m) => m.id);
@@ -134,7 +150,9 @@ export default async function TodayPage() {
                         awayScore: null,
                         hasPick: false,
                         points: 0,
+                        provisionalPoints: 0,
                         isExact: false,
+                        isProvisionalExact: false,
                         correctResult: false,
                         isJoker,
                     };
@@ -148,6 +166,20 @@ export default async function TodayPage() {
                     awayScore: pred.awayScore,
                 });
                 const result = base > 0;
+
+                const provisionalBase = m.status === "LIVE"
+                    ? predictionPoints(
+                          { ...m, status: "FINISHED" },
+                          { homeScore: pred.homeScore, awayScore: pred.awayScore },
+                      )
+                    : 0;
+                const provisionalExact = m.status === "LIVE"
+                    ? isExact(
+                          { ...m, status: "FINISHED" },
+                          { homeScore: pred.homeScore, awayScore: pred.awayScore },
+                      )
+                    : false;
+
                 return {
                     playerId: player.id,
                     displayName: player.displayName,
@@ -155,7 +187,9 @@ export default async function TodayPage() {
                     awayScore: pred.awayScore,
                     hasPick: true,
                     points: base * (isJoker ? 2 : 1),
+                    provisionalPoints: provisionalBase * (isJoker ? 2 : 1),
                     isExact: exact,
+                    isProvisionalExact: provisionalExact,
                     correctResult: result && !exact,
                     isJoker,
                 };
@@ -410,6 +444,72 @@ export default async function TodayPage() {
                                                                     )}
                                                                 </span>
                                                             </div>
+                                                            {(() => {
+                                                                const wentToET =
+                                                                    m.homeScoreFt !== null &&
+                                                                    m.awayScoreFt !== null &&
+                                                                    m.homeScore !== null &&
+                                                                    m.awayScore !== null &&
+                                                                    (m.homeScoreFt !== m.homeScore ||
+                                                                        m.awayScoreFt !== m.awayScore);
+                                                                const wentToPens =
+                                                                    m.homeScorePens !== null && m.awayScorePens !== null;
+                                                                if (!wentToET && !wentToPens) {
+                                                                    return null;
+                                                                }
+                                                                const parts: string[] = [];
+                                                                if (wentToET) {
+                                                                    parts.push(`${m.homeScoreFt}–${m.awayScoreFt} FT, AET`);
+                                                                }
+                                                                if (wentToPens) {
+                                                                    parts.push(`pens ${m.homeScorePens}–${m.awayScorePens}`);
+                                                                }
+                                                                return (
+                                                                    <p className="mt-1 font-display text-[10px] uppercase tracking-wider opacity-60">
+                                                                        {parts.join(" · ")}
+                                                                    </p>
+                                                                );
+                                                            })()}
+                                                        </div>
+                                                    );
+                                                }
+                                                if (m.status === "LIVE") {
+                                                    const liveCardStyle = myRow.isProvisionalExact
+                                                        ? "border-pitch/40 bg-pitch/5"
+                                                        : myRow.provisionalPoints > 0
+                                                          ? "border-ink/30 bg-ink/5"
+                                                          : "border-tournament/30 bg-tournament/5";
+                                                    return (
+                                                        <div className={`relative mx-4 mt-3 mb-2 rounded-lg border border-dashed ${liveCardStyle} px-4 py-3`}>
+                                                            <p className="font-display text-[10px] uppercase tracking-widest opacity-60">
+                                                                Your prediction
+                                                            </p>
+                                                            <div className="mt-1 flex items-center justify-between">
+                                                                <span className="font-display tabular text-lg">
+                                                                    {myRow.homeScore} – {myRow.awayScore}
+                                                                </span>
+                                                                {myRow.provisionalPoints > 0 ? (
+                                                                    <ProvisionalBadge
+                                                                        points={myRow.provisionalPoints}
+                                                                        isExact={myRow.isProvisionalExact}
+                                                                        isJoker={myRow.isJoker}
+                                                                    />
+                                                                ) : (
+                                                                    <span className="animate-pulse font-display tabular text-lg opacity-40">
+                                                                        –
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <p className="mt-2 text-[10px] opacity-40">
+                                                                {myRow.provisionalPoints > 0
+                                                                    ? "Would earn if score holds — not final until full time"
+                                                                    : "Points only awarded at full time"}
+                                                                {lastSyncAt !== null && (
+                                                                    <span className="ml-1">
+                                                                        · score as of {lastSyncAt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/London" })}
+                                                                    </span>
+                                                                )}
+                                                            </p>
                                                         </div>
                                                     );
                                                 }
@@ -523,21 +623,46 @@ export default async function TodayPage() {
                                                                 ? "text-pitch"
                                                                 : r.correctResult
                                                                   ? "opacity-80"
-                                                                  : "opacity-30"
+                                                                  : m.status === "LIVE" && r.provisionalPoints > 0
+                                                                    ? "animate-pulse opacity-40"
+                                                                    : "opacity-30"
                                                         }`}
                                                     >
-                                                        {r.hasPick && r.points > 0 ? `+${r.points}` : "—"}
-                                                        {r.isExact ? (
-                                                            <span className="ml-1 text-[10px] uppercase">
-                                                                exact
+                                                        {m.status === "LIVE" && r.hasPick && r.provisionalPoints > 0 ? (
+                                                            <span title="Provisional — not final until full time">
+                                                                ~{r.provisionalPoints}
+                                                                {r.isProvisionalExact ? (
+                                                                    <span className="ml-1 text-[10px] uppercase">
+                                                                        exact
+                                                                    </span>
+                                                                ) : null}
                                                             </span>
-                                                        ) : null}
+                                                        ) : r.hasPick && r.points > 0 ? (
+                                                            <>
+                                                                +{r.points}
+                                                                {r.isExact ? (
+                                                                    <span className="ml-1 text-[10px] uppercase">
+                                                                        exact
+                                                                    </span>
+                                                                ) : null}
+                                                            </>
+                                                        ) : "—"}
                                                     </span>
                                                 </li>
                                                         );
                                                     });
                                                 })()}
                                         </ul>
+                                        {m.status === "LIVE" && (
+                                            <p className="px-4 py-2 text-center text-[10px] uppercase tracking-wider opacity-40">
+                                                ~ points are provisional until full time
+                                                {lastSyncAt !== null && (
+                                                    <span>
+                                                        {" "}· data as of {lastSyncAt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/London" })}
+                                                    </span>
+                                                )}
+                                            </p>
+                                        )}
                                         </>
                                     )}
                                         </>
