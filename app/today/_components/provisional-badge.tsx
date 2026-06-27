@@ -10,14 +10,18 @@ export function ProvisionalBadge({
     isJoker: boolean;
 }) {
     return (
-        <span className="animate-pulse font-display tabular text-lg opacity-70">
-            {points}
+        <span className="inline-flex items-center gap-1.5 font-display tabular text-lg opacity-50">
+            +{points}
             {isExact && (
-                <span className="ml-1 text-[10px] uppercase">exact</span>
+                <span className="text-[10px] uppercase">exact</span>
             )}
             {isJoker && (
-                <span className="ml-1 text-[10px] text-mustard uppercase">×2</span>
+                <span className="text-[10px] text-mustard uppercase">×2</span>
             )}
+            <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-tournament opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-tournament" />
+            </span>
         </span>
     );
 }

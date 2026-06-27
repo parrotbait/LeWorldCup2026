@@ -495,8 +495,8 @@ export default async function TodayPage() {
                                                                         isJoker={myRow.isJoker}
                                                                     />
                                                                 ) : (
-                                                                    <span className="animate-pulse font-display tabular text-lg opacity-40">
-                                                                        –
+                                                                    <span className="font-display tabular text-lg opacity-40">
+                                                                        0
                                                                     </span>
                                                                 )}
                                                             </div>
@@ -629,13 +629,17 @@ export default async function TodayPage() {
                                                         }`}
                                                     >
                                                         {m.status === "LIVE" && r.hasPick && r.provisionalPoints > 0 ? (
-                                                            <span title="Provisional — not final until full time">
-                                                                ~{r.provisionalPoints}
+                                                            <span className="inline-flex items-center justify-end gap-1" title="Provisional — not final until full time">
+                                                                +{r.provisionalPoints}
                                                                 {r.isProvisionalExact ? (
-                                                                    <span className="ml-1 text-[10px] uppercase">
+                                                                    <span className="text-[10px] uppercase">
                                                                         exact
                                                                     </span>
                                                                 ) : null}
+                                                                <span className="relative flex h-1.5 w-1.5">
+                                                                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-tournament opacity-75" />
+                                                                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-tournament" />
+                                                                </span>
                                                             </span>
                                                         ) : r.hasPick && r.points > 0 ? (
                                                             <>
@@ -654,11 +658,15 @@ export default async function TodayPage() {
                                                 })()}
                                         </ul>
                                         {m.status === "LIVE" && (
-                                            <p className="px-4 py-2 text-center text-[10px] uppercase tracking-wider opacity-40">
-                                                ~ points are provisional until full time
+                                            <p className="flex items-center justify-center gap-1.5 px-4 py-2 text-[10px] uppercase tracking-wider opacity-50">
+                                                <span className="relative flex h-2 w-2">
+                                                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-tournament opacity-75" />
+                                                    <span className="relative inline-flex h-2 w-2 rounded-full bg-tournament" />
+                                                </span>
+                                                points are provisional until full time
                                                 {lastSyncAt !== null && (
                                                     <span>
-                                                        {" "}· data as of {lastSyncAt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/London" })}
+                                                        · data as of {lastSyncAt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/London" })}
                                                     </span>
                                                 )}
                                             </p>
