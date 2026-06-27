@@ -631,11 +631,6 @@ export default async function TodayPage() {
                                                         {m.status === "LIVE" && r.hasPick && r.provisionalPoints > 0 ? (
                                                             <span className="inline-flex items-center justify-end gap-1" title="Provisional — not final until full time">
                                                                 +{r.provisionalPoints}
-                                                                {r.isProvisionalExact ? (
-                                                                    <span className="text-[10px] uppercase">
-                                                                        exact
-                                                                    </span>
-                                                                ) : null}
                                                                 <span className="relative flex h-1.5 w-1.5">
                                                                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-tournament opacity-75" />
                                                                     <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-tournament" />
