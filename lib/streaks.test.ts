@@ -109,6 +109,34 @@ describe("computeStreaks", () => {
         const streaks = computeStreaks(matches, predictions, [1]);
         expect(streaks.get(1)).toBe(0);
     });
+
+    it("breaks streak if any simultaneous match is wrong", () => {
+        const simultaneousMatches = [
+            makeMatch(1, "2026-06-15T15:00:00Z", 2, 1),
+            makeMatch(2, "2026-06-16T15:00:00Z", 0, 0),
+            makeMatch(3, "2026-06-16T15:00:00Z", 3, 1),
+        ];
+        const predictions = [
+            { playerId: 1, matchId: 3, homeScore: 2, awayScore: 0 },
+            { playerId: 1, matchId: 2, homeScore: 1, awayScore: 1 },
+            { playerId: 1, matchId: 1, homeScore: 2, awayScore: 1 },
+        ];
+        // match 2: pred 1-1 vs actual 0-0 = correct (draw), match 3: pred 2-0 vs actual 3-1 = correct (home win)
+        // but match 2 is 1-1 vs 0-0 → correct result (both draws) = 2 pts ✓
+        // match 3 is 2-0 vs 3-1 → correct result (home win) = 2 pts ✓
+        // So streak should be 3 here. Let's test a real break:
+        const predsWithWrong = [
+            { playerId: 1, matchId: 3, homeScore: 2, awayScore: 0 },
+            { playerId: 1, matchId: 2, homeScore: 2, awayScore: 0 },
+            { playerId: 1, matchId: 1, homeScore: 2, awayScore: 1 },
+        ];
+        // match 2: pred 2-0 (home win) vs actual 0-0 (draw) = 0 pts ✗
+        // match 3: pred 2-0 (home win) vs actual 3-1 (home win) = 2 pts ✓
+        // These are simultaneous (same kickoff) — wrong in match 2 breaks streak
+        const streaks = computeStreaks(simultaneousMatches, predsWithWrong, [1]);
+        // Streak should be 0: most recent group (matches 2+3) has a wrong, so streak breaks
+        expect(streaks.get(1)).toBe(0);
+    });
 });
 
 describe("streakFlames", () => {
