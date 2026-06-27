@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { env } from "@/lib/env";
-import { syncResultsFromFootballData } from "@/lib/sync";
+import { syncResultsFromFootballData, SyncRegressionError } from "@/lib/sync";
 import { sendPickReminders } from "@/lib/reminders";
 import { db } from "@/db/client";
 import { auditLog } from "@/db/schema";
@@ -37,7 +37,25 @@ export async function GET(request: NextRequest) {
     // audit log can distinguish scheduled syncs from on-demand ones.
     const isVercelCron = request.headers.get("user-agent")?.includes("vercel-cron") ?? false;
     const actor = isVercelCron ? "cron" : "manual-cron";
-    const sync = await syncResultsFromFootballData(actor);
+
+    let sync;
+    try {
+        sync = await syncResultsFromFootballData(actor);
+    } catch (e) {
+        if (e instanceof SyncRegressionError) {
+            return NextResponse.json(
+                {
+                    error: "regression_detected",
+                    message: e.message,
+                    regressions: e.audit.regressions,
+                    matchDiffs: e.audit.matchDiffs,
+                },
+                { status: 409 },
+            );
+        }
+        throw e;
+    }
+
     const reminders = await sendPickReminders();
     await db.insert(auditLog).values({
         actor,

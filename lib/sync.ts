@@ -8,14 +8,34 @@
  * Returns counters + any per-step errors so the caller can render a result
  * to the user (audit-log on top of that). Idempotent — safe to run as often
  * as you like, subject to football-data's 10 req/min free-tier limit.
+ *
+ * ## Integrity
+ * After writing match data, the sync computes what the new leaderboard would
+ * look like and compares it to the pre-sync state. If any player's points
+ * decrease (a "regression"), the sync is aborted via transaction rollback and
+ * a SyncRegressionError is thrown — unless SYNC_FORCE=1 is set.
+ *
+ * ## Performance
+ * Teams are pre-loaded into a Map before the match loop, eliminating ~208
+ * individual SELECT queries (one per home/away per match).
+ *
+ * ## Robustness
+ * The entire match-write phase runs inside a DB transaction, so if the user
+ * navigates away or the process crashes mid-sync, partial writes don't persist.
  */
 
 import { eq, sql } from "drizzle-orm";
 import { revalidateTag } from "next/cache";
 import { db } from "@/db/client";
-import { auditLog, matches, teams } from "@/db/schema";
+import { auditLog, matches, players, teams } from "@/db/schema";
 import { fetchMatches, fetchTeams, mapStage } from "@/lib/football-data";
-import { runSnapshotPipelineQuietly } from "@/lib/snapshot";
+import { computeSnapshotState, loadSnapshotInput, runSnapshotPipelineQuietly } from "@/lib/snapshot";
+import {
+    buildSyncAuditTrail,
+    SyncRegressionError,
+    type MatchState,
+    type SyncAuditTrail,
+} from "@/lib/sync-integrity";
 
 export interface SyncResult {
     teamCount: number;
@@ -29,6 +49,8 @@ export interface SyncResult {
     /** Total wall-clock duration of the sync in ms. */
     durationMs: number;
     actor: string;
+    /** Full diff audit trail (match diffs + player point impacts). */
+    audit?: SyncAuditTrail;
 }
 
 function describeError(e: unknown): string {
@@ -45,16 +67,33 @@ function describeError(e: unknown): string {
     return String(e);
 }
 
-export async function syncResultsFromFootballData(actor: string): Promise<SyncResult> {
+export { SyncRegressionError } from "@/lib/sync-integrity";
+
+export interface SyncOptions {
+    /** When true, a point regression throws SyncRegressionError and rolls back.
+     *  When false, regressions are logged but the sync commits anyway.
+     *  Default: false (cron behaviour — never silently stuck). */
+    blockOnRegression?: boolean;
+}
+
+export async function syncResultsFromFootballData(
+    actor: string,
+    opts: SyncOptions = {},
+): Promise<SyncResult> {
     const startedAt = Date.now();
     let teamCount = 0;
     let matchCount = 0;
     const matchStatusCounts: Record<string, number> = {};
     const matchErrors: Array<{ externalId: number; message: string }> = [];
     const errors: string[] = [];
+    let audit: SyncAuditTrail | undefined;
 
-    console.log(`[sync ${actor}] start`);
+    const forceSync = process.env.SYNC_FORCE === "1";
+    const blockOnRegression = opts.blockOnRegression ?? false;
 
+    console.log(`[sync ${actor}] start${forceSync ? " (FORCE)" : ""}`);
+
+    // --- Phase 1: Upsert teams ---
     try {
         const fdTeams = await fetchTeams();
         console.log(`[sync ${actor}] FD returned ${fdTeams.length} teams`);
@@ -75,177 +114,228 @@ export async function syncResultsFromFootballData(actor: string): Promise<SyncRe
         errors.push(`teams: ${describeError(e)}`);
     }
 
+    // --- Phase 2: Pre-load team map (eliminates ~208 SELECTs) ---
+    const allTeams = await db.select().from(teams);
+    const teamByCode = new Map(allTeams.map((t) => [t.code, t]));
+
+    // --- Phase 3: Capture pre-sync state for regression detection ---
+    const preSnapshotInput = await loadSnapshotInput();
+    const preState = computeSnapshotState(preSnapshotInput);
+
+    // Capture pre-sync match state for the audit trail
+    const home = await db.select().from(matches);
+    const matchesBefore: MatchState[] = home.map((m) => {
+        const homeT = allTeams.find((t) => t.id === m.homeTeamId);
+        const awayT = allTeams.find((t) => t.id === m.awayTeamId);
+        return {
+            id: m.id,
+            externalId: m.externalId,
+            status: m.status,
+            homeScore: m.homeScore,
+            awayScore: m.awayScore,
+            homeName: homeT?.name ?? null,
+            awayName: awayT?.name ?? null,
+        };
+    });
+
+    // --- Phase 4: Upsert matches inside a transaction ---
     try {
         const fdMatches = await fetchMatches();
         console.log(`[sync ${actor}] FD returned ${fdMatches.length} matches`);
-        // Track which teams belong to which group as we go — football-data
-        // carries the group letter on the match, not on /teams, so we backfill
-        // from there.
-        const groupByTeamId = new Map<number, string>();
-        for (const m of fdMatches) {
-            try {
-                const homeTeam = m.homeTeam.tla
-                    ? (await db.select().from(teams).where(eq(teams.code, m.homeTeam.tla)).limit(1))[0]
-                    : undefined;
-                const awayTeam = m.awayTeam.tla
-                    ? (await db.select().from(teams).where(eq(teams.code, m.awayTeam.tla)).limit(1))[0]
-                    : undefined;
 
-                const status =
-                    m.status === "FINISHED"
-                        ? "FINISHED"
-                        : m.status === "IN_PLAY" || m.status === "PAUSED"
-                          ? "LIVE"
-                          : m.status === "POSTPONED"
-                            ? "POSTPONED"
-                            : m.status === "CANCELLED" || m.status === "SUSPENDED"
-                              ? "CANCELLED"
-                              : "SCHEDULED";
+        await db.transaction(async (tx) => {
+            const groupByTeamId = new Map<number, string>();
 
-                const groupLetter = m.group?.replace("GROUP_", "") ?? null;
-                if (groupLetter !== null) {
-                    if (homeTeam !== undefined) {
-                        groupByTeamId.set(homeTeam.id, groupLetter);
+            for (const m of fdMatches) {
+                try {
+                    const homeTeam = m.homeTeam.tla
+                        ? teamByCode.get(m.homeTeam.tla)
+                        : undefined;
+                    const awayTeam = m.awayTeam.tla
+                        ? teamByCode.get(m.awayTeam.tla)
+                        : undefined;
+
+                    const status =
+                        m.status === "FINISHED"
+                            ? "FINISHED"
+                            : m.status === "IN_PLAY" || m.status === "PAUSED"
+                              ? "LIVE"
+                              : m.status === "POSTPONED"
+                                ? "POSTPONED"
+                                : m.status === "CANCELLED" || m.status === "SUSPENDED"
+                                  ? "CANCELLED"
+                                  : "SCHEDULED";
+
+                    const groupLetter = m.group?.replace("GROUP_", "") ?? null;
+                    if (groupLetter !== null) {
+                        if (homeTeam !== undefined) {
+                            groupByTeamId.set(homeTeam.id, groupLetter);
+                        }
+                        if (awayTeam !== undefined) {
+                            groupByTeamId.set(awayTeam.id, groupLetter);
+                        }
                     }
-                    if (awayTeam !== undefined) {
-                        groupByTeamId.set(awayTeam.id, groupLetter);
+
+                    const winnerTeamId =
+                        m.score.winner === "HOME_TEAM"
+                            ? (homeTeam?.id ?? null)
+                            : m.score.winner === "AWAY_TEAM"
+                              ? (awayTeam?.id ?? null)
+                              : null;
+
+                    const ftHome = m.score.fullTime.home;
+                    const ftAway = m.score.fullTime.away;
+                    const etHome = m.score.extraTime?.home ?? null;
+                    const etAway = m.score.extraTime?.away ?? null;
+                    const pensHome = m.score.penalties?.home ?? null;
+                    const pensAway = m.score.penalties?.away ?? null;
+                    const scoringHome = etHome ?? ftHome;
+                    const scoringAway = etAway ?? ftAway;
+
+                    const newKickoff = new Date(m.utcDate);
+                    const firstLockedAt = new Date(newKickoff.getTime() - 15 * 60_000);
+
+                    const existing = (
+                        await tx
+                            .select({
+                                id: matches.id,
+                                homeTeamId: matches.homeTeamId,
+                                awayTeamId: matches.awayTeamId,
+                                adminOverridden: matches.adminOverridden,
+                            })
+                            .from(matches)
+                            .where(eq(matches.externalId, m.id))
+                            .limit(1)
+                    )[0];
+                    if (
+                        existing !== undefined &&
+                        !existing.adminOverridden &&
+                        ((existing.homeTeamId !== null &&
+                            homeTeam !== undefined &&
+                            existing.homeTeamId !== homeTeam.id) ||
+                            (existing.awayTeamId !== null &&
+                                awayTeam !== undefined &&
+                                existing.awayTeamId !== awayTeam.id))
+                    ) {
+                        errors.push(
+                            `match externalId=${m.id} renumbered: was ${existing.homeTeamId}vs${existing.awayTeamId}, now ${homeTeam?.id ?? null}vs${awayTeam?.id ?? null}`,
+                        );
                     }
-                }
 
-                // Map football-data's winner enum to our team-id reference. Group
-                // matches that ended in a draw (or any unfinished match) leave
-                // winnerTeamId null; knockouts decided on penalties surface the
-                // actual advancer here even though `score.fullTime` is a draw.
-                const winnerTeamId =
-                    m.score.winner === "HOME_TEAM"
-                        ? (homeTeam?.id ?? null)
-                        : m.score.winner === "AWAY_TEAM"
-                          ? (awayTeam?.id ?? null)
-                          : null;
-
-                // Canonical "scoring score": AET-final if extra time happened,
-                // otherwise 90-min. Penalty shootouts are display-only — we keep
-                // them in dedicated columns and never fold them into homeScore.
-                const ftHome = m.score.fullTime.home;
-                const ftAway = m.score.fullTime.away;
-                const etHome = m.score.extraTime?.home ?? null;
-                const etAway = m.score.extraTime?.away ?? null;
-                const pensHome = m.score.penalties?.home ?? null;
-                const pensAway = m.score.penalties?.away ?? null;
-                const scoringHome = etHome ?? ftHome;
-                const scoringAway = etAway ?? ftAway;
-
-                const newKickoff = new Date(m.utcDate);
-                // First-time lock cutoff for this fixture: 15 min before its
-                // ORIGINAL kickoff. Drizzle won't overwrite this on conflict
-                // because we omit it from the `set:` clause below.
-                const firstLockedAt = new Date(newKickoff.getTime() - 15 * 60_000);
-
-                // FD-renumber detection: if a non-overridden row already exists
-                // with a different non-null home/away team, FD has likely reused
-                // the externalId for a different fixture. Surface as an audit
-                // entry so admin can investigate; we still apply the upsert.
-                const existing = (
-                    await db
-                        .select({
-                            id: matches.id,
-                            homeTeamId: matches.homeTeamId,
-                            awayTeamId: matches.awayTeamId,
-                            adminOverridden: matches.adminOverridden,
-                        })
-                        .from(matches)
-                        .where(eq(matches.externalId, m.id))
-                        .limit(1)
-                )[0];
-                if (
-                    existing !== undefined &&
-                    !existing.adminOverridden &&
-                    ((existing.homeTeamId !== null &&
-                        homeTeam !== undefined &&
-                        existing.homeTeamId !== homeTeam.id) ||
-                        (existing.awayTeamId !== null &&
-                            awayTeam !== undefined &&
-                            existing.awayTeamId !== awayTeam.id))
-                ) {
-                    errors.push(
-                        `match externalId=${m.id} renumbered: was ${existing.homeTeamId}vs${existing.awayTeamId}, now ${homeTeam?.id ?? null}vs${awayTeam?.id ?? null}`,
-                    );
-                }
-
-                await db
-                    .insert(matches)
-                    .values({
-                        externalId: m.id,
-                        round: mapStage(m.stage),
-                        groupLetter,
-                        kickoff: newKickoff,
-                        firstLockedAt,
-                        homeTeamId: homeTeam?.id,
-                        awayTeamId: awayTeam?.id,
-                        homeScore: scoringHome,
-                        awayScore: scoringAway,
-                        homeScoreFt: ftHome,
-                        awayScoreFt: ftAway,
-                        homeScorePens: pensHome,
-                        awayScorePens: pensAway,
-                        winnerTeamId,
-                        status,
-                        venue: m.venue ?? null,
-                    })
-                    .onConflictDoUpdate({
-                        target: matches.externalId,
-                        set: {
-                            // Admin-overridden rows are sacred — only the venue
-                            // (cosmetic) and team-id (in case TBDs got resolved)
-                            // may move. Score/status/kickoff/winner are frozen
-                            // until clearOverrideAction. first_locked_at is also
-                            // omitted unconditionally — once a match has ever
-                            // passed its original lock, it stays locked.
-                            // Inside `sql\`\`` Drizzle can't see the target
-                            // column type, so postgres-js receives a raw
-                            // Date and crashes in its string serializer.
-                            // Convert to ISO; Postgres parses it into the
-                            // timestamptz column the same as a Date would.
-                            kickoff: sql`CASE WHEN ${matches.adminOverridden} THEN ${matches.kickoff} ELSE ${newKickoff.toISOString()} END`,
+                    await tx
+                        .insert(matches)
+                        .values({
+                            externalId: m.id,
+                            round: mapStage(m.stage),
+                            groupLetter,
+                            kickoff: newKickoff,
+                            firstLockedAt,
                             homeTeamId: homeTeam?.id,
                             awayTeamId: awayTeam?.id,
-                            homeScore: sql`CASE WHEN ${matches.adminOverridden} THEN ${matches.homeScore} ELSE ${scoringHome} END`,
-                            awayScore: sql`CASE WHEN ${matches.adminOverridden} THEN ${matches.awayScore} ELSE ${scoringAway} END`,
-                            homeScoreFt: sql`CASE WHEN ${matches.adminOverridden} THEN ${matches.homeScoreFt} ELSE ${ftHome} END`,
-                            awayScoreFt: sql`CASE WHEN ${matches.adminOverridden} THEN ${matches.awayScoreFt} ELSE ${ftAway} END`,
-                            homeScorePens: sql`CASE WHEN ${matches.adminOverridden} THEN ${matches.homeScorePens} ELSE ${pensHome} END`,
-                            awayScorePens: sql`CASE WHEN ${matches.adminOverridden} THEN ${matches.awayScorePens} ELSE ${pensAway} END`,
-                            winnerTeamId: sql`CASE WHEN ${matches.adminOverridden} THEN ${matches.winnerTeamId} ELSE ${winnerTeamId} END`,
-                            status: sql`CASE WHEN ${matches.adminOverridden} THEN ${matches.status} ELSE ${status} END`,
+                            homeScore: scoringHome,
+                            awayScore: scoringAway,
+                            homeScoreFt: ftHome,
+                            awayScoreFt: ftAway,
+                            homeScorePens: pensHome,
+                            awayScorePens: pensAway,
+                            winnerTeamId,
+                            status,
                             venue: m.venue ?? null,
-                        },
-                    });
-                matchCount += 1;
-                matchStatusCounts[status] = (matchStatusCounts[status] ?? 0) + 1;
-                const score =
-                    scoringHome !== null && scoringAway !== null
-                        ? `${scoringHome}-${scoringAway}`
-                        : "—";
-                const home = m.homeTeam.tla ?? "TBD";
-                const away = m.awayTeam.tla ?? "TBD";
-                console.log(
-                    `[sync ${actor}] ✓ ext=${m.id} ${home} vs ${away} ` +
-                        `kickoff=${newKickoff.toISOString()} status=${status} score=${score}`,
-                );
-            } catch (e) {
-                // One bad row shouldn't sink the rest of the batch — record it
-                // and keep going so the admin can investigate per-match.
-                const message = describeError(e);
-                matchErrors.push({ externalId: m.id, message });
-                console.error(`[sync ${actor}] ✗ ext=${m.id} ${message}`);
+                        })
+                        .onConflictDoUpdate({
+                            target: matches.externalId,
+                            set: {
+                                kickoff: sql`CASE WHEN ${matches.adminOverridden} THEN ${matches.kickoff} ELSE ${newKickoff.toISOString()} END`,
+                                homeTeamId: homeTeam?.id,
+                                awayTeamId: awayTeam?.id,
+                                homeScore: sql`CASE WHEN ${matches.adminOverridden} THEN ${matches.homeScore} ELSE ${scoringHome} END`,
+                                awayScore: sql`CASE WHEN ${matches.adminOverridden} THEN ${matches.awayScore} ELSE ${scoringAway} END`,
+                                homeScoreFt: sql`CASE WHEN ${matches.adminOverridden} THEN ${matches.homeScoreFt} ELSE ${ftHome} END`,
+                                awayScoreFt: sql`CASE WHEN ${matches.adminOverridden} THEN ${matches.awayScoreFt} ELSE ${ftAway} END`,
+                                homeScorePens: sql`CASE WHEN ${matches.adminOverridden} THEN ${matches.homeScorePens} ELSE ${pensHome} END`,
+                                awayScorePens: sql`CASE WHEN ${matches.adminOverridden} THEN ${matches.awayScorePens} ELSE ${pensAway} END`,
+                                winnerTeamId: sql`CASE WHEN ${matches.adminOverridden} THEN ${matches.winnerTeamId} ELSE ${winnerTeamId} END`,
+                                status: sql`CASE WHEN ${matches.adminOverridden} THEN ${matches.status} ELSE ${status} END`,
+                                venue: m.venue ?? null,
+                            },
+                        });
+                    matchCount += 1;
+                    matchStatusCounts[status] = (matchStatusCounts[status] ?? 0) + 1;
+                } catch (e) {
+                    const message = describeError(e);
+                    matchErrors.push({ externalId: m.id, message });
+                    console.error(`[sync ${actor}] ✗ ext=${m.id} ${message}`);
+                }
             }
-        }
 
-        // Backfill teams.group_letter from the matches we just processed.
-        for (const [teamId, groupLetter] of groupByTeamId) {
-            await db.update(teams).set({ groupLetter }).where(eq(teams.id, teamId));
-        }
+            // Backfill teams.group_letter inside the same transaction
+            for (const [teamId, groupLetter] of groupByTeamId) {
+                await tx.update(teams).set({ groupLetter }).where(eq(teams.id, teamId));
+            }
+
+            // --- Phase 5: Regression detection (inside tx so we can rollback) ---
+            const postSnapshotInput = await loadSnapshotInput(tx);
+            const postState = computeSnapshotState(postSnapshotInput);
+
+            const matchesAfter: MatchState[] = (
+                await tx.select().from(matches)
+            ).map((m) => {
+                const homeT = allTeams.find((t) => t.id === m.homeTeamId);
+                const awayT = allTeams.find((t) => t.id === m.awayTeamId);
+                return {
+                    id: m.id,
+                    externalId: m.externalId,
+                    status: m.status,
+                    homeScore: m.homeScore,
+                    awayScore: m.awayScore,
+                    homeName: homeT?.name ?? null,
+                    awayName: awayT?.name ?? null,
+                };
+            });
+
+            const allPlayers = await tx.select().from(players);
+            const displayNames = new Map(allPlayers.map((p) => [p.id, p.displayName]));
+
+            audit = buildSyncAuditTrail(
+                matchesBefore,
+                matchesAfter,
+                preState,
+                postState,
+                displayNames,
+            );
+
+            if (audit.hasRegression && !forceSync && blockOnRegression) {
+                throw new SyncRegressionError(audit);
+            }
+
+            if (audit.hasRegression && !blockOnRegression) {
+                console.warn(
+                    `[sync ${actor}] ⚠️ REGRESSION detected but committing (non-blocking mode): ` +
+                        audit.regressions.map((r) => `${r.displayName} ${r.pointsDelta}`).join(", "),
+                );
+            }
+
+            console.log(
+                `[sync ${actor}] match upserts complete: ${matchCount} matches, ` +
+                    `${audit.matchDiffs.length} diffs, ` +
+                    `${audit.regressions.length} regressions${forceSync && audit.hasRegression ? " (FORCED)" : ""}`,
+            );
+        });
     } catch (e) {
+        if (e instanceof SyncRegressionError) {
+            const durationMs = Date.now() - startedAt;
+            await db.insert(auditLog).values({
+                actor,
+                action: "sync-blocked-regression",
+                detail: JSON.stringify({
+                    regressions: e.audit.regressions,
+                    matchDiffs: e.audit.matchDiffs,
+                    playerImpacts: e.audit.playerImpacts,
+                    durationMs,
+                }),
+            });
+            throw e;
+        }
         errors.push(`matches: ${describeError(e)}`);
     }
 
@@ -267,6 +357,14 @@ export async function syncResultsFromFootballData(actor: string): Promise<SyncRe
             matchErrors,
             errors,
             durationMs,
+            regressionDetected: audit?.hasRegression ?? false,
+            audit: audit !== undefined
+                ? {
+                      matchDiffs: audit.matchDiffs,
+                      regressions: audit.regressions,
+                      playerImpacts: audit.playerImpacts,
+                  }
+                : undefined,
         }),
     });
 
@@ -294,5 +392,6 @@ export async function syncResultsFromFootballData(actor: string): Promise<SyncRe
         errors,
         durationMs,
         actor,
+        audit,
     };
 }

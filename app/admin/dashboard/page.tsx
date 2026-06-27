@@ -5,8 +5,35 @@ import { auditLog, matches, players } from "@/db/schema";
 import { adminLogoutAction } from "@/app/actions/auth";
 import { requireAdmin } from "@/lib/auth";
 import { SyncNowButton } from "./_sync-now-button";
+import { AuditLogSection } from "./_audit-log-section";
 
 export const revalidate = 0;
+
+const ERROR_ACTIONS = new Set([
+    "sync-blocked-regression",
+    "snapshot-error",
+]);
+
+function isErrorEntry(entry: { action: string; detail: string | null }): boolean {
+    if (ERROR_ACTIONS.has(entry.action)) {
+        return true;
+    }
+    if (entry.action === "sync-results" && entry.detail !== null) {
+        try {
+            const parsed = JSON.parse(entry.detail);
+            if (
+                (parsed.errors?.length ?? 0) > 0 ||
+                (parsed.matchErrors?.length ?? 0) > 0 ||
+                parsed.regressionDetected === true
+            ) {
+                return true;
+            }
+        } catch {
+            // malformed JSON — not an error entry
+        }
+    }
+    return false;
+}
 
 export default async function AdminDashboardPage() {
     await requireAdmin();
@@ -15,6 +42,8 @@ export default async function AdminDashboardPage() {
         db.select({ c: count() }).from(matches),
         db.select().from(auditLog).orderBy(desc(auditLog.id)).limit(50),
     ]);
+
+    const errorEntries = recentLog.filter(isErrorEntry);
 
     return (
         <main className="mx-auto max-w-3xl px-6 py-8">
@@ -52,27 +81,7 @@ export default async function AdminDashboardPage() {
                 </ul>
             </section>
 
-            <section className="mt-10">
-                <h2 className="font-display text-sm uppercase tracking-wider">Recent activity</h2>
-                <ul className="mt-3 divide-y divide-ink/15 text-sm">
-                    {recentLog.length === 0 ? (
-                        <li className="py-4 text-xs opacity-60">No log entries yet.</li>
-                    ) : (
-                        recentLog.map((l) => (
-                            <li key={l.id} className="flex items-baseline gap-3 py-2">
-                                <span className="w-40 font-display text-xs opacity-50">
-                                    {l.at.toISOString().replace("T", " ").slice(0, 19)}
-                                </span>
-                                <span className="w-20 font-display text-xs uppercase opacity-70">{l.actor}</span>
-                                <span>{l.action}</span>
-                                {l.detail !== null ? (
-                                    <span className="ml-2 text-xs opacity-50">{l.detail}</span>
-                                ) : null}
-                            </li>
-                        ))
-                    )}
-                </ul>
-            </section>
+            <AuditLogSection entries={recentLog} errorEntries={errorEntries} />
 
             <section className="mt-10">
                 <h2 className="font-display text-sm uppercase tracking-wider">TODO</h2>

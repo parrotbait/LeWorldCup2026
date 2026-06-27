@@ -13,7 +13,7 @@ import {
     loadSnapshotInput,
     writeSnapshot,
 } from "@/lib/snapshot";
-import { syncResultsFromFootballData } from "@/lib/sync";
+import { syncResultsFromFootballData, SyncRegressionError } from "@/lib/sync";
 
 async function ensureAdmin(): Promise<void> {
     if (!(await isAdmin())) {
@@ -282,12 +282,14 @@ export interface AdminSyncResult extends AdminResult {
     teamCount?: number;
     matchCount?: number;
     syncErrors?: string[];
+    regressionBlocked?: boolean;
+    regressionDetail?: string;
 }
 
 export async function triggerSyncAction(): Promise<AdminSyncResult> {
     await ensureAdmin();
     try {
-        const result = await syncResultsFromFootballData("admin");
+        const result = await syncResultsFromFootballData("admin", { blockOnRegression: true });
         revalidatePath("/leaderboard");
         revalidatePath("/today");
         revalidatePath("/predictions");
@@ -300,6 +302,14 @@ export async function triggerSyncAction(): Promise<AdminSyncResult> {
             syncErrors: result.errors,
         };
     } catch (e) {
+        if (e instanceof SyncRegressionError) {
+            return {
+                ok: false,
+                error: e.message,
+                regressionBlocked: true,
+                regressionDetail: JSON.stringify(e.audit.regressions),
+            };
+        }
         return { ok: false, error: (e as Error).message };
     }
 }
