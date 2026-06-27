@@ -363,21 +363,17 @@ export default async function TodayPage() {
                                         <p className="px-4 py-6 text-center text-xs opacity-60">
                                             No players in the league yet.
                                         </p>
-                                    ) : !revealed ? (
-                                        <p className="px-4 py-6 text-center text-xs opacity-60">
-                                            Picks reveal 15 min before kickoff.
-                                        </p>
                                     ) : (
                                         <>
                                             {(() => {
-                                                if (m.status !== "FINISHED") {
-                                                    return null;
-                                                }
                                                 const myRow = rows.find((r) => r.playerId === session.playerId);
                                                 if (myRow === undefined) {
                                                     return null;
                                                 }
                                                 if (!myRow.hasPick) {
+                                                    if (m.status !== "FINISHED") {
+                                                        return null;
+                                                    }
                                                     return (
                                                         <div className="relative mx-4 mt-3 mb-2 rounded-lg border border-ink/20 bg-ink/5 px-4 py-3">
                                                             <p className="font-display text-[10px] uppercase tracking-widest opacity-60">
@@ -389,9 +385,36 @@ export default async function TodayPage() {
                                                         </div>
                                                     );
                                                 }
+                                                if (m.status === "FINISHED") {
+                                                    return (
+                                                        <div className={`relative mx-4 mt-3 mb-2 rounded-lg border px-4 py-3 ${myRow.isExact ? "border-pitch/40 bg-pitch/10" : myRow.correctResult ? "border-ink/20 bg-ink/5" : "border-tournament/30 bg-tournament/5"}`}>
+                                                            {myRow.isExact && <Confetti matchId={m.id} />}
+                                                            <p className="font-display text-[10px] uppercase tracking-widest opacity-60">
+                                                                Your prediction
+                                                            </p>
+                                                            <div className="mt-1 flex items-center justify-between">
+                                                                <span className="font-display tabular text-lg">
+                                                                    {myRow.homeScore} – {myRow.awayScore}
+                                                                </span>
+                                                                <span className={`font-display tabular text-lg ${myRow.isExact ? "text-pitch" : myRow.correctResult ? "" : "text-tournament"}`}>
+                                                                    {myRow.points > 0 ? `+${myRow.points}` : "0"}
+                                                                    {myRow.isExact && (
+                                                                        <span className="ml-1 text-[10px] uppercase">
+                                                                            exact
+                                                                        </span>
+                                                                    )}
+                                                                    {myRow.isJoker && (
+                                                                        <span className="ml-1 text-[10px] text-mustard uppercase">
+                                                                            ×2
+                                                                        </span>
+                                                                    )}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                }
                                                 return (
-                                                    <div className={`relative mx-4 mt-3 mb-2 rounded-lg border px-4 py-3 ${myRow.isExact ? "border-pitch/40 bg-pitch/10" : myRow.correctResult ? "border-ink/20 bg-ink/5" : "border-tournament/30 bg-tournament/5"}`}>
-                                                        {myRow.isExact && <Confetti matchId={m.id} />}
+                                                    <div className="relative mx-4 mt-3 mb-2 rounded-lg border border-ink/20 bg-ink/5 px-4 py-3">
                                                         <p className="font-display text-[10px] uppercase tracking-widest opacity-60">
                                                             Your prediction
                                                         </p>
@@ -399,23 +422,21 @@ export default async function TodayPage() {
                                                             <span className="font-display tabular text-lg">
                                                                 {myRow.homeScore} – {myRow.awayScore}
                                                             </span>
-                                                            <span className={`font-display tabular text-lg ${myRow.isExact ? "text-pitch" : myRow.correctResult ? "" : "text-tournament"}`}>
-                                                                {myRow.points > 0 ? `+${myRow.points}` : "0"}
-                                                                {myRow.isExact && (
-                                                                    <span className="ml-1 text-[10px] uppercase">
-                                                                        exact
-                                                                    </span>
-                                                                )}
-                                                                {myRow.isJoker && (
-                                                                    <span className="ml-1 text-[10px] text-mustard uppercase">
-                                                                        ×2
-                                                                    </span>
-                                                                )}
-                                                            </span>
+                                                            {myRow.isJoker && (
+                                                                <span className="font-display text-[10px] text-mustard uppercase">
+                                                                    joker ×2
+                                                                </span>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 );
                                             })()}
+                                            {!revealed ? (
+                                                <p className="px-4 py-6 text-center text-xs opacity-60">
+                                                    Picks reveal 15 min before kickoff.
+                                                </p>
+                                            ) : (
+                                            <>
                                             {(() => {
                                                 if (m.status !== "FINISHED" && m.status !== "LIVE") {
                                                     return null;
@@ -450,7 +471,7 @@ export default async function TodayPage() {
                                                         }).length;
                                                         crowdThreshold = matchingCount / total;
                                                     }
-                                                    return rows.filter((r) => m.status !== "FINISHED" || r.playerId !== session.playerId).map((r) => {
+                                                    return rows.filter((r) => r.playerId !== session.playerId).map((r) => {
                                                         const isContrarian = actualOutcome !== null && r.hasPick && (r.correctResult || r.isExact) && crowdThreshold <= 0.2;
                                                         return (
                                                     <li
@@ -507,6 +528,8 @@ export default async function TodayPage() {
                                                     });
                                                 })()}
                                         </ul>
+                                        </>
+                                    )}
                                         </>
                                     )}
                                 </section>
