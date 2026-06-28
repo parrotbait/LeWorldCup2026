@@ -256,7 +256,7 @@ export default async function BonusesPage() {
                     <h2 className="font-display text-sm uppercase tracking-[0.25em] text-tournament">
                         Teams
                     </h2>
-                    <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="mt-3 grid grid-cols-1 gap-8 sm:grid-cols-2 sm:gap-6">
                         <TeamBonusCard
                             leader={null}
                             resolution={findResolution("WINNER")}
@@ -366,6 +366,7 @@ export default async function BonusesPage() {
                             earnedPoints={earnedFor("MIGHTY_FALLEN")}
                             allPicks={picksFor("MIGHTY_FALLEN")}
                             finalized={groupsResolved}
+                            emptyResolutionLabel="no Pot-1 team eliminated"
                         >
                             <TeamBonusPicker
                                 kind="MIGHTY_FALLEN"
@@ -381,11 +382,11 @@ export default async function BonusesPage() {
                     </div>
                 </section>
 
-                <section className="mt-10">
+                <section className="mt-10 border-t border-ink/15 pt-10">
                     <h2 className="font-display text-sm uppercase tracking-[0.25em] text-tournament">
                         Players
                     </h2>
-                    <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="mt-3 grid grid-cols-1 gap-8 sm:grid-cols-2 sm:gap-6">
                         <PlayerBonusCard
                             leader={topScorerLeader}
                             metricLabel={goalsLabel}
@@ -452,7 +453,7 @@ function PlayerBonusCard({
 }) {
     const resolved = resolution !== undefined && resolution.playerNames.length > 0;
     return (
-        <div className="flex flex-col">
+        <div className="flex flex-col border-b border-ink/10 pb-6 last:border-b-0 sm:border-b-0 sm:pb-0">
             {children}
             {resolved ? (
                 <BonusResultChip
@@ -480,6 +481,7 @@ function TeamBonusCard({
     earnedPoints,
     allPicks,
     finalized = false,
+    emptyResolutionLabel,
 }: {
     children: React.ReactNode;
     leader: LiveLeader | null;
@@ -491,10 +493,12 @@ function TeamBonusCard({
     earnedPoints?: number;
     allPicks?: AllPicksGroup[];
     finalized?: boolean;
+    emptyResolutionLabel?: string;
 }) {
     const resolved = resolution !== undefined && resolution.teamIds.length > 0;
+    const resolvedEmpty = resolution !== undefined && resolution.teamIds.length === 0 && emptyResolutionLabel !== undefined;
     return (
-        <div className="flex flex-col">
+        <div className="flex flex-col border-b border-ink/10 pb-6 last:border-b-0 sm:border-b-0 sm:pb-0">
             {children}
             {resolved ? (
                 <BonusResultChip
@@ -504,6 +508,10 @@ function TeamBonusCard({
                     myPickTeamId={myPickTeamId ?? null}
                     earnedPoints={earnedPoints}
                 />
+            ) : resolvedEmpty ? (
+                <p className="mt-2 font-display text-[11px] uppercase tracking-wider opacity-40">
+                    <span className="opacity-60">result:</span> {emptyResolutionLabel}
+                </p>
             ) : leader !== null ? (
                 <LiveLeaderChip leader={leader} subjectPlural={subjectPlural} metricLabel={metricLabel} finalized={finalized} />
             ) : null}

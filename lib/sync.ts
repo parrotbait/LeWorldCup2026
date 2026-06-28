@@ -36,6 +36,7 @@ import {
     type MatchState,
     type SyncAuditTrail,
 } from "@/lib/sync-integrity";
+import { autoResolveBonuses } from "@/lib/auto-resolve-bonuses";
 
 export interface SyncResult {
     teamCount: number;
@@ -51,6 +52,8 @@ export interface SyncResult {
     actor: string;
     /** Full diff audit trail (match diffs + player point impacts). */
     audit?: SyncAuditTrail;
+    /** Bonus kinds that were auto-resolved this run. */
+    autoResolved?: string[];
 }
 
 function describeError(e: unknown): string {
@@ -374,6 +377,25 @@ export async function syncResultsFromFootballData(
     // score sync. Gap detection on the next run replays anything missed.
     await runSnapshotPipelineQuietly(actor);
 
+    // Auto-resolve bonuses whose conditions are now met (e.g. group-stage
+    // bonuses once R32 starts, tournament-end bonuses once FINAL finishes).
+    // Failures are logged but never block the sync.
+    let autoResolved: string[] = [];
+    try {
+        autoResolved = await autoResolveBonuses(actor);
+        if (autoResolved.length > 0) {
+            console.log(`[sync ${actor}] auto-resolved bonuses: ${autoResolved.join(", ")}`);
+        }
+    } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        console.error(`[sync ${actor}] auto-resolve-bonuses failed: ${message}`);
+        await db.insert(auditLog).values({
+            actor,
+            action: "auto-resolve-bonuses-error",
+            detail: JSON.stringify({ error: message }),
+        });
+    }
+
     // Bust the live-leaders cache so /bonuses + /stats reflect the new data
     // on next request, instead of serving the stale 5-min snapshot.
     try {
@@ -393,5 +415,6 @@ export async function syncResultsFromFootballData(
         durationMs,
         actor,
         audit,
+        autoResolved,
     };
 }
