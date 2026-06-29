@@ -28,7 +28,7 @@ import { eq, sql } from "drizzle-orm";
 import { revalidateTag } from "next/cache";
 import { db } from "@/db/client";
 import { auditLog, matches, players, teams } from "@/db/schema";
-import { fetchMatches, fetchTeams, mapStage, type LiveMinuteInfo } from "@/lib/football-data";
+import { fetchMatches, fetchTeams, mapStage } from "@/lib/football-data";
 import { computeSnapshotState, loadSnapshotInput, runSnapshotPipelineQuietly } from "@/lib/snapshot";
 import {
     buildSyncAuditTrail,
@@ -54,8 +54,6 @@ export interface SyncResult {
     audit?: SyncAuditTrail;
     /** Bonus kinds that were auto-resolved this run. */
     autoResolved?: string[];
-    /** Live match minutes extracted from the same API response used by the sync. */
-    liveMinutes?: LiveMinuteInfo[];
 }
 
 function describeError(e: unknown): string {
@@ -92,7 +90,6 @@ export async function syncResultsFromFootballData(
     const matchErrors: Array<{ externalId: number; message: string }> = [];
     const errors: string[] = [];
     let audit: SyncAuditTrail | undefined;
-    let liveMinutes: LiveMinuteInfo[] = [];
 
     const forceSync = process.env.SYNC_FORCE === "1";
     const blockOnRegression = opts.blockOnRegression ?? false;
@@ -148,10 +145,6 @@ export async function syncResultsFromFootballData(
     try {
         const fdMatches = await fetchMatches();
         console.log(`[sync ${actor}] FD returned ${fdMatches.length} matches`);
-
-        liveMinutes = fdMatches
-            .filter((m) => m.status === "IN_PLAY" || m.status === "PAUSED")
-            .map((m) => ({ externalId: m.id, minute: m.minute }));
 
         await db.transaction(async (tx) => {
             const groupByTeamId = new Map<number, string>();
@@ -423,6 +416,5 @@ export async function syncResultsFromFootballData(
         actor,
         audit,
         autoResolved,
-        liveMinutes,
     };
 }

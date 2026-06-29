@@ -19,7 +19,6 @@ interface FdMatch {
     matchday: number | null;
     stage: string;
     group: string | null;
-    minute: number | null;
     homeTeam: { id: number; name: string; tla: string | null };
     awayTeam: { id: number; name: string; tla: string | null };
     score: {
@@ -96,43 +95,6 @@ export async function fetchScorers(): Promise<FdScorer[]> {
         { revalidate: 300, tags: ["live-leaders"] },
     );
     return data.scorers;
-}
-
-export interface LiveMinuteInfo {
-    externalId: number;
-    minute: number | null;
-}
-
-/**
- * Fetch just the live minute data for in-play matches. Uses the same
- * /matches endpoint but only extracts the minute field for LIVE matches.
- * Called from sync-pulse when no sync ran and the in-memory cache is stale.
- */
-export async function fetchMatchMinutes(): Promise<LiveMinuteInfo[]> {
-    const data = await fd<{ matches: FdMatch[] }>("/competitions/WC/matches");
-    return data.matches
-        .filter((m) => m.status === "IN_PLAY" || m.status === "PAUSED")
-        .map((m) => ({
-            externalId: m.id,
-            minute: m.minute,
-        }));
-}
-
-/**
- * SSR-safe variant cached for 60s via Next's data cache. Used to seed the
- * initial LiveStatusBadge render so there's no flash of "live" → "67′".
- */
-export async function fetchMatchMinutesCached(): Promise<LiveMinuteInfo[]> {
-    const data = await fd<{ matches: FdMatch[] }>(
-        "/competitions/WC/matches",
-        { revalidate: 60, tags: ["live-minutes"] },
-    );
-    return data.matches
-        .filter((m) => m.status === "IN_PLAY" || m.status === "PAUSED")
-        .map((m) => ({
-            externalId: m.id,
-            minute: m.minute,
-        }));
 }
 
 export type { FdMatch, FdTeam, FdScorer };
