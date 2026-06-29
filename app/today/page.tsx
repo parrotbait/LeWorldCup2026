@@ -13,6 +13,8 @@ import { isExact, predictionPoints, buildLeaderboard, computeBonusPointsByPlayer
 import { computePointsForMatches } from "@/lib/rivalry";
 import { RivalryTicker } from "@/app/_components/rivalry-ticker";
 import { RefreshDataButton } from "@/app/_components/refresh-data-button";
+import { LiveStatusBadge } from "@/app/_components/live-status-badge";
+import { fetchMatchMinutesCached } from "@/lib/football-data";
 
 // Always fresh — picks reveal at kickoff and the daily sync may run between
 // renders.
@@ -57,6 +59,7 @@ export default async function TodayPage() {
     const liveOrRecent = await db
         .select({
             id: matches.id,
+            externalId: matches.externalId,
             kickoff: matches.kickoff,
             round: matches.round,
             groupLetter: matches.groupLetter,
@@ -113,6 +116,7 @@ export default async function TodayPage() {
     // Last sync timestamp for the "data as of" staleness indicator on LIVE matches.
     const hasLiveMatch = liveOrRecent.some((m) => m.status === "LIVE");
     let lastSyncAt: Date | null = null;
+    let initialMinuteMap = new Map<number, number | null>();
     if (hasLiveMatch) {
         const [syncEntry] = await db
             .select({ at: auditLog.at })
@@ -121,6 +125,15 @@ export default async function TodayPage() {
             .orderBy(desc(auditLog.id))
             .limit(1);
         lastSyncAt = syncEntry?.at ?? null;
+
+        try {
+            const minutes = await fetchMatchMinutesCached();
+            for (const m of minutes) {
+                initialMinuteMap.set(m.externalId, m.minute);
+            }
+        } catch {
+            // Non-critical — badge will show "live" until first poll
+        }
     }
 
     let pickByMatch = new Map<number, PlayerPickRow[]>();
@@ -385,7 +398,7 @@ export default async function TodayPage() {
                                                 }`}
                                             >
                                                 {m.status === "LIVE"
-                                                    ? "● live"
+                                                    ? <LiveStatusBadge externalId={m.externalId ?? 0} initialMinute={initialMinuteMap.get(m.externalId ?? 0) ?? null} />
                                                     : m.status === "FINISHED"
                                                       ? "full time"
                                                       : "scheduled"}
