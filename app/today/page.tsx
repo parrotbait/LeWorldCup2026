@@ -8,7 +8,7 @@ import { CountdownHero } from "./_components/countdown-hero";
 import { ProvisionalBadge } from "./_components/provisional-badge";
 import { NavBar } from "@/app/_components/navbar";
 import { requireSession } from "@/lib/auth";
-import { flag, formatKickoff, pickLockTime } from "@/lib/utils";
+import { flag, formatKickoff, pickLockTime, scoreSubtitle } from "@/lib/utils";
 import { isExact, predictionPoints, buildLeaderboard, computeBonusPointsByPlayer } from "@/lib/scoring";
 import { computePointsForMatches } from "@/lib/rivalry";
 import { RivalryTicker } from "@/app/_components/rivalry-ticker";
@@ -352,30 +352,13 @@ export default async function TodayPage() {
                                         </h2>
                                         <div className="mt-1 flex items-baseline justify-between">
                                             {(() => {
-                                                const wentToPens =
-                                                    m.homeScorePens !== null && m.awayScorePens !== null;
-                                                const wentToET =
-                                                    m.homeScoreFt !== null &&
-                                                    m.awayScoreFt !== null &&
-                                                    m.homeScore !== null &&
-                                                    m.awayScore !== null &&
-                                                    (m.homeScoreFt !== m.homeScore ||
-                                                        m.awayScoreFt !== m.awayScore ||
-                                                        wentToPens);
-                                                if (!wentToET && !wentToPens) {
+                                                const subtitle = scoreSubtitle(m);
+                                                if (subtitle === null) {
                                                     return <span />;
-                                                }
-                                                const parts: string[] = [];
-                                                if (wentToET) {
-                                                    parts.push(`${m.homeScoreFt}–${m.awayScoreFt} FT`);
-                                                    parts.push(`${m.homeScore}–${m.awayScore} AET`);
-                                                }
-                                                if (wentToPens) {
-                                                    parts.push(`PENS ${m.homeScorePens}–${m.awayScorePens}`);
                                                 }
                                                 return (
                                                     <p className="font-display text-[10px] uppercase tracking-wider opacity-60">
-                                                        {parts.join(", ")}
+                                                        {subtitle}
                                                     </p>
                                                 );
                                             })()}
@@ -446,34 +429,6 @@ export default async function TodayPage() {
                                                                     )}
                                                                 </span>
                                                             </div>
-                                                            {(() => {
-                                                                const wentToPens =
-                                                                    m.homeScorePens !== null && m.awayScorePens !== null;
-                                                                const wentToET =
-                                                                    m.homeScoreFt !== null &&
-                                                                    m.awayScoreFt !== null &&
-                                                                    m.homeScore !== null &&
-                                                                    m.awayScore !== null &&
-                                                                    (m.homeScoreFt !== m.homeScore ||
-                                                                        m.awayScoreFt !== m.awayScore ||
-                                                                        wentToPens);
-                                                                if (!wentToET && !wentToPens) {
-                                                                    return null;
-                                                                }
-                                                                const parts: string[] = [];
-                                                                if (wentToET) {
-                                                                    parts.push(`${m.homeScoreFt}–${m.awayScoreFt} FT`);
-                                                                    parts.push(`${m.homeScore}–${m.awayScore} AET`);
-                                                                }
-                                                                if (wentToPens) {
-                                                                    parts.push(`PENS ${m.homeScorePens}–${m.awayScorePens}`);
-                                                                }
-                                                                return (
-                                                                    <p className="mt-1 font-display text-[10px] uppercase tracking-wider opacity-60">
-                                                                        {parts.join(", ")}
-                                                                    </p>
-                                                                );
-                                                            })()}
                                                         </div>
                                                     );
                                                 }

@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { savePredictionAction } from "@/app/actions/picks";
-import { flag } from "@/lib/utils";
+import { flag, scoreSubtitle } from "@/lib/utils";
 
 interface Props {
     matchId: number;
@@ -243,34 +243,20 @@ export function ScoreStepper({
                             )}
                         </span>
                         {(() => {
-                            const wentToET =
-                                actualHomeFt !== null &&
-                                actualHomeFt !== undefined &&
-                                actualAwayFt !== null &&
-                                actualAwayFt !== undefined &&
-                                actualHome !== null &&
-                                actualHome !== undefined &&
-                                actualAway !== null &&
-                                actualAway !== undefined &&
-                                (actualHomeFt !== actualHome || actualAwayFt !== actualAway);
-                            const wentToPens =
-                                actualHomePens !== null &&
-                                actualHomePens !== undefined &&
-                                actualAwayPens !== null &&
-                                actualAwayPens !== undefined;
-                            if (!wentToET && !wentToPens) {
+                            const subtitle = scoreSubtitle({
+                                homeScore: actualHome ?? null,
+                                awayScore: actualAway ?? null,
+                                homeScoreFt: actualHomeFt ?? null,
+                                awayScoreFt: actualAwayFt ?? null,
+                                homeScorePens: actualHomePens ?? null,
+                                awayScorePens: actualAwayPens ?? null,
+                            });
+                            if (subtitle === null) {
                                 return null;
-                            }
-                            const parts: string[] = [];
-                            if (wentToET) {
-                                parts.push(`${actualHomeFt}–${actualAwayFt} FT, AET`);
-                            }
-                            if (wentToPens) {
-                                parts.push(`pens ${actualHomePens}–${actualAwayPens}`);
                             }
                             return (
                                 <span className="text-[10px] opacity-60">
-                                    {parts.join(" · ")}
+                                    {subtitle}
                                 </span>
                             );
                         })()}

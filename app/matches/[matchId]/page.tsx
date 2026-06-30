@@ -6,7 +6,7 @@ import { db } from "@/db/client";
 import { jokers, matches, players, predictions, teams } from "@/db/schema";
 import { NavBar } from "@/app/_components/navbar";
 import { requireSession } from "@/lib/auth";
-import { flag, formatKickoffLong, pickLockTime } from "@/lib/utils";
+import { flag, formatKickoffLong, pickLockTime, scoreSubtitle } from "@/lib/utils";
 import { predictionPoints } from "@/lib/scoring";
 
 export const revalidate = 0;
@@ -145,32 +145,13 @@ export default async function MatchDetailPage({ params }: PageProps) {
                     <span className="ml-2">{flag(matchRow.awayCode ?? "")}</span>
                 </h1>
                 {(() => {
-                    // Decorate the score with AET / pens info when present.
-                    // Only render when we actually have something extra to say.
-                    const wentToPens =
-                        matchRow.homeScorePens !== null && matchRow.awayScorePens !== null;
-                    const wentToET =
-                        matchRow.homeScoreFt !== null &&
-                        matchRow.awayScoreFt !== null &&
-                        matchRow.homeScore !== null &&
-                        matchRow.awayScore !== null &&
-                        (matchRow.homeScoreFt !== matchRow.homeScore ||
-                            matchRow.awayScoreFt !== matchRow.awayScore ||
-                            wentToPens);
-                    if (!wentToET && !wentToPens) {
+                    const subtitle = scoreSubtitle(matchRow);
+                    if (subtitle === null) {
                         return null;
-                    }
-                    const parts: string[] = [];
-                    if (wentToET) {
-                        parts.push(`${matchRow.homeScoreFt}–${matchRow.awayScoreFt} FT`);
-                        parts.push(`${matchRow.homeScore}–${matchRow.awayScore} AET`);
-                    }
-                    if (wentToPens) {
-                        parts.push(`PENS ${matchRow.homeScorePens}–${matchRow.awayScorePens}`);
                     }
                     return (
                         <p className="mt-1 font-display text-xs uppercase tracking-wider opacity-60">
-                            {parts.join(", ")}
+                            {subtitle}
                         </p>
                     );
                 })()}

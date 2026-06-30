@@ -5,7 +5,7 @@ import { alias } from "drizzle-orm/pg-core";
 import Link from "next/link";
 import { NavBar } from "@/app/_components/navbar";
 import { requireSession } from "@/lib/auth";
-import { flag, formatKickoff, pickLockTime } from "@/lib/utils";
+import { flag, formatKickoff, pickLockTime, scoreSubtitle } from "@/lib/utils";
 import { predictionPoints } from "@/lib/scoring";
 
 export const revalidate = 30;
@@ -34,6 +34,10 @@ export default async function MatchesPage() {
                 status: matches.status,
                 homeScore: matches.homeScore,
                 awayScore: matches.awayScore,
+                homeScoreFt: matches.homeScoreFt,
+                awayScoreFt: matches.awayScoreFt,
+                homeScorePens: matches.homeScorePens,
+                awayScorePens: matches.awayScorePens,
                 homeTeamId: matches.homeTeamId,
                 awayTeamId: matches.awayTeamId,
                 winnerTeamId: matches.winnerTeamId,
@@ -181,6 +185,17 @@ export default async function MatchesPage() {
                                                     {m.awayName ?? "TBD"}{" "}
                                                     <span className="ml-1">{flag(m.awayCode ?? "")}</span>
                                                 </div>
+                                                {(() => {
+                                                    const subtitle = scoreSubtitle(m);
+                                                    if (subtitle === null) {
+                                                        return null;
+                                                    }
+                                                    return (
+                                                        <p className="mt-0.5 font-display text-[10px] uppercase tracking-wider opacity-60">
+                                                            {subtitle}
+                                                        </p>
+                                                    );
+                                                })()}
                                             </div>
                                         </summary>
 

@@ -135,3 +135,36 @@ export function flag(code: string): string {
     }
     return iso2ToFlag(iso2);
 }
+
+interface ScoreSubtitleInput {
+    homeScore: number | null;
+    awayScore: number | null;
+    homeScoreFt: number | null;
+    awayScoreFt: number | null;
+    homeScorePens: number | null;
+    awayScorePens: number | null;
+}
+
+export function scoreSubtitle(m: ScoreSubtitleInput): string | null {
+    const wentToPens = m.homeScorePens !== null && m.awayScorePens !== null;
+    const wentToET =
+        m.homeScoreFt !== null &&
+        m.awayScoreFt !== null &&
+        m.homeScore !== null &&
+        m.awayScore !== null &&
+        (m.homeScoreFt !== m.homeScore ||
+            m.awayScoreFt !== m.awayScore ||
+            wentToPens);
+    if (!wentToET && !wentToPens) {
+        return null;
+    }
+    const parts: string[] = [];
+    if (wentToET) {
+        parts.push(`${m.homeScoreFt}–${m.awayScoreFt} FT`);
+        parts.push(`${m.homeScore}–${m.awayScore} AET`);
+    }
+    if (wentToPens) {
+        parts.push(`PENS ${m.homeScorePens}–${m.awayScorePens}`);
+    }
+    return parts.join(", ");
+}
