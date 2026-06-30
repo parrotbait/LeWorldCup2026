@@ -329,53 +329,8 @@ export default async function TodayPage() {
                                 m.status !== "SCHEDULED";
                             return (
                                 <section key={m.id} className="overflow-visible rounded border border-ink/15">
-                                    <header className="flex items-baseline justify-between border-b border-ink/15 px-4 py-3">
-                                        <div>
-                                            <p className="font-display text-[10px] uppercase tracking-[0.25em] text-tournament">
-                                                {ROUND_LABEL[m.round]}
-                                                {m.groupLetter !== null ? ` · Group ${m.groupLetter}` : ""}
-                                            </p>
-                                            <h2 className="mt-1 font-display text-xl tabular">
-                                                <span className="mr-2">{flag(m.homeCode ?? "")}</span>
-                                                {m.homeName ?? "TBD"}
-                                                <span className="mx-3 opacity-50">
-                                                    {m.status === "SCHEDULED"
-                                                        ? "vs"
-                                                        : `${m.homeScore ?? 0} – ${m.awayScore ?? 0}`}
-                                                </span>
-                                                {m.awayName ?? "TBD"}
-                                                <span className="ml-2">{flag(m.awayCode ?? "")}</span>
-                                            </h2>
-                                            {(() => {
-                                                const wentToPens =
-                                                    m.homeScorePens !== null && m.awayScorePens !== null;
-                                                const wentToET =
-                                                    m.homeScoreFt !== null &&
-                                                    m.awayScoreFt !== null &&
-                                                    m.homeScore !== null &&
-                                                    m.awayScore !== null &&
-                                                    (m.homeScoreFt !== m.homeScore ||
-                                                        m.awayScoreFt !== m.awayScore ||
-                                                        wentToPens);
-                                                if (!wentToET && !wentToPens) {
-                                                    return null;
-                                                }
-                                                const parts: string[] = [];
-                                                if (wentToET) {
-                                                    parts.push(`${m.homeScoreFt}–${m.awayScoreFt} FT`);
-                                                    parts.push(`${m.homeScore}–${m.awayScore} AET`);
-                                                }
-                                                if (wentToPens) {
-                                                    parts.push(`PENS ${m.homeScorePens}–${m.awayScorePens}`);
-                                                }
-                                                return (
-                                                    <p className="mt-1 font-display text-[10px] uppercase tracking-wider opacity-60">
-                                                        {parts.join(", ")}
-                                                    </p>
-                                                );
-                                            })()}
-                                        </div>
-                                        <div className="flex flex-col items-end gap-0.5 text-right">
+                                    <header className="relative border-b border-ink/15 px-4 py-3">
+                                        <div className="absolute right-4 top-3 flex flex-col items-end gap-0.5 text-right">
                                             <span className="font-display text-[10px] uppercase tracking-wider opacity-70">
                                                 {formatKickoff(m.kickoff)}
                                             </span>
@@ -393,6 +348,49 @@ export default async function TodayPage() {
                                                       : "scheduled"}
                                             </span>
                                         </div>
+                                        <p className="font-display text-[10px] uppercase tracking-[0.25em] text-tournament">
+                                            {ROUND_LABEL[m.round]}
+                                            {m.groupLetter !== null ? ` · Group ${m.groupLetter}` : ""}
+                                        </p>
+                                        <h2 className="mt-1 font-display text-xl tabular whitespace-nowrap">
+                                            <span className="mr-2">{flag(m.homeCode ?? "")}</span>
+                                            {m.homeName ?? "TBD"}
+                                            <span className="mx-3 opacity-50">
+                                                {m.status === "SCHEDULED"
+                                                    ? "vs"
+                                                    : `${m.homeScore ?? 0} – ${m.awayScore ?? 0}`}
+                                            </span>
+                                            {m.awayName ?? "TBD"}
+                                            <span className="ml-2">{flag(m.awayCode ?? "")}</span>
+                                        </h2>
+                                        {(() => {
+                                            const wentToPens =
+                                                m.homeScorePens !== null && m.awayScorePens !== null;
+                                            const wentToET =
+                                                m.homeScoreFt !== null &&
+                                                m.awayScoreFt !== null &&
+                                                m.homeScore !== null &&
+                                                m.awayScore !== null &&
+                                                (m.homeScoreFt !== m.homeScore ||
+                                                    m.awayScoreFt !== m.awayScore ||
+                                                    wentToPens);
+                                            if (!wentToET && !wentToPens) {
+                                                return null;
+                                            }
+                                            const parts: string[] = [];
+                                            if (wentToET) {
+                                                parts.push(`${m.homeScoreFt}–${m.awayScoreFt} FT`);
+                                                parts.push(`${m.homeScore}–${m.awayScore} AET`);
+                                            }
+                                            if (wentToPens) {
+                                                parts.push(`PENS ${m.homeScorePens}–${m.awayScorePens}`);
+                                            }
+                                            return (
+                                                <p className="mt-1 font-display text-[10px] uppercase tracking-wider opacity-60">
+                                                    {parts.join(", ")}
+                                                </p>
+                                            );
+                                        })()}
                                     </header>
 
                                     {rows.length === 0 ? (
