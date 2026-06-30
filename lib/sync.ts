@@ -188,12 +188,33 @@ export async function syncResultsFromFootballData(
 
                     const ftHome = m.score.fullTime.home;
                     const ftAway = m.score.fullTime.away;
-                    const etHome = m.score.extraTime?.home ?? null;
-                    const etAway = m.score.extraTime?.away ?? null;
+                    const regHome = m.score.regularTime?.home ?? null;
+                    const regAway = m.score.regularTime?.away ?? null;
+                    const etDeltaHome = m.score.extraTime?.home ?? null;
+                    const etDeltaAway = m.score.extraTime?.away ?? null;
                     const pensHome = m.score.penalties?.home ?? null;
                     const pensAway = m.score.penalties?.away ?? null;
-                    const scoringHome = etHome ?? ftHome;
-                    const scoringAway = etAway ?? ftAway;
+
+                    // football-data.org v4 score semantics (verified from API):
+                    //   fullTime = cumulative INCLUDING penalty goals
+                    //   regularTime = 90-min score (the true FT result)
+                    //   extraTime = goals scored ONLY during ET (delta)
+                    //   penalties = shootout goals
+                    //
+                    // Our "scoring score" = AET final (pre-penalties):
+                    //   regularTime + extraTime, or fullTime - penalties
+                    // Our "FT score" for display = regularTime
+                    const scoringHome = pensHome !== null && ftHome !== null
+                        ? ftHome - pensHome
+                        : ftHome;
+                    const scoringAway = pensAway !== null && ftAway !== null
+                        ? ftAway - pensAway
+                        : ftAway;
+
+                    // Use regularTime directly when available (most reliable).
+                    // Fall back to subtraction for older data or group matches.
+                    const regularHome = regHome ?? scoringHome;
+                    const regularAway = regAway ?? scoringAway;
 
                     const newKickoff = new Date(m.utcDate);
                     const firstLockedAt = new Date(newKickoff.getTime() - 15 * 60_000);
@@ -237,8 +258,8 @@ export async function syncResultsFromFootballData(
                             awayTeamId: awayTeam?.id,
                             homeScore: scoringHome,
                             awayScore: scoringAway,
-                            homeScoreFt: ftHome,
-                            awayScoreFt: ftAway,
+                            homeScoreFt: regularHome,
+                            awayScoreFt: regularAway,
                             homeScorePens: pensHome,
                             awayScorePens: pensAway,
                             winnerTeamId,
@@ -253,8 +274,8 @@ export async function syncResultsFromFootballData(
                                 awayTeamId: awayTeam?.id,
                                 homeScore: sql`CASE WHEN ${matches.adminOverridden} THEN ${matches.homeScore} ELSE ${scoringHome} END`,
                                 awayScore: sql`CASE WHEN ${matches.adminOverridden} THEN ${matches.awayScore} ELSE ${scoringAway} END`,
-                                homeScoreFt: sql`CASE WHEN ${matches.adminOverridden} THEN ${matches.homeScoreFt} ELSE ${ftHome} END`,
-                                awayScoreFt: sql`CASE WHEN ${matches.adminOverridden} THEN ${matches.awayScoreFt} ELSE ${ftAway} END`,
+                                homeScoreFt: sql`CASE WHEN ${matches.adminOverridden} THEN ${matches.homeScoreFt} ELSE ${regularHome} END`,
+                                awayScoreFt: sql`CASE WHEN ${matches.adminOverridden} THEN ${matches.awayScoreFt} ELSE ${regularAway} END`,
                                 homeScorePens: sql`CASE WHEN ${matches.adminOverridden} THEN ${matches.homeScorePens} ELSE ${pensHome} END`,
                                 awayScorePens: sql`CASE WHEN ${matches.adminOverridden} THEN ${matches.awayScorePens} ELSE ${pensAway} END`,
                                 winnerTeamId: sql`CASE WHEN ${matches.adminOverridden} THEN ${matches.winnerTeamId} ELSE ${winnerTeamId} END`,

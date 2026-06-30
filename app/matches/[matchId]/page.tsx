@@ -147,30 +147,30 @@ export default async function MatchDetailPage({ params }: PageProps) {
                 {(() => {
                     // Decorate the score with AET / pens info when present.
                     // Only render when we actually have something extra to say.
+                    const wentToPens =
+                        matchRow.homeScorePens !== null && matchRow.awayScorePens !== null;
                     const wentToET =
                         matchRow.homeScoreFt !== null &&
                         matchRow.awayScoreFt !== null &&
                         matchRow.homeScore !== null &&
                         matchRow.awayScore !== null &&
                         (matchRow.homeScoreFt !== matchRow.homeScore ||
-                            matchRow.awayScoreFt !== matchRow.awayScore);
-                    const wentToPens =
-                        matchRow.homeScorePens !== null && matchRow.awayScorePens !== null;
+                            matchRow.awayScoreFt !== matchRow.awayScore ||
+                            wentToPens);
                     if (!wentToET && !wentToPens) {
                         return null;
                     }
                     const parts: string[] = [];
                     if (wentToET) {
-                        parts.push(
-                            `${matchRow.homeScoreFt}–${matchRow.awayScoreFt} FT, ${matchRow.homeScore}–${matchRow.awayScore} AET`,
-                        );
+                        parts.push(`${matchRow.homeScoreFt}–${matchRow.awayScoreFt} FT`);
+                        parts.push(`${matchRow.homeScore}–${matchRow.awayScore} AET`);
                     }
                     if (wentToPens) {
-                        parts.push(`pens ${matchRow.homeScorePens}–${matchRow.awayScorePens}`);
+                        parts.push(`PENS ${matchRow.homeScorePens}–${matchRow.awayScorePens}`);
                     }
                     return (
                         <p className="mt-1 font-display text-xs uppercase tracking-wider opacity-60">
-                            {parts.join(" · ")}
+                            {parts.join(", ")}
                         </p>
                     );
                 })()}

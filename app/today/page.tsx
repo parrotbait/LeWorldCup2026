@@ -347,28 +347,30 @@ export default async function TodayPage() {
                                                 <span className="ml-2">{flag(m.awayCode ?? "")}</span>
                                             </h2>
                                             {(() => {
+                                                const wentToPens =
+                                                    m.homeScorePens !== null && m.awayScorePens !== null;
                                                 const wentToET =
                                                     m.homeScoreFt !== null &&
                                                     m.awayScoreFt !== null &&
                                                     m.homeScore !== null &&
                                                     m.awayScore !== null &&
                                                     (m.homeScoreFt !== m.homeScore ||
-                                                        m.awayScoreFt !== m.awayScore);
-                                                const wentToPens =
-                                                    m.homeScorePens !== null && m.awayScorePens !== null;
+                                                        m.awayScoreFt !== m.awayScore ||
+                                                        wentToPens);
                                                 if (!wentToET && !wentToPens) {
                                                     return null;
                                                 }
                                                 const parts: string[] = [];
                                                 if (wentToET) {
-                                                    parts.push(`${m.homeScoreFt}–${m.awayScoreFt} FT, AET`);
+                                                    parts.push(`${m.homeScoreFt}–${m.awayScoreFt} FT`);
+                                                    parts.push(`${m.homeScore}–${m.awayScore} AET`);
                                                 }
                                                 if (wentToPens) {
-                                                    parts.push(`pens ${m.homeScorePens}–${m.awayScorePens}`);
+                                                    parts.push(`PENS ${m.homeScorePens}–${m.awayScorePens}`);
                                                 }
                                                 return (
                                                     <p className="mt-1 font-display text-[10px] uppercase tracking-wider opacity-60">
-                                                        {parts.join(" · ")}
+                                                        {parts.join(", ")}
                                                     </p>
                                                 );
                                             })()}
@@ -445,28 +447,30 @@ export default async function TodayPage() {
                                                                 </span>
                                                             </div>
                                                             {(() => {
+                                                                const wentToPens =
+                                                                    m.homeScorePens !== null && m.awayScorePens !== null;
                                                                 const wentToET =
                                                                     m.homeScoreFt !== null &&
                                                                     m.awayScoreFt !== null &&
                                                                     m.homeScore !== null &&
                                                                     m.awayScore !== null &&
                                                                     (m.homeScoreFt !== m.homeScore ||
-                                                                        m.awayScoreFt !== m.awayScore);
-                                                                const wentToPens =
-                                                                    m.homeScorePens !== null && m.awayScorePens !== null;
+                                                                        m.awayScoreFt !== m.awayScore ||
+                                                                        wentToPens);
                                                                 if (!wentToET && !wentToPens) {
                                                                     return null;
                                                                 }
                                                                 const parts: string[] = [];
                                                                 if (wentToET) {
-                                                                    parts.push(`${m.homeScoreFt}–${m.awayScoreFt} FT, AET`);
+                                                                    parts.push(`${m.homeScoreFt}–${m.awayScoreFt} FT`);
+                                                                    parts.push(`${m.homeScore}–${m.awayScore} AET`);
                                                                 }
                                                                 if (wentToPens) {
-                                                                    parts.push(`pens ${m.homeScorePens}–${m.awayScorePens}`);
+                                                                    parts.push(`PENS ${m.homeScorePens}–${m.awayScorePens}`);
                                                                 }
                                                                 return (
                                                                     <p className="mt-1 font-display text-[10px] uppercase tracking-wider opacity-60">
-                                                                        {parts.join(" · ")}
+                                                                        {parts.join(", ")}
                                                                     </p>
                                                                 );
                                                             })()}
