@@ -229,7 +229,12 @@ export function ScoreStepper({
                     <div className={`mx-auto inline-flex flex-col items-center rounded-md border px-3 py-1.5 ${isExact ? "border-pitch/40 bg-pitch/10" : hasPick === false ? "border-tournament/30 bg-tournament/5" : pts > 0 ? "border-ink/20 bg-ink/5" : "border-tournament/30 bg-tournament/5"}`}>
                         <span className="flex items-center gap-2 text-sm sm:text-base">
                             <span className="opacity-60">
-                                FT {actualHome}–{actualAway}
+                                {(actualHomeFt !== null && actualHomeFt !== undefined &&
+                                  actualAwayFt !== null && actualAwayFt !== undefined &&
+                                  (actualHomeFt !== actualHome || actualAwayFt !== actualAway))
+                                    ? "AET"
+                                    : "FT"}{" "}
+                                {actualHome}–{actualAway}
                             </span>
                             <span className="opacity-30">·</span>
                             {hasPick === false ? (
