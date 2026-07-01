@@ -52,9 +52,32 @@ for (const p of allPlayers) {
     byDisplay.set(normalizePlayerName(p.displayName), p);
 }
 
+/**
+ * Secondary index: "first last" order so API names like "Kylian Mbappé"
+ * resolve against our "MBAPPE Kylian" roster entries.
+ */
+const byReversed = new Map<string, RosterPlayer>();
+for (const p of allPlayers) {
+    const parts = p.displayName.split(/\s+/);
+    if (parts.length >= 2) {
+        const reversed = [...parts.slice(1), parts[0]].join(" ");
+        byReversed.set(normalizePlayerName(reversed), p);
+    }
+}
+
+/** Also index by lastName alone for single-word API names (e.g. "Vinícius Júnior" won't need this, but "Mbappé" would). */
+const byLastName = new Map<string, RosterPlayer>();
+for (const p of allPlayers) {
+    const key = normalizePlayerName(p.lastName);
+    if (!byLastName.has(key)) {
+        byLastName.set(key, p);
+    }
+}
+
 /** Returns the canonical roster entry for a free-typed name, or null if unknown. */
 export function findPlayer(input: string): RosterPlayer | null {
-    return byDisplay.get(normalizePlayerName(input)) ?? null;
+    const key = normalizePlayerName(input);
+    return byDisplay.get(key) ?? byReversed.get(key) ?? byLastName.get(key) ?? null;
 }
 
 /** True if any player in the squad data normalizes to this name. */

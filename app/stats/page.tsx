@@ -5,6 +5,7 @@ import { auditLog, bonusPicks, matches, players, teams } from "@/db/schema";
 import { NavBar } from "@/app/_components/navbar";
 import { requireSession } from "@/lib/auth";
 import { fetchScorers, type FdScorer } from "@/lib/football-data";
+import { fetchTopAssists, type AssistLeader } from "@/lib/espn-stats";
 import { findPlayer } from "@/lib/players";
 import { flag } from "@/lib/utils";
 import { getBonusLockState } from "@/lib/bonus-lock";
@@ -154,7 +155,7 @@ async function loadBonusPickers(): Promise<BonusPickerMaps> {
 export default async function StatsPage() {
     await requireSession();
 
-    const [scorers, conceded, lastSync, lockState] = await Promise.all([
+    const [scorers, conceded, lastSync, lockState, assistLeaders] = await Promise.all([
         fetchScorersOrNull(),
         loadConceded(),
         db
@@ -164,6 +165,7 @@ export default async function StatsPage() {
             .orderBy(desc(auditLog.id))
             .limit(1),
         getBonusLockState(),
+        fetchTopAssists(),
     ]);
 
     // Picks reveal at the bonus deadline — same boundary edits use — so
@@ -213,15 +215,17 @@ export default async function StatsPage() {
     const scorersTie =
         sortedScorers !== null ? tieFooter(sortedScorers, (s) => s.goals) : null;
 
-    const assistsAvailable = scorers !== null && scorers.some((s) => s.assists !== null && s.assists > 0);
-    const sortedAssists = scorers === null || !assistsAvailable
-        ? null
-        : [...scorers]
+    const assistsAvailable = assistLeaders !== null && assistLeaders.length > 0;
+    const fallbackAssists = !assistsAvailable && scorers !== null && scorers.some((s) => s.assists !== null && s.assists > 0);
+    const sortedAssists = fallbackAssists
+        ? [...scorers!]
               .filter((s) => (s.assists ?? 0) > 0)
-              .sort((a, b) => (b.assists ?? 0) - (a.assists ?? 0) || b.goals - a.goals);
-    const topAssists = sortedAssists?.slice(0, ROW_CAP) ?? null;
-    const assistsTie =
-        sortedAssists !== null ? tieFooter(sortedAssists, (s) => s.assists ?? 0) : null;
+              .sort((a, b) => (b.assists ?? 0) - (a.assists ?? 0) || b.goals - a.goals)
+        : null;
+    const topAssistsFallback = sortedAssists?.slice(0, ROW_CAP) ?? null;
+    const assistsTie = sortedAssists !== null
+        ? tieFooter(sortedAssists, (s) => s.assists ?? 0)
+        : null;
 
     const concededTop = conceded.slice(0, ROW_CAP);
     const concededTie = tieFooter(conceded, (r) => r.conceded);
@@ -280,34 +284,40 @@ export default async function StatsPage() {
                     <h2 className="font-display text-sm uppercase tracking-[0.25em] text-tournament">
                         Most assists
                     </h2>
-                    {topAssists === null ? (
+                    {assistsAvailable ? (
+                        <AssistTable
+                            rows={assistLeaders!.slice(0, ROW_CAP)}
+                            pickersForName={(name) => pickersForName("MOST_ASSISTS", name)}
+                        />
+                    ) : topAssistsFallback !== null ? (
+                        <>
+                            <p className="mt-2 text-[10px] uppercase tracking-wider opacity-40">
+                                Showing assists from goal-scorers only — full data unavailable
+                            </p>
+                            <Table
+                                rows={topAssistsFallback}
+                                valueLabel="Assists"
+                                value={(s) => s.assists ?? 0}
+                                tieFooterText={
+                                    assistsTie !== null
+                                        ? `+${assistsTie.count} more on ${assistsTie.cutoff} assist${assistsTie.cutoff === 1 ? "" : "s"}`
+                                        : null
+                                }
+                                pickersFor={(s) => {
+                                    const canonical = findPlayer(s.player.name);
+                                    return pickersForName(
+                                        "MOST_ASSISTS",
+                                        canonical?.displayName ?? s.player.name,
+                                    );
+                                }}
+                            />
+                        </>
+                    ) : (
                         <p className="mt-3 text-xs opacity-60">
                             {scorers === null
-                                ? "Couldn't load live data right now."
-                                : "Assist data isn't available yet — admin will resolve manually if football-data.org doesn't expose it."}
+                                ? "Couldn’t load live data right now."
+                                : "Assist data isn’t available yet."}
                         </p>
-                    ) : topAssists.length === 0 ? (
-                        <p className="mt-3 text-xs opacity-60">
-                            No assists logged yet.
-                        </p>
-                    ) : (
-                        <Table
-                            rows={topAssists}
-                            valueLabel="Assists"
-                            value={(s) => s.assists ?? 0}
-                            tieFooterText={
-                                assistsTie !== null
-                                    ? `+${assistsTie.count} more on ${assistsTie.cutoff} assist${assistsTie.cutoff === 1 ? "" : "s"}`
-                                    : null
-                            }
-                            pickersFor={(s) => {
-                                const canonical = findPlayer(s.player.name);
-                                return pickersForName(
-                                    "MOST_ASSISTS",
-                                    canonical?.displayName ?? s.player.name,
-                                );
-                            }}
-                        />
                     )}
                 </section>
 
@@ -367,7 +377,7 @@ export default async function StatsPage() {
                         Cards (Pantomime Villain)
                     </h2>
                     <p className="mt-3 text-xs opacity-60">
-                        Only available at the end of the tournament.
+                        No free API source for card data. Admin will resolve this bonus manually from FIFA&rsquo;s official stats at the end of the tournament.
                     </p>
                 </section>
 
@@ -481,5 +491,47 @@ function PickersLine({ pickers }: { pickers: Picker[] }) {
                 </span>
             ))}
         </div>
+    );
+}
+
+function AssistTable({
+    rows,
+    pickersForName,
+}: {
+    rows: AssistLeader[];
+    pickersForName: (name: string) => Picker[];
+}) {
+    return (
+        <table className="mt-3 w-full text-sm tabular">
+            <thead className="border-b border-ink/30 text-left font-display text-[11px] uppercase tracking-wider">
+                <tr>
+                    <th className="py-2 pr-2">#</th>
+                    <th className="py-2 pr-2">Player</th>
+                    <th className="py-2 pr-2">Team</th>
+                    <th className="py-2 pr-2 text-right">Assists</th>
+                </tr>
+            </thead>
+            <tbody>
+                {rows.map((r, i) => {
+                    const canonical = findPlayer(r.playerName);
+                    const displayName = canonical?.displayName ?? r.playerName;
+                    const pickers = pickersForName(displayName);
+                    return (
+                        <tr key={`${r.teamCode}:${r.playerName}`} className="border-b border-ink/10 last:border-b-0">
+                            <td className="py-2 pr-2 align-top opacity-60">{i + 1}</td>
+                            <td className="py-2 pr-2 align-top">
+                                <div className="font-medium">{displayName}</div>
+                                <PickersLine pickers={pickers} />
+                            </td>
+                            <td className="py-2 pr-2 align-top opacity-80">
+                                <span className="mr-1.5" aria-hidden>{flag(r.teamCode)}</span>
+                                <span className="font-display text-xs uppercase opacity-70">{r.teamCode}</span>
+                            </td>
+                            <td className="py-2 pr-2 text-right align-top font-medium">{r.assists}</td>
+                        </tr>
+                    );
+                })}
+            </tbody>
+        </table>
     );
 }
