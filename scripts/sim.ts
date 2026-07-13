@@ -194,6 +194,10 @@ async function reset(): Promise<void> {
 async function setup(args: Record<string, string>): Promise<void> {
     const seed = Number(args.seed ?? "1");
     const playerCount = Math.min(Number(args.players ?? "12"), FAKE_NAMES.length);
+    // Ghost players file only a few early predictions and NO bonuses/jokers —
+    // lets us test the low-data "drop-out" Wrapped path. See spec §7.2.
+    const ghostCount = Math.min(Number(args.ghost ?? "0"), playerCount);
+    const GHOST_PICKS = 3;
     const rng = rngFromSeed(seed);
 
     // Seed teams + assign groups (4 per group, A–L).
@@ -292,14 +296,23 @@ async function setup(args: Record<string, string>): Promise<void> {
         )
         .returning();
     console.log(`✓ created ${playerRows.length} sim players`);
+    if (ghostCount > 0) {
+        console.log(`  (${ghostCount} of them are ghosts — ${GHOST_PICKS} early picks, no bonuses)`);
+    }
 
     // Predictions: every player predicts every group match (they happen for sure).
     // Knockout matches get predictions too — even though the teams aren't filled yet,
     // the prediction is the scoreline players want; mapping to actual teams happens at settlement.
     const allMatches = await db.select().from(matches);
     const predictionInserts: typeof predictions.$inferInsert[] = [];
-    for (const player of playerRows) {
-        for (const m of allMatches) {
+    const matchesByKickoff = [...allMatches].sort(
+        (a, b) => a.kickoff.getTime() - b.kickoff.getTime(),
+    );
+    for (let pi = 0; pi < playerRows.length; pi += 1) {
+        const player = playerRows[pi]!;
+        const isGhost = pi < ghostCount;
+        const playerMatches = isGhost ? matchesByKickoff.slice(0, GHOST_PICKS) : allMatches;
+        for (const m of playerMatches) {
             // Goal distribution: 0,1,2,3,4,5 with weights 30/35/20/10/4/1
             const homeScore = weightedGoal(rng);
             const awayScore = weightedGoal(rng);
@@ -317,7 +330,11 @@ async function setup(args: Record<string, string>): Promise<void> {
     // Bonus picks per player.
     const teamList = inserted;
     const bonusInserts: typeof bonusPicks.$inferInsert[] = [];
-    for (const player of playerRows) {
+    for (let pi = 0; pi < playerRows.length; pi += 1) {
+        if (pi < ghostCount) {
+            continue; // ghosts file no bonuses
+        }
+        const player = playerRows[pi]!;
         bonusInserts.push({ playerId: player.id, kind: "WINNER", teamId: pick(rng, teamList).id });
         bonusInserts.push({
             playerId: player.id,
@@ -348,7 +365,11 @@ async function setup(args: Record<string, string>): Promise<void> {
 
     // Random joker per knockout round (one match per round, R32/R16/QF only).
     const jokerInserts: typeof jokers.$inferInsert[] = [];
-    for (const player of playerRows) {
+    for (let pi = 0; pi < playerRows.length; pi += 1) {
+        if (pi < ghostCount) {
+            continue; // ghosts pick no jokers
+        }
+        const player = playerRows[pi]!;
         for (const round of ["R32", "R16", "QF"] as const) {
             const candidates = allMatches.filter((m) => m.round === round);
             const m = pick(rng, candidates);
