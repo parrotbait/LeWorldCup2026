@@ -162,9 +162,22 @@ substitute a non-competitive stat ("you and 10 others picked 3,000+ scorelines b
 
 Because personas are allocated **1:1 and unique** (§3.2), a plain static `persona → footballer`
 lookup gives every player a **different** footballer for free — no data, no fuzzy matching, pure and
-testable. Presented as a **Panini-sticker**-style card: footballer name + national-flag emoji (via
-`flag()`) + a one-line "why". **No player photos** (licensing/asset scope) — the sticker treatment
-carries it and fits the vintage aesthetic.
+testable. Presented as a **real vintage Panini sticker**: a generated 1990s-Panini-style portrait of
+the footballer + the one-line "why".
+
+**Assets are pre-generated, not runtime.** One image per persona (~20 total), generated once with the
+`generate-images` skill (`nanobanana3.1`), reviewed by hand, and committed as static assets under
+`public/wrapped/stickers/<persona-key>.png`. The card just renders the sticker for the player's
+allocated persona — no image generation, no API calls, no cost at request time. Proof-of-concept
+stickers (Roy Keane, Gary Doherty) live in `docs/superpowers/specs/wrapped-poc/` and confirmed the
+aesthetic holds even for obscure players (exact likeness of deep-cut names is approximate, which is
+completely fine for a nostalgic sticker).
+
+**Prompt recipe** (reuse per player): *"vintage 1990s Panini-style football sticker, thin glossy
+white border with green inner frame, round Panini logo top-left, a strip reading the player's
+country, a banner across the bottom with bold uppercase player name '<NAME>', national flag roundel
+in the corner, sticker number, halftone print texture, aged edge-wear, warm nostalgic colour grading,
+photorealistic sticker print"* + a short physical description of the footballer.
 
 Roster: **global legends as the backbone, Irish names where the trait genuinely fits** (per group
 request). The tie must name the footballer's *real trait* and match it to the persona in one line —
@@ -194,8 +207,10 @@ that's what keeps it from feeling tenuous.
 | Steady Eddie | Denis Irwin | "Mr Dependable. Never flashy, never a bad game — 8 out of 10, every week." |
 
 Every persona in the catalogue (§3.3) has exactly one entry here, including the reserved personas
-and the Steady Eddie catch-all, so this card **always renders**. The mapping is a static constant in
-`lib/wrapped.ts` (unit-tested: every persona key has a footballer; no key is orphaned).
+and the Steady Eddie catch-all, so this card **always renders**. The mapping (persona → footballer
+name, one-line tie, sticker asset path) is a static constant in `lib/wrapped.ts`, unit-tested: every
+persona key has a footballer **and** a committed sticker asset exists at its path — no orphaned key,
+no missing image.
 
 ---
 
