@@ -359,6 +359,23 @@ export const leaderboardSnapshotRows = pgTable(
     }),
 );
 
+// ---------------------------------------------------------------------------
+// Frozen Wrapped payload — one row per player, written once at unlock so a
+// later score correction can't silently mutate a Wrapped someone screenshotted.
+// `seenAt` carries the cross-device auto-open-once flag. See
+// docs/superpowers/specs/2026-07-13-world-cup-wrapped-design.md §6.3.
+// ---------------------------------------------------------------------------
+export const playerWrapped = pgTable("player_wrapped", {
+    playerId: integer("player_id")
+        .references(() => players.id, { onDelete: "cascade" })
+        .primaryKey(),
+    // The full WrappedData object, serialized. Frozen at first unlock.
+    payload: text("payload").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    // Null until the player has opened their Wrapped once (any device).
+    seenAt: timestamp("seen_at", { withTimezone: true }),
+});
+
 // Type exports for ergonomic use elsewhere.
 export type Player = typeof players.$inferSelect;
 export type Team = typeof teams.$inferSelect;
@@ -370,3 +387,4 @@ export type Settings = typeof settings.$inferSelect;
 export type BonusResolution = typeof bonusResolutions.$inferSelect;
 export type LeaderboardSnapshot = typeof leaderboardSnapshots.$inferSelect;
 export type LeaderboardSnapshotRow = typeof leaderboardSnapshotRows.$inferSelect;
+export type PlayerWrapped = typeof playerWrapped.$inferSelect;
