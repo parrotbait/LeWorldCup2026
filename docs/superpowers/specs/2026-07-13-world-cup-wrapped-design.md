@@ -42,9 +42,9 @@ unlocked only once the tournament is fully adjudicated.
 
 ## 3. The persona system (Card 1)
 
-Every player gets **exactly one** persona, assigned by a **strict priority ladder** — evaluate
-top to bottom, first match wins. Deterministic (pure function of settled data, inputs sorted by
-`playerId`; no `Math.random`, no reliance on DB row order).
+Every player gets **exactly one** persona, drawn from a catalogue larger than the group and assigned
+by a **deterministic greedy allocation** (§3.2) so personas are as unique as possible. Pure function
+of settled data (inputs sorted by `playerId`; no `Math.random`, no reliance on DB row order).
 
 ### 3.1 Anti-contradiction rules (non-negotiable)
 
@@ -57,7 +57,7 @@ sentence on a real friend's card is the primary risk of this feature.
    the group"). Descriptions cannot contradict the standings.
 2. **Minimum-sample gate** (`filed ≥ 5`) on any rate-based persona. The drop-out and the
    one-lucky-pick player can never claim an accuracy crown.
-3. **Genuine care is aimed at ONE player: the drop-out** (Early Retirement / Ghost) — because
+3. **Genuine care is aimed at ONE player: the drop-out** (The Early Retirement) — because
    disengagement can have a real-life reason the app can't see. They get hand-authored warm copy,
    routed away from the roast generator. A player who **turned up and played badly is fair game**
    for a proper slagging — the whole point of the group. Last place who *participated* gets a
@@ -65,23 +65,70 @@ sentence on a real friend's card is the primary risk of this feature.
    funny, never on their character or worth. Roast the results all you like; just don't
    sanctimoniously punch down at someone for not being *able* to play.
 
-### 3.2 The ladder
+### 3.2 Assignment model — allocation, not first-match ladder
 
-| # | Persona | Assignment rule | Subtitle intent |
-|---|---------|-----------------|-----------------|
-| 1 | **The Early Retirement** | `participationRate < 0.25` AND all filed picks fall in the earliest ~20% of matches by kickoff. | Warm, self-aware. "You filed a few, then rode off into the sunset. We kept your seat warm." |
-| 2 | **The Ghost** | `participationRate < 0.25`, scattered (didn't qualify for #1). | Warm, **no numbers**. |
-| 3 | **The Champion** | `finalRank === 1`. | "Top of the pile on {totalPoints}. Insufferable, and entitled to be." |
-| 4 | **The Oracle** | `exactCount === max(exactCount)` AND `exactCount ≥ 3`. | "{exactCount} exact scorelines. Are you well? That's not normal." |
-| 5 | **The Contrarian** | Owns the single boldest *correct* pick in the group (max boldness among correct picks; see §5). | "You called it when nobody else dared." |
-| 6 | **The Bonus Merchant** | `bonusPoints === max(bonusPoints)` AND `bonusPoints > predPoints × 0.4`. | "Your edge came off the bonus board." |
-| 7 | **The Metronome** | `hitRate ≥ median` AND `participationRate ≥ 0.9` AND `exactRate ≤ median`. | "No fireworks, just a steady drip of points." |
-| 8 | **The Wooden Spoon** | `finalRank === lastRank` AND `participationRate ≥ 0.5`. Turned up, played, finished dead last — fair game for a proper slagging on the *performance*. | Cheeky and affectionate, not coddling. "Dead last of the eleven. Someone has to prop up the table, and by God you committed to the role." |
-| 9 | **Steady Eddie** | Catch-all. Guarantees total coverage. | "A solid, sensible campaign." |
+With 11 players we want **as many distinct personas as possible** — nobody wants three "Steady
+Eddie"s. A priority ladder collapses onto whichever rung fires first; instead we allocate each
+player their most *distinctive still-available* persona. The catalogue (§3.3) is deliberately
+larger than the group (16 allocatable + reserved) so uniqueness is achievable.
 
-Ties on a threshold (two players share `max(exactCount)`) are allowed — both can be "The Oracle"
-with shared/descriptive copy. Only per-player assignment must be deterministic, which it is (each
-player runs the ladder independently).
+**Step 1 — reserved personas (assigned first, deterministic).** These are identity facts, not
+competitive signals, so they're claimed before allocation and removed from the pool:
+
+1. **The Early Retirement** — every player with `participationRate < 0.25` (the drop-out; may be
+   shared if — unusually — more than one person quit).
+2. **The Champion** — `finalRank === 1`.
+3. **The Wooden Spoon** — `finalRank === lastRank` AND `participationRate ≥ 0.5`.
+
+**Step 2 — greedy allocation for everyone else.** For each remaining player, compute a normalised
+**signature score ∈ [0,1]** for every still-available allocatable persona (their strength of fit
+for that persona's signature metric, §3.3). Then repeatedly:
+
+- take the single strongest `(player, persona)` pair across the whole matrix,
+- assign that persona to that player, remove **both** from the pool,
+- repeat until every player has one.
+
+This is a deterministic greedy assignment (ties broken by `playerId`, then persona catalogue order)
+that hands each player the persona they fit *best and most exclusively*. A persona is used **at most
+once**. If the pool of allocatable personas is exhausted before every player is placed (can't happen
+at 11 players vs 16 personas, but guard it), the remainder get **Steady Eddie** (catch-all).
+
+**Anti-contradiction still holds:** signature scores never override §3.1 — a rate-based persona is
+only *eligible* for a player who clears the `filed ≥ 5` gate, and titular/superlative framing is
+reserved for total points (The Champion). Every other persona is descriptive, so allocating the
+"best fit" can never print a sentence that contradicts the standings.
+
+### 3.3 Persona catalogue
+
+**Reserved** (see §3.2 step 1): **The Early Retirement**, **The Champion**, **The Wooden Spoon**,
+and **Steady Eddie** (catch-all). Copy intent as before — drop-out warm/no-numbers; champion
+titular; wooden spoon a cheeky performance roast.
+
+**Allocatable** (each used at most once; signature metric drives the score; all computable from
+predictions / matches / bonus breakdown / snapshot series):
+
+| Persona | Signature metric (higher = stronger fit) | Eligibility gate | Subtitle intent |
+|---------|------------------------------------------|------------------|-----------------|
+| **The Oracle** | `exactCount` | `exactCount ≥ 3`, `filed ≥ 5` | "{exactCount} exact scorelines. Are you well?" |
+| **The Sniper** | `perMatchPoints` (points per pick) | `filed ≥ 5` | "Only {filed} picks but lethal with them. Quality over quantity." |
+| **The Contrarian** | max boldness among your *correct* picks (§5) | ≥1 correct pick | "You called it when nobody else dared." |
+| **The Maverick** | mean boldness across *all* your picks | `filed ≥ 5` | "You never met a chalk pick you liked." |
+| **The Chancer** | miss margin of your single wildest *wrong* pick (§5) | `filed ≥ 5` | "Worn as a badge. {home} {h}–{a}? Bold. Mad, but bold." |
+| **The Bonus Merchant** | `bonusPoints` | `bonusPoints > 0` | "Your edge came off the bonus board." |
+| **The Prophet** | backed the actual tournament winner (WINNER bonus hit) → score 1, else ineligible | WINNER bonus hit | "You called the champion before a ball was kicked." |
+| **The Dark Horse Whisperer** | points earned from the DARK_HORSE bonus | dark-horse pts > 0 | "Your outsider ran and ran. Fair play." |
+| **The Closer** | knockout accuracy = `knockoutResults / knockout picks` | ≥3 knockout picks | "You saved your best for the business end." |
+| **The Fast Starter** | share of your points scored in the GROUP stage | `filed ≥ 5` | "Flew out of the traps, then eased off." |
+| **The Comeback** | biggest net rank climb (worst→best) across the snapshot series | ≥2 snapshots | "Left for dead, then hauled yourself back up the table." |
+| **The Frontrunner** | snapshots spent at rank 1 (but `finalRank !== 1`) | led ≥1 snapshot, didn't win | "Top of the pile for a while there. Then… well." |
+| **The Optimist** | mean total predicted goals per pick | `filed ≥ 5` | "Every game a goal-fest in your head." |
+| **The Cagey One** | share of your picks predicted as draws | `filed ≥ 5` | "A nil-all merchant. Some man for a stalemate." |
+| **The Metronome** | steadiness: high `hitRate` + low points variance across rounds | `participationRate ≥ 0.9` | "No fireworks, just a steady drip of points." |
+| **The Nearly Man** | finished 2nd or 3rd (score by closeness to the top) | `finalRank ∈ {2,3}` | "So close you could taste it. Next year." |
+
+Two players legitimately tied on a signature metric are separated by the greedy step (the runner-up
+takes their next-best available persona), so the group still gets variety. Assignment is fully
+deterministic: same settled data → same personas every time.
 
 ---
 
@@ -140,7 +187,7 @@ split, and the pure-engine-in-`lib/` convention of `lib/scoring.ts`.
 
 | File | Kind | Role |
 |---|---|---|
-| `lib/wrapped.ts` | pure | `buildWrapped(input) → Map<playerId, WrappedData>`, `isTournamentComplete`, `isWrappedUnlocked`, persona ladder, best/worst/boldness. No DB, no I/O. |
+| `lib/wrapped.ts` | pure | `buildWrapped(input) → Map<playerId, WrappedData>`, `isTournamentComplete`, `isWrappedUnlocked`, persona allocation, best/worst/boldness. No DB, no I/O. |
 | `lib/wrapped.test.ts` | test | Unit tests (see §9). |
 | `app/leaderboard/_components/WrappedGate.tsx` | server | Computes unlock predicate; on unlock, ensures the frozen payload exists; renders the entry button + mounts the client modal with the current player's serialized payload. |
 | `app/leaderboard/_components/WrappedModalClient.tsx` | client | Card-story overlay: swipe/tap/keyboard nav, progress bar, ✕ close, auto-open-once, reassurance toast, focus-trap, scroll-lock, a11y. |
@@ -251,15 +298,22 @@ with the sim. Only if a *real*-prediction repro is essential, take a dump that e
 
 - `isTournamentComplete`: false without a FINAL / when FINAL not FINISHED; true only on FINAL FINISHED.
 - `isWrappedUnlocked`: false when FINAL finished but no WINNER resolution; true only when both hold.
-- Persona per rung: focused test each (Champion, Oracle, Contrarian, Bonus Merchant, Metronome,
-  Wooden Spoon, Early Retirement, Ghost, Steady Eddie catch-all).
+- Reserved personas: drop-out → Early Retirement; rank-1 → Champion; last (participated) → Wooden
+  Spoon; each claimed before allocation.
+- Signature/eligibility: a player below a persona's gate (e.g. `filed < 5`, no dark-horse pts) is
+  never allocated that persona; the `filed ≥ 5` gate blocks rate personas for the low-data player.
+- **Allocation uniqueness:** a full 11-player group yields 11 **distinct** personas (no duplicate
+  allocatable persona); two players tied on a signature metric → strongest keeps it, the other is
+  bumped to their next-best available persona (deterministic, tie broken by `playerId`).
+- Pool exhaustion guard: if allocatable personas run out, remainder → Steady Eddie (no crash).
 - Comparison math: distinct exact counts → `moreAccurateThan` counts peers strictly below; "of N"
   denominator excludes zero-data players.
 - Ties: `>` not `>=`; whole-group tie → 1224 shared rank; final-rank ties via `computePointsOnlyRank`.
-- Low-data player: no `NaN`/`-Infinity`/empty-`reduce` throw; best/worst omitted; valid fallback persona.
+- Low-data player: no `NaN`/`-Infinity`/empty-`reduce` throw; best/worst omitted; gets Early
+  Retirement (never a rate persona).
 - Won-nothing player: empty `bonusHits`, no undefined fields, sensible superlatives.
 - Single-snapshot journey: `biggestClimb` null, no crash.
-- Determinism: same input → deep-equal output twice.
+- Determinism: same input → deep-equal output twice (personas identical across two runs).
 
 Run `pnpm test` and `pnpm typecheck` after changes (per `[[feedback_run_tests_after_changes]]`).
 
@@ -274,7 +328,7 @@ to play, because disengagement can have a real-life reason the app can't see.
 
 - **Roast the results freely.** A bad rank, a mad scoreline, a bonus board of misses — all fair
   game, and funnier for being honest. Last place gets a proper slagging on the *performance*.
-- **The one soft touch: the drop-out.** Early Retirement / Ghost get hand-authored copy that ribs
+- **The one soft touch: the drop-out.** The Early Retirement gets hand-authored copy that ribs
   the disappearance lightly ("rode off into the sunset") without moralising about effort or implying
   they couldn't hack it. Slag the *absence* with a wink, not the person.
 - **Roast the pick and the person's record, not their character.** "You backed Brazil like a
