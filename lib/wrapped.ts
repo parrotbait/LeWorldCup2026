@@ -163,3 +163,110 @@ export function computePlayerStats(
         knockoutCorrect,
     };
 }
+
+export interface BestCall {
+    matchId: number;
+    points: number;
+    exact: boolean;
+    boldness: number;
+    kickoff: Date;
+}
+
+export interface WorstCall {
+    matchId: number;
+    missMargin: number;
+    wrongOutcome: boolean;
+    kickoff: Date;
+}
+
+/** Fraction of filers who did NOT share this pick's outcome. 0..1, higher = bolder. */
+export function computeBoldness(
+    playerId: number,
+    matchId: number,
+    predictions: WrappedPrediction[],
+): number {
+    const filers = predictions.filter((p) => p.matchId === matchId);
+    if (filers.length === 0) {
+        return 0;
+    }
+    const mine = filers.find((p) => p.playerId === playerId);
+    if (mine === undefined) {
+        return 0;
+    }
+    const myOutcome = outcome(mine);
+    const sharing = filers.filter((p) => outcome(p) === myOutcome).length;
+    return 1 - sharing / filers.length;
+}
+
+function isBetterCall(a: BestCall, b: BestCall): boolean {
+    if (a.points !== b.points) {
+        return a.points > b.points;
+    }
+    if (a.exact !== b.exact) {
+        return a.exact;
+    }
+    if (a.boldness !== b.boldness) {
+        return a.boldness > b.boldness;
+    }
+    return a.kickoff.getTime() > b.kickoff.getTime();
+}
+
+export function findBestCall(
+    playerId: number,
+    input: { matches: WrappedMatch[]; predictions: WrappedPrediction[] },
+): BestCall | null {
+    const byId = new Map(settledMatches(input.matches).map((m) => [m.id, m]));
+    const mine = input.predictions.filter(
+        (p) => p.playerId === playerId && byId.has(p.matchId),
+    );
+    let best: BestCall | null = null;
+    for (const p of mine) {
+        const m = byId.get(p.matchId)!;
+        const points = predictionPoints(m, p);
+        if (points === 0) {
+            continue;
+        }
+        const cand: BestCall = {
+            matchId: m.id,
+            points,
+            exact: isExact(m, p),
+            boldness: computeBoldness(playerId, m.id, input.predictions),
+            kickoff: m.kickoff,
+        };
+        if (best === null || isBetterCall(cand, best)) {
+            best = cand;
+        }
+    }
+    return best;
+}
+
+export function findWorstCall(
+    playerId: number,
+    input: { matches: WrappedMatch[]; predictions: WrappedPrediction[] },
+): WorstCall | null {
+    const byId = new Map(settledMatches(input.matches).map((m) => [m.id, m]));
+    const mine = input.predictions.filter(
+        (p) => p.playerId === playerId && byId.has(p.matchId),
+    );
+    let worst: WorstCall | null = null;
+    for (const p of mine) {
+        const m = byId.get(p.matchId)!;
+        if (predictionPoints(m, p) > 0) {
+            continue; // only wrong picks
+        }
+        const missMargin =
+            Math.abs(p.homeScore - m.homeScore!) + Math.abs(p.awayScore - m.awayScore!);
+        const cand: WorstCall = {
+            matchId: m.id,
+            missMargin,
+            wrongOutcome:
+                outcome(p) !==
+                outcome({ homeScore: m.homeScore!, awayScore: m.awayScore! }),
+            kickoff: m.kickoff,
+        };
+        if (worst === null || cand.missMargin > worst.missMargin) {
+            worst = cand;
+        }
+    }
+    return worst;
+}
