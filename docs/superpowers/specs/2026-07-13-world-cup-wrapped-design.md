@@ -147,7 +147,8 @@ freely; the only line is not punching down at the drop-out for *not being able t
 | 5 | **Where You Peaked** | Highest rank ever held + the match that caused it | `min(rank)` across `leaderboardSnapshotRows` + that snapshot's `causeMatchId`. | — | Null if no snapshots. |
 | 6 | **The Journey** | Sparkline of rank over time, player's line highlighted | Ordered `rank` from snapshot series. | Winner's line faint for contrast. | Null / static if single snapshot. |
 | 7 | **The Bonus Board** | Each bonus pick + hit/miss | `computeBonusBreakdownByPlayer` entries. | "Your dark horse got further than N others'." | **Omitted entirely if no bonus picks** (never "0 of 0"). |
-| 8 | **The Verdict** | Final rank + one superlative the player genuinely owns; confetti; screenshot-friendly | `finalRank` + first owned group-max stat. | This card *is* the comparison. | Always renders; last place gets a cheeky verdict, not a soft one. |
+| 8 | **If You Were a Footballer…** | The footballer tied to your persona + a one-line why | Static `persona → footballer` lookup (§4.2). | — | Always renders (every persona has a match, incl. drop-out & Steady Eddie). |
+| 9 | **The Verdict** | Final rank + one superlative the player genuinely owns; confetti; screenshot-friendly | `finalRank` + first owned group-max stat. | This card *is* the comparison. | Always renders; last place gets a cheeky verdict, not a soft one. |
 
 ### 4.1 The comparison denominator (one, fixed, stated in copy)
 
@@ -156,6 +157,45 @@ phrased as *"of the N who saw it through"*. Ranking uses the existing **1224 com
 (`computePointsOnlyRank`) so ties read as "top 3", never a fake-precise "beat 8 of 11" that counts
 people who tied you. Never compare a low-data player with ranked "more accurate than…" language —
 substitute a non-competitive stat ("you and 10 others picked 3,000+ scorelines between you").
+
+### 4.2 "If you were a footballer…" card
+
+Because personas are allocated **1:1 and unique** (§3.2), a plain static `persona → footballer`
+lookup gives every player a **different** footballer for free — no data, no fuzzy matching, pure and
+testable. Presented as a **Panini-sticker**-style card: footballer name + national-flag emoji (via
+`flag()`) + a one-line "why". **No player photos** (licensing/asset scope) — the sticker treatment
+carries it and fits the vintage aesthetic.
+
+Roster: **global legends as the backbone, Irish names where the trait genuinely fits** (per group
+request). The tie must name the footballer's *real trait* and match it to the persona in one line —
+that's what keeps it from feeling tenuous.
+
+| Persona | Footballer | The one-line tie |
+|---------|-----------|------------------|
+| The Champion | Lionel Messi | "Chased it his whole career, then finally lifted it." |
+| The Early Retirement | Eric Cantona | "Walked away at the top, on his own terms. No shame in it." |
+| The Wooden Spoon | Dirk Kuyt | "Not the most gifted — ran till he dropped, adored for it." |
+| The Oracle | Xavi | "Saw the pass before it existed." |
+| The Sniper | Filippo Inzaghi | "Barely touched the ball. Always in the net." |
+| The Contrarian | **Roy Keane** | "Never once held the popular opinion, and never cared." |
+| The Maverick | Zlatan Ibrahimović | "Did it his way, chalk be damned." |
+| The Chancer | **Gary Doherty** | "Ambition well ahead of the end product — but by God he went for it." |
+| The Bonus Merchant | David Beckham | "Made a living off the dead ball." |
+| The Prophet | Johan Cruyff | "Saw the future of the game before anyone else." |
+| The Dark Horse Whisperer | Jamie Vardy | "Non-league to champion — the outsider who stunned the lot." |
+| The Closer | Sergio Ramos | "Turned up in the 93rd minute when it actually mattered." |
+| The Fast Starter | Michael Owen | "Burst onto the scene like a rocket, then eased off." |
+| The Comeback | Ronaldo (R9) | "Written off with the knees. Came back and won the lot." |
+| The Frontrunner | Ronaldinho | "Lit up the world, then the spark quietly dimmed." |
+| The Optimist | Roberto Carlos | "A defender who only ever wanted to attack." |
+| The Cagey One | Paolo Maldini | "Nothing got past. A nil-all connoisseur." |
+| The Metronome | Sergio Busquets | "The whole game runs quietly through him." |
+| The Nearly Man | Steven Gerrard | "So close you could taste it. So, so close." |
+| Steady Eddie | Denis Irwin | "Mr Dependable. Never flashy, never a bad game — 8 out of 10, every week." |
+
+Every persona in the catalogue (§3.3) has exactly one entry here, including the reserved personas
+and the Steady Eddie catch-all, so this card **always renders**. The mapping is a static constant in
+`lib/wrapped.ts` (unit-tested: every persona key has a footballer; no key is orphaned).
 
 ---
 
@@ -306,6 +346,8 @@ with the sim. Only if a *real*-prediction repro is essential, take a dump that e
   allocatable persona); two players tied on a signature metric → strongest keeps it, the other is
   bumped to their next-best available persona (deterministic, tie broken by `playerId`).
 - Pool exhaustion guard: if allocatable personas run out, remainder → Steady Eddie (no crash).
+- Footballer mapping: every persona key in the catalogue (§3.3) has exactly one footballer entry
+  (§4.2); no orphaned key, no persona without a match — so the card always renders.
 - Comparison math: distinct exact counts → `moreAccurateThan` counts peers strictly below; "of N"
   denominator excludes zero-data players.
 - Ties: `>` not `>=`; whole-group tie → 1224 shared rank; final-rank ties via `computePointsOnlyRank`.
