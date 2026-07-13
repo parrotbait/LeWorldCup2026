@@ -382,3 +382,63 @@ export function allocatePersonas(inputs: PersonaInput[]): Map<number, PersonaKey
 
     return result;
 }
+
+export const ALL_PERSONA_KEYS: PersonaKey[] = [
+    "EARLY_RETIREMENT",
+    "CHAMPION",
+    "WOODEN_SPOON",
+    "STEADY_EDDIE",
+    "ORACLE",
+    "SNIPER",
+    "CONTRARIAN",
+    "MAVERICK",
+    "CHANCER",
+    "BONUS_MERCHANT",
+    "PROPHET",
+    "DARK_HORSE_WHISPERER",
+    "CLOSER",
+    "FAST_STARTER",
+    "COMEBACK",
+    "FRONTRUNNER",
+    "OPTIMIST",
+    "CAGEY_ONE",
+    "METRONOME",
+    "NEARLY_MAN",
+];
+
+export interface FootballerEntry {
+    name: string;
+    tie: string;
+    sticker: string; // /wrapped/stickers/<persona-key>.png
+}
+
+const sticker = (key: string): string => `/wrapped/stickers/${key}.png`;
+
+/**
+ * Persona → footballer. Global legends as the backbone, Irish names where the
+ * trait genuinely fits. Every persona key has exactly one entry (enforced by
+ * ALL_PERSONA_KEYS + the unit test) so the sticker card always renders.
+ * See spec §4.2.
+ */
+export const FOOTBALLER_BY_PERSONA: Record<PersonaKey, FootballerEntry> = {
+    CHAMPION: { name: "Lionel Messi", tie: "Chased it his whole career, then finally lifted it.", sticker: sticker("champion") },
+    EARLY_RETIREMENT: { name: "Eric Cantona", tie: "Walked away at the top, on his own terms. No shame in it.", sticker: sticker("early-retirement") },
+    WOODEN_SPOON: { name: "Dirk Kuyt", tie: "Not the most gifted — ran till he dropped, adored for it.", sticker: sticker("wooden-spoon") },
+    ORACLE: { name: "Xavi", tie: "Saw the pass before it existed.", sticker: sticker("oracle") },
+    SNIPER: { name: "Filippo Inzaghi", tie: "Barely touched the ball. Always in the net.", sticker: sticker("sniper") },
+    CONTRARIAN: { name: "Roy Keane", tie: "Never once held the popular opinion, and never cared.", sticker: sticker("contrarian") },
+    MAVERICK: { name: "Zlatan Ibrahimović", tie: "Did it his way, chalk be damned.", sticker: sticker("maverick") },
+    CHANCER: { name: "Gary Doherty", tie: "Ambition well ahead of the end product — but by God he went for it.", sticker: sticker("chancer") },
+    BONUS_MERCHANT: { name: "David Beckham", tie: "Made a living off the dead ball.", sticker: sticker("bonus-merchant") },
+    PROPHET: { name: "Johan Cruyff", tie: "Saw the future of the game before anyone else.", sticker: sticker("prophet") },
+    DARK_HORSE_WHISPERER: { name: "Jamie Vardy", tie: "Non-league to champion — the outsider who stunned the lot.", sticker: sticker("dark-horse-whisperer") },
+    CLOSER: { name: "Sergio Ramos", tie: "Turned up in the 93rd minute when it actually mattered.", sticker: sticker("closer") },
+    FAST_STARTER: { name: "Michael Owen", tie: "Burst onto the scene like a rocket, then eased off.", sticker: sticker("fast-starter") },
+    COMEBACK: { name: "Ronaldo", tie: "Written off with the knees. Came back and won the lot.", sticker: sticker("comeback") },
+    FRONTRUNNER: { name: "Ronaldinho", tie: "Lit up the world, then the spark quietly dimmed.", sticker: sticker("frontrunner") },
+    OPTIMIST: { name: "Roberto Carlos", tie: "A defender who only ever wanted to attack.", sticker: sticker("optimist") },
+    CAGEY_ONE: { name: "Paolo Maldini", tie: "Nothing got past. A nil-all connoisseur.", sticker: sticker("cagey-one") },
+    METRONOME: { name: "Sergio Busquets", tie: "The whole game runs quietly through him.", sticker: sticker("metronome") },
+    NEARLY_MAN: { name: "Steven Gerrard", tie: "So close you could taste it. So, so close.", sticker: sticker("nearly-man") },
+    STEADY_EDDIE: { name: "Denis Irwin", tie: "Mr Dependable. Never flashy, never a bad game — 8 out of 10, every week.", sticker: sticker("steady-eddie") },
+};

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+    ALL_PERSONA_KEYS,
+    FOOTBALLER_BY_PERSONA,
     allocatePersonas,
     computeBoldness,
     computePlayerStats,
@@ -172,5 +174,17 @@ describe("allocatePersonas", () => {
     it("is deterministic — same input, same output", () => {
         const players = [player(1, { exactCount: 5 }), player(2, { exactCount: 5 })];
         expect([...allocatePersonas(players)]).toEqual([...allocatePersonas(players)]);
+    });
+});
+
+describe("footballer mapping", () => {
+    it("has exactly one footballer entry for every persona key", () => {
+        for (const key of ALL_PERSONA_KEYS) {
+            const entry = FOOTBALLER_BY_PERSONA[key];
+            expect(entry, `missing footballer for ${key}`).toBeDefined();
+            expect(entry.name.length).toBeGreaterThan(0);
+            expect(entry.tie.length).toBeGreaterThan(0);
+            expect(entry.sticker).toMatch(/^\/wrapped\/stickers\/.+\.png$/);
+        }
     });
 });
