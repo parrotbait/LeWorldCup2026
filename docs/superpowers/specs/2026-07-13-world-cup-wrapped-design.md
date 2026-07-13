@@ -170,8 +170,10 @@ the footballer + the one-line "why".
 `public/wrapped/stickers/<persona-key>.png`. The card just renders the sticker for the player's
 allocated persona — no image generation, no API calls, no cost at request time. Proof-of-concept
 stickers (Roy Keane, Gary Doherty) live in `docs/superpowers/specs/wrapped-poc/` and confirmed the
-aesthetic holds even for obscure players (exact likeness of deep-cut names is approximate, which is
-completely fine for a nostalgic sticker).
+aesthetic holds. **Likeness caveat:** for less-famous players the text-only model invents a face
+(the POC "Gary Doherty" is not actually him). For the final assets, feed a **real reference photo**
+per player (nanobanana reference-image input) so the likeness is correct, and hand-check every
+sticker before committing.
 
 **Prompt recipe** (reuse per player): *"vintage 1990s Panini-style football sticker, thin glossy
 white border with green inner frame, round Panini logo top-left, a strip reading the player's
