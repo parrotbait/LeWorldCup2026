@@ -28,6 +28,7 @@ import { ViewToggle } from "./_components/ViewToggle";
 import { LeaderboardChart } from "./_components/LeaderboardChart";
 import { BonusTooltipRow, type BonusTooltipEntry } from "./_components/BonusTooltip";
 import { RefreshDataButton } from "@/app/_components/refresh-data-button";
+import { WrappedGate } from "./_components/WrappedGate";
 
 export const revalidate = 30;
 
@@ -300,6 +301,7 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
                     );
                 })()}
                 <RefreshDataButton />
+                <WrappedGate playerId={session.playerId} />
 
                 {view === "chart" ? (
                     <LeaderboardChart
