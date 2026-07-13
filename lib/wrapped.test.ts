@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+    allocatePersonas,
     computeBoldness,
     computePlayerStats,
     findBestCall,
     findWorstCall,
     isTournamentComplete,
     isWrappedUnlocked,
+    type PersonaInput,
 } from "./wrapped";
 
 describe("isTournamentComplete", () => {
@@ -112,5 +114,63 @@ describe("best / worst call", () => {
             { playerId: 2, matchId: 1, homeScore: 0, awayScore: 2 }, // AWAY, differs from player 1's HOME
         ];
         expect(computeBoldness(1, 1, all)).toBe(0.5);
+    });
+});
+
+describe("allocatePersonas", () => {
+    function player(id: number, over: Partial<PersonaInput>): PersonaInput {
+        return {
+            playerId: id,
+            finalRank: id,
+            lastRank: 3,
+            participationRate: 1,
+            filed: 20,
+            exactCount: 0,
+            perMatchPoints: 1,
+            bonusPoints: 0,
+            predPoints: 20,
+            darkHorsePoints: 0,
+            wonBonusWinner: false,
+            knockoutCorrect: 0,
+            knockoutPicks: 0,
+            groupPointsShare: 0.5,
+            meanPredGoals: 2,
+            drawShare: 0.2,
+            bestBoldness: 0,
+            snapshotsLed: 0,
+            rankClimb: 0,
+            ...over,
+        };
+    }
+
+    it("assigns reserved personas first: drop-out, champion, wooden spoon", () => {
+        const players = [
+            player(1, { finalRank: 1 }),
+            player(2, { participationRate: 0.1, filed: 3 }),
+            player(3, { finalRank: 3, lastRank: 3, participationRate: 1 }),
+        ];
+        const out = allocatePersonas(players);
+        expect(out.get(1)).toBe("CHAMPION");
+        expect(out.get(2)).toBe("EARLY_RETIREMENT");
+        expect(out.get(3)).toBe("WOODEN_SPOON");
+    });
+
+    it("gives distinct personas to a full field (no duplicate allocatable)", () => {
+        const players = Array.from({ length: 8 }, (_, i) =>
+            player(i + 1, {
+                finalRank: i + 2,
+                lastRank: 20,
+                exactCount: 8 - i,
+                perMatchPoints: (8 - i) / 4,
+            }),
+        );
+        const out = allocatePersonas(players);
+        const assigned = [...out.values()];
+        expect(new Set(assigned).size).toBe(assigned.length);
+    });
+
+    it("is deterministic — same input, same output", () => {
+        const players = [player(1, { exactCount: 5 }), player(2, { exactCount: 5 })];
+        expect([...allocatePersonas(players)]).toEqual([...allocatePersonas(players)]);
     });
 });

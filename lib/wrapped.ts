@@ -270,3 +270,115 @@ export function findWorstCall(
     }
     return worst;
 }
+
+export interface PersonaInput {
+    playerId: number;
+    finalRank: number;
+    lastRank: number;
+    participationRate: number;
+    filed: number;
+    exactCount: number;
+    perMatchPoints: number;
+    bonusPoints: number;
+    predPoints: number;
+    darkHorsePoints: number;
+    wonBonusWinner: boolean;
+    knockoutCorrect: number;
+    knockoutPicks: number;
+    groupPointsShare: number;
+    meanPredGoals: number;
+    drawShare: number;
+    bestBoldness: number;
+    snapshotsLed: number;
+    rankClimb: number;
+}
+
+const MIN_FILED_FOR_RATE = 5;
+
+/** An allocatable persona: eligibility gate + a signature score (higher = better fit). */
+interface AllocatablePersona {
+    key: PersonaKey;
+    eligible: (p: PersonaInput) => boolean;
+    score: (p: PersonaInput) => number;
+}
+
+const ALLOCATABLE: AllocatablePersona[] = [
+    { key: "ORACLE", eligible: (p) => p.filed >= MIN_FILED_FOR_RATE && p.exactCount >= 3, score: (p) => p.exactCount },
+    { key: "SNIPER", eligible: (p) => p.filed >= MIN_FILED_FOR_RATE, score: (p) => p.perMatchPoints },
+    { key: "CONTRARIAN", eligible: (p) => p.knockoutCorrect + p.exactCount > 0, score: (p) => p.bestBoldness },
+    { key: "MAVERICK", eligible: (p) => p.filed >= MIN_FILED_FOR_RATE, score: (p) => p.bestBoldness },
+    { key: "CHANCER", eligible: (p) => p.filed >= MIN_FILED_FOR_RATE, score: (p) => p.meanPredGoals },
+    { key: "BONUS_MERCHANT", eligible: (p) => p.bonusPoints > 0, score: (p) => p.bonusPoints },
+    { key: "PROPHET", eligible: (p) => p.wonBonusWinner, score: () => 1 },
+    { key: "DARK_HORSE_WHISPERER", eligible: (p) => p.darkHorsePoints > 0, score: (p) => p.darkHorsePoints },
+    { key: "CLOSER", eligible: (p) => p.knockoutPicks >= 3, score: (p) => p.knockoutCorrect / Math.max(1, p.knockoutPicks) },
+    { key: "FAST_STARTER", eligible: (p) => p.filed >= MIN_FILED_FOR_RATE, score: (p) => p.groupPointsShare },
+    { key: "COMEBACK", eligible: (p) => p.rankClimb > 0, score: (p) => p.rankClimb },
+    { key: "FRONTRUNNER", eligible: (p) => p.snapshotsLed > 0 && p.finalRank !== 1, score: (p) => p.snapshotsLed },
+    { key: "OPTIMIST", eligible: (p) => p.filed >= MIN_FILED_FOR_RATE, score: (p) => p.meanPredGoals },
+    { key: "CAGEY_ONE", eligible: (p) => p.filed >= MIN_FILED_FOR_RATE, score: (p) => p.drawShare },
+    { key: "METRONOME", eligible: (p) => p.participationRate >= 0.9, score: (p) => p.perMatchPoints * (1 - p.drawShare) },
+    { key: "NEARLY_MAN", eligible: (p) => p.finalRank === 2 || p.finalRank === 3, score: (p) => 4 - p.finalRank },
+];
+
+/**
+ * Assign exactly one persona per player. Reserved personas first, then a
+ * deterministic greedy allocation of the strongest (player, persona) pair.
+ * Each allocatable persona is used at most once. See spec §3.2.
+ */
+export function allocatePersonas(inputs: PersonaInput[]): Map<number, PersonaKey> {
+    const sorted = [...inputs].sort((a, b) => a.playerId - b.playerId);
+    const result = new Map<number, PersonaKey>();
+    const remaining: PersonaInput[] = [];
+
+    // Step 1 — reserved.
+    for (const p of sorted) {
+        if (p.participationRate < 0.25) {
+            result.set(p.playerId, "EARLY_RETIREMENT");
+        } else if (p.finalRank === 1) {
+            result.set(p.playerId, "CHAMPION");
+        } else if (p.finalRank === p.lastRank && p.participationRate >= 0.5) {
+            result.set(p.playerId, "WOODEN_SPOON");
+        } else {
+            remaining.push(p);
+        }
+    }
+
+    // Step 2 — greedy allocation.
+    const available = new Set(ALLOCATABLE.map((a) => a.key));
+    const unplaced = new Set(remaining.map((p) => p.playerId));
+    const byId = new Map(remaining.map((p) => [p.playerId, p]));
+
+    while (unplaced.size > 0) {
+        let bestPair: { playerId: number; key: PersonaKey; score: number } | null = null;
+        for (const playerId of unplaced) {
+            const p = byId.get(playerId)!;
+            for (const persona of ALLOCATABLE) {
+                if (!available.has(persona.key) || !persona.eligible(p)) {
+                    continue;
+                }
+                const score = persona.score(p);
+                if (
+                    bestPair === null ||
+                    score > bestPair.score ||
+                    // Deterministic tie-break: lower playerId, then catalogue order.
+                    (score === bestPair.score && playerId < bestPair.playerId)
+                ) {
+                    bestPair = { playerId, key: persona.key, score };
+                }
+            }
+        }
+        if (bestPair === null) {
+            // No eligible persona left for anyone — catch-all.
+            for (const playerId of unplaced) {
+                result.set(playerId, "STEADY_EDDIE");
+            }
+            break;
+        }
+        result.set(bestPair.playerId, bestPair.key);
+        available.delete(bestPair.key);
+        unplaced.delete(bestPair.playerId);
+    }
+
+    return result;
+}
