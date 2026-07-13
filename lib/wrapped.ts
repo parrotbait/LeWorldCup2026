@@ -7,6 +7,7 @@
  */
 import type { BonusResolutionLite, Round } from "./scoring";
 import { isExact, outcome, predictionPoints } from "./scoring";
+import type { BonusBreakdownEntry, PlayerLeaderboardRow } from "./scoring";
 
 /** FINAL match played to a finish. */
 export function isTournamentComplete(
@@ -442,3 +443,197 @@ export const FOOTBALLER_BY_PERSONA: Record<PersonaKey, FootballerEntry> = {
     NEARLY_MAN: { name: "Steven Gerrard", tie: "So close you could taste it. So, so close.", sticker: sticker("nearly-man") },
     STEADY_EDDIE: { name: "Denis Irwin", tie: "Mr Dependable. Never flashy, never a bad game — 8 out of 10, every week.", sticker: sticker("steady-eddie") },
 };
+
+// ---------------------------------------------------------------------------
+// buildWrapped — the per-player payload. Computes all players in one pass so
+// group-comparison cards ("of the N who saw it through") have their aggregates.
+// ---------------------------------------------------------------------------
+
+export interface WrappedSnapshot {
+    capturedAt: number; // epoch ms
+    rowsByPlayerId: Record<number, { rank: number; points: number }>;
+}
+
+export interface WrappedInput {
+    players: { id: number; displayName: string; joinedAt: Date }[];
+    matches: WrappedMatch[];
+    predictions: WrappedPrediction[];
+    leaderboardRows: PlayerLeaderboardRow[];
+    bonusBreakdownByPlayer: Map<number, BonusBreakdownEntry[]>;
+    snapshotSeries: WrappedSnapshot[];
+    teamLookup: Map<number, { name: string; code: string }>;
+}
+
+export interface WrappedCallView {
+    matchLabel: string;
+    pick: string;
+    actual: string;
+    points?: number;
+}
+
+export interface WrappedData {
+    playerId: number;
+    displayName: string;
+    persona: PersonaKey;
+    footballer: FootballerEntry;
+    finalRank: number;
+    totalPoints: number;
+    predPoints: number;
+    bonusPoints: number;
+    exactCount: number;
+    filed: number;
+    settledFinished: number;
+    bestCall: WrappedCallView | null;
+    worstCall: WrappedCallView | null;
+    peakRank: number | null;
+    bonusHits: { label: string; pick: string; points: number }[];
+    /** Count of comparable players (>=1 settled pick) this player out-accuracy'd. */
+    moreAccurateThan: number;
+    comparableCount: number;
+}
+
+function matchLabelOf(m: WrappedMatch, teamLookup: Map<number, { code: string }>): string {
+    const home = m.homeTeamId !== null ? teamLookup.get(m.homeTeamId)?.code ?? "?" : "?";
+    const away = m.awayTeamId !== null ? teamLookup.get(m.awayTeamId)?.code ?? "?" : "?";
+    return `${home} v ${away}`;
+}
+
+function scoreStr(h: number, a: number): string {
+    return `${h}–${a}`;
+}
+
+export function buildWrapped(input: WrappedInput): Map<number, WrappedData> {
+    const rankByPlayer = new Map(input.leaderboardRows.map((r, i) => [r.playerId, i + 1]));
+    const lastRank = input.leaderboardRows.length;
+
+    // Per-player stats.
+    const statsByPlayer = new Map<number, PlayerStats>();
+    for (const p of input.players) {
+        statsByPlayer.set(p.id, computePlayerStats(p.id, input));
+    }
+
+    // Group comparison: players with >=1 settled prediction ("who saw it through").
+    const comparable = input.players.filter((p) => (statsByPlayer.get(p.id)?.filed ?? 0) > 0);
+    const comparableCount = comparable.length;
+
+    // Snapshot-derived facts per player.
+    const snapshotFacts = (
+        playerId: number,
+    ): { led: number; peak: number | null; climb: number } => {
+        let led = 0;
+        let peak: number | null = null;
+        let worst: number | null = null;
+        let last: number | null = null;
+        for (const snap of input.snapshotSeries) {
+            const row = snap.rowsByPlayerId[playerId];
+            if (row === undefined) {
+                continue;
+            }
+            if (row.rank === 1) {
+                led += 1;
+            }
+            peak = peak === null ? row.rank : Math.min(peak, row.rank);
+            worst = worst === null ? row.rank : Math.max(worst, row.rank);
+            last = row.rank;
+        }
+        const climb = worst !== null && last !== null ? worst - last : 0;
+        return { led, peak, climb };
+    };
+
+    // Persona inputs.
+    const personaInputs: PersonaInput[] = input.players.map((p) => {
+        const st = statsByPlayer.get(p.id)!;
+        const row = input.leaderboardRows.find((r) => r.playerId === p.id);
+        const breakdown = input.bonusBreakdownByPlayer.get(p.id) ?? [];
+        const dhPoints = breakdown
+            .filter((e) => e.kind === "DARK_HORSE")
+            .reduce((a, e) => a + e.points, 0);
+        const wonWinner = breakdown.some((e) => e.kind === "WINNER" && e.points > 0);
+        const best = findBestCall(p.id, input);
+        const snap = snapshotFacts(p.id);
+        return {
+            playerId: p.id,
+            finalRank: rankByPlayer.get(p.id) ?? lastRank,
+            lastRank,
+            participationRate: st.participationRate,
+            filed: st.filed,
+            exactCount: st.exactCount,
+            perMatchPoints: st.perMatchPoints,
+            bonusPoints: row?.bonusPoints ?? 0,
+            predPoints: st.predPoints,
+            darkHorsePoints: dhPoints,
+            wonBonusWinner: wonWinner,
+            knockoutCorrect: st.knockoutCorrect,
+            knockoutPicks: st.knockoutPicks,
+            groupPointsShare: st.groupPointsShare,
+            meanPredGoals: st.meanPredGoals,
+            drawShare: st.drawShare,
+            bestBoldness: best?.boldness ?? 0,
+            snapshotsLed: snap.led,
+            rankClimb: snap.climb,
+        };
+    });
+
+    const personaByPlayer = allocatePersonas(personaInputs);
+
+    // Assemble.
+    const result = new Map<number, WrappedData>();
+    const matchById = new Map(input.matches.map((m) => [m.id, m]));
+
+    for (const p of input.players) {
+        const st = statsByPlayer.get(p.id)!;
+        const row = input.leaderboardRows.find((r) => r.playerId === p.id);
+        const persona = personaByPlayer.get(p.id) ?? "STEADY_EDDIE";
+        const breakdown = input.bonusBreakdownByPlayer.get(p.id) ?? [];
+        const snap = snapshotFacts(p.id);
+
+        const best = findBestCall(p.id, input);
+        const worst = st.filed >= 3 ? findWorstCall(p.id, input) : null;
+        const predByMatch = new Map(
+            input.predictions.filter((x) => x.playerId === p.id).map((x) => [x.matchId, x]),
+        );
+
+        const toView = (matchId: number, withPoints?: number): WrappedCallView => {
+            const m = matchById.get(matchId)!;
+            const pick = predByMatch.get(matchId)!;
+            return {
+                matchLabel: matchLabelOf(m, input.teamLookup),
+                pick: scoreStr(pick.homeScore, pick.awayScore),
+                actual: scoreStr(m.homeScore!, m.awayScore!),
+                points: withPoints,
+            };
+        };
+
+        const bestView = best === null ? null : toView(best.matchId, best.points);
+        const worstView = worst === null ? null : toView(worst.matchId);
+
+        const myHitRate = st.hitRate;
+        const moreAccurateThan = comparable.filter(
+            (o) => (statsByPlayer.get(o.id)?.hitRate ?? 0) < myHitRate,
+        ).length;
+
+        result.set(p.id, {
+            playerId: p.id,
+            displayName: p.displayName,
+            persona,
+            footballer: FOOTBALLER_BY_PERSONA[persona],
+            finalRank: rankByPlayer.get(p.id) ?? lastRank,
+            totalPoints: row?.points ?? 0,
+            predPoints: st.predPoints,
+            bonusPoints: row?.bonusPoints ?? 0,
+            exactCount: st.exactCount,
+            filed: st.filed,
+            settledFinished: st.settledFinished,
+            bestCall: bestView,
+            worstCall: worstView,
+            peakRank: snap.peak,
+            bonusHits: breakdown
+                .filter((e) => e.points > 0)
+                .map((e) => ({ label: e.label, pick: e.pick, points: e.points })),
+            moreAccurateThan,
+            comparableCount,
+        });
+    }
+
+    return result;
+}

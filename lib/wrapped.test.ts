@@ -3,6 +3,7 @@ import {
     ALL_PERSONA_KEYS,
     FOOTBALLER_BY_PERSONA,
     allocatePersonas,
+    buildWrapped,
     computeBoldness,
     computePlayerStats,
     findBestCall,
@@ -10,6 +11,7 @@ import {
     isTournamentComplete,
     isWrappedUnlocked,
     type PersonaInput,
+    type WrappedInput,
 } from "./wrapped";
 
 describe("isTournamentComplete", () => {
@@ -35,17 +37,13 @@ describe("isWrappedUnlocked", () => {
 
     it("false when a WINNER resolution row exists but has no team", () => {
         expect(
-            isWrappedUnlocked(finalDone, [
-                { kind: "WINNER", groupLetter: "", teamIds: [], playerNames: [] },
-            ]),
+            isWrappedUnlocked(finalDone, [{ kind: "WINNER", teamIds: [] }]),
         ).toBe(false);
     });
 
     it("true when FINAL finished AND WINNER resolution has a team", () => {
         expect(
-            isWrappedUnlocked(finalDone, [
-                { kind: "WINNER", groupLetter: "", teamIds: [7], playerNames: [] },
-            ]),
+            isWrappedUnlocked(finalDone, [{ kind: "WINNER", teamIds: [7] }]),
         ).toBe(true);
     });
 });
@@ -186,5 +184,57 @@ describe("footballer mapping", () => {
             expect(entry.tie.length).toBeGreaterThan(0);
             expect(entry.sticker).toMatch(/^\/wrapped\/stickers\/.+\.png$/);
         }
+    });
+});
+
+describe("buildWrapped", () => {
+    const base: WrappedInput = {
+        players: [
+            { id: 1, displayName: "Winner", joinedAt: new Date("2026-01-01") },
+            { id: 2, displayName: "Dropout", joinedAt: new Date("2026-01-02") },
+        ],
+        matches: [
+            { id: 1, round: "GROUP", status: "FINISHED", homeScore: 2, awayScore: 1,
+              homeTeamId: 10, awayTeamId: 11, winnerTeamId: null, kickoff: new Date("2026-06-11T18:00:00Z"), groupLetter: "A" },
+            { id: 2, round: "FINAL", status: "FINISHED", homeScore: 1, awayScore: 0,
+              homeTeamId: 10, awayTeamId: 12, winnerTeamId: 10, kickoff: new Date("2026-07-19T18:00:00Z"), groupLetter: null },
+        ],
+        predictions: [
+            { playerId: 1, matchId: 1, homeScore: 2, awayScore: 1 },
+            { playerId: 1, matchId: 2, homeScore: 1, awayScore: 0 },
+            { playerId: 2, matchId: 1, homeScore: 0, awayScore: 0 },
+        ],
+        leaderboardRows: [
+            { playerId: 1, displayName: "Winner", points: 10, exactCount: 2, bonusPoints: 0, knockoutResults: 1, joinedAt: new Date("2026-01-01") },
+            { playerId: 2, displayName: "Dropout", points: 0, exactCount: 0, bonusPoints: 0, knockoutResults: 0, joinedAt: new Date("2026-01-02") },
+        ],
+        bonusBreakdownByPlayer: new Map(),
+        snapshotSeries: [],
+        teamLookup: new Map([
+            [10, { name: "Spain", code: "ESP" }],
+            [11, { name: "France", code: "FRA" }],
+            [12, { name: "Brazil", code: "BRA" }],
+        ]),
+    };
+
+    it("returns one WrappedData per player", () => {
+        expect(buildWrapped(base).size).toBe(2);
+    });
+
+    it("winner gets CHAMPION and a footballer", () => {
+        const w = buildWrapped(base).get(1)!;
+        expect(w.persona).toBe("CHAMPION");
+        expect(w.footballer.name).toBe("Lionel Messi");
+    });
+
+    it("low-data player is safe: no worst-call card, valid footballer", () => {
+        const w = buildWrapped(base).get(2)!;
+        expect(w.worstCall).toBeNull();
+        expect(w.footballer.sticker).toMatch(/\.png$/);
+        expect(w.playerId).toBe(2);
+    });
+
+    it("is deterministic", () => {
+        expect([...buildWrapped(base)]).toEqual([...buildWrapped(base)]);
     });
 });
