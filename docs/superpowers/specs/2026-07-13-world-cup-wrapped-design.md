@@ -57,8 +57,13 @@ sentence on a real friend's card is the primary risk of this feature.
    the group"). Descriptions cannot contradict the standings.
 2. **Minimum-sample gate** (`filed ≥ 5`) on any rate-based persona. The drop-out and the
    one-lucky-pick player can never claim an accuracy crown.
-3. **Warmest-tier, hand-authored copy** for the two most exposed players (the drop-out and last
-   place). They are routed away from the general roast generator.
+3. **Genuine care is aimed at ONE player: the drop-out** (Early Retirement / Ghost) — because
+   disengagement can have a real-life reason the app can't see. They get hand-authored warm copy,
+   routed away from the roast generator. A player who **turned up and played badly is fair game**
+   for a proper slagging — the whole point of the group. Last place who *participated* gets a
+   cheeky, affectionate roast, not coddling: the joke is on the *performance*, which is honest and
+   funny, never on their character or worth. Roast the results all you like; just don't
+   sanctimoniously punch down at someone for not being *able* to play.
 
 ### 3.2 The ladder
 
@@ -68,12 +73,11 @@ sentence on a real friend's card is the primary risk of this feature.
 | 2 | **The Ghost** | `participationRate < 0.25`, scattered (didn't qualify for #1). | Warm, **no numbers**. |
 | 3 | **The Champion** | `finalRank === 1`. | "Top of the pile on {totalPoints}. Insufferable, and entitled to be." |
 | 4 | **The Oracle** | `exactCount === max(exactCount)` AND `exactCount ≥ 3`. | "{exactCount} exact scorelines. Are you well? That's not normal." |
-| 5 | **The Gambler** | Cashed every joker AND `jokerCount === max(jokerCount)`. **Only if jokers are enabled** (see §8). | "Doubled down and never blinked." |
-| 6 | **The Contrarian** | Owns the single boldest *correct* pick in the group (max boldness among correct picks; see §5). | "You called it when nobody else dared." |
-| 7 | **The Bonus Merchant** | `bonusPoints === max(bonusPoints)` AND `bonusPoints > predPoints × 0.4`. | "Your edge came off the bonus board." |
-| 8 | **The Metronome** | `hitRate ≥ median` AND `participationRate ≥ 0.9` AND `exactRate ≤ median`. | "No fireworks, just a steady drip of points." |
-| 9 | **The Nearly Man** | `finalRank === lastRank` AND `participationRate ≥ 0.5`. The dignified wooden-spoon persona — **warmest card of the lot**. | "Bottom of the eleven, but you fought for every one. Someone has to hold the door." |
-| 10 | **Steady Eddie** | Catch-all. Guarantees total coverage. | "A solid, sensible campaign." |
+| 5 | **The Contrarian** | Owns the single boldest *correct* pick in the group (max boldness among correct picks; see §5). | "You called it when nobody else dared." |
+| 6 | **The Bonus Merchant** | `bonusPoints === max(bonusPoints)` AND `bonusPoints > predPoints × 0.4`. | "Your edge came off the bonus board." |
+| 7 | **The Metronome** | `hitRate ≥ median` AND `participationRate ≥ 0.9` AND `exactRate ≤ median`. | "No fireworks, just a steady drip of points." |
+| 8 | **The Wooden Spoon** | `finalRank === lastRank` AND `participationRate ≥ 0.5`. Turned up, played, finished dead last — fair game for a proper slagging on the *performance*. | Cheeky and affectionate, not coddling. "Dead last of the eleven. Someone has to prop up the table, and by God you committed to the role." |
+| 9 | **Steady Eddie** | Catch-all. Guarantees total coverage. | "A solid, sensible campaign." |
 
 Ties on a threshold (two players share `max(exactCount)`) are allowed — both can be "The Oracle"
 with shared/descriptive copy. Only per-player assignment must be deterministic, which it is (each
@@ -84,18 +88,19 @@ player runs the ladder independently).
 ## 4. Card lineup (after the persona card)
 
 Every card is a pure `(playerData) → Card | null`. **Omission is a first-class, tested outcome** —
-no divide-by-zero, no "0 of 0", no punching down. A minimum viable Wrapped of ~3 always-safe cards
-(persona, "here's your tournament", warm sign-off) guarantees even the drop-out a complete story.
+no divide-by-zero, no "0 of 0". A minimum viable Wrapped of ~3 always-safe cards (persona, "here's
+your tournament", sign-off) guarantees even the drop-out a complete story. Slag the performance
+freely; the only line is not punching down at the drop-out for *not being able to play* (§10).
 
 | # | Card | Stat shown | Computation | Group comparison | Degrade rule |
 |---|------|-----------|-------------|------------------|--------------|
 | 2 | **The Damage** | Total points, split pitch vs bonus board | From `PlayerLeaderboardRow`. | "X above/below the group average." | Always renders. |
-| 3 | **Your Best Call** | Highest-value correct prediction (joker-adjusted) | See §5. | "Only N others called it." | Null if no scoring pick → fallback warm copy. |
-| 4 | **Your Worst Call** | Biggest confidently-wrong pick | See §5. | "The group got this X% right." | **Suppressed if `filed < 3`.** Roasts the *football*, never the person. |
+| 3 | **Your Best Call** | Highest-value correct prediction | See §5. | "Only N others called it." | Null if no scoring pick → fallback warm copy. |
+| 4 | **Your Worst Call** | Biggest confidently-wrong pick | See §5. | "The group got this X% right." | **Suppressed only if `filed < 3`.** Otherwise fair game — the slagging is on the pick, not the person. |
 | 5 | **Where You Peaked** | Highest rank ever held + the match that caused it | `min(rank)` across `leaderboardSnapshotRows` + that snapshot's `causeMatchId`. | — | Null if no snapshots. |
 | 6 | **The Journey** | Sparkline of rank over time, player's line highlighted | Ordered `rank` from snapshot series. | Winner's line faint for contrast. | Null / static if single snapshot. |
 | 7 | **The Bonus Board** | Each bonus pick + hit/miss | `computeBonusBreakdownByPlayer` entries. | "Your dark horse got further than N others'." | **Omitted entirely if no bonus picks** (never "0 of 0"). |
-| 8 | **The Verdict** | Final rank + one superlative the player genuinely owns; confetti; screenshot-friendly | `finalRank` + first owned group-max stat. | This card *is* the comparison. | Always renders; last place gets the warmest verdict. |
+| 8 | **The Verdict** | Final rank + one superlative the player genuinely owns; confetti; screenshot-friendly | `finalRank` + first owned group-max stat. | This card *is* the comparison. | Always renders; last place gets a cheeky verdict, not a soft one. |
 
 ### 4.1 The comparison denominator (one, fixed, stated in copy)
 
@@ -113,8 +118,9 @@ Computed per player over their predictions vs **FINISHED** matches only. Uses AE
 `homeScore`/`awayScore` (never `homeScorePens`) so cards never contradict the leaderboard on
 shootout matches.
 
-- **Best call** = prediction with highest `predictionPoints(match, pred) × (joker ? 2 : 1)`.
-  Tie-break: higher points → was exact → higher boldness → later kickoff.
+- **Best call** = prediction with highest `predictionPoints(match, pred)`.
+  Tie-break: higher points → was exact → higher boldness → later kickoff. (No joker multiplier —
+  the joker was never exposed, so no `jokers` rows exist; see §8.)
 - **Worst call** = among picks that scored 0 against a real result, max
   `missMargin = |predHome − actualHome| + |predAway − actualAway|`. Tie-break: bigger margin →
   wrong outcome → predicted the loser to win → bolder scoreline. Suppressed if `filed < 3`.
@@ -229,8 +235,9 @@ with the sim. Only if a *real*-prediction repro is essential, take a dump that e
 
 ## 8. Data feasibility — cut list
 
-- **Jokers** — schema/scoring fully support them, but the joker UI is hidden in v1. If no `jokers`
-  rows exist, **The Gambler persona and all joker copy are cut cleanly** (ladder skips it).
+- **Jokers** — the joker was never exposed in the UI, so no `jokers` rows exist. There is **no
+  Gambler persona and no joker copy or multiplier anywhere** in Wrapped. (Schema/scoring retain
+  joker support for history; Wrapped simply ignores it.)
 - **Card/booking counts** (Pantomime Villain narration) — **no data source**. Usable only as a
   bonus hit/miss via `bonusResolutions`, never as a narrated count.
 - **Team allegiances / "your teams" / clean sheets** — **cut**. We model per-match scorelines, not
@@ -245,7 +252,7 @@ with the sim. Only if a *real*-prediction repro is essential, take a dump that e
 - `isTournamentComplete`: false without a FINAL / when FINAL not FINISHED; true only on FINAL FINISHED.
 - `isWrappedUnlocked`: false when FINAL finished but no WINNER resolution; true only when both hold.
 - Persona per rung: focused test each (Champion, Oracle, Contrarian, Bonus Merchant, Metronome,
-  Nearly Man, Early Retirement, Ghost, Steady Eddie catch-all).
+  Wooden Spoon, Early Retirement, Ghost, Steady Eddie catch-all).
 - Comparison math: distinct exact counts → `moreAccurateThan` counts peers strictly below; "of N"
   denominator excludes zero-data players.
 - Ties: `>` not `>=`; whole-group tie → 1224 shared rank; final-rank ties via `computePointsOnlyRank`.
@@ -260,18 +267,24 @@ Run `pnpm test` and `pnpm typecheck` after changes (per `[[feedback_run_tests_af
 
 ## 10. Social-risk guardrails (real friend group)
 
-Auto-generated banter cannot read the room — someone may have stopped playing because life got
-heavy. Every line must be survivable by the person least able to take it today.
+This is a group of lads who slag each other rotten — that's the fun, and a terrible campaign should
+be roasted, not coddled. The tone should be cheeky and unsparing about **performance**. There is
+exactly **one** guardrail worth keeping: don't punch down at the **drop-out** for not being *able*
+to play, because disengagement can have a real-life reason the app can't see.
 
-- **Punch up or at nobody.** Roast the football ("Canada were never winning that"), the pick, or
-  the collective — never the person's character or engagement.
-- **Kindest tier** for last place and the drop-out — hand-authored warm copy.
+- **Roast the results freely.** A bad rank, a mad scoreline, a bonus board of misses — all fair
+  game, and funnier for being honest. Last place gets a proper slagging on the *performance*.
+- **The one soft touch: the drop-out.** Early Retirement / Ghost get hand-authored copy that ribs
+  the disappearance lightly ("rode off into the sunset") without moralising about effort or implying
+  they couldn't hack it. Slag the *absence* with a wink, not the person.
+- **Roast the pick and the person's record, not their character.** "You backed Brazil like a
+  headcase" is grand; nothing about who they are as a human.
 - **No named-rival negativity.** "Below a specific person" → aggregate language ("mid-table
-  respectability").
-- **Don't imply cheating.** Avoid "you and X made identical picks" framing.
+  respectability") — avoids reigniting real needle, and dodges any copying/cheating implication.
 - **Hiberno-English authenticity.** Keep: "in fairness", "sure look", "grand", "gas", "notions",
-  "fair play". **Ban Americanisms:** "crushed it", "MVP", "clutch", "soccer", "gameday", "you da
-  man". Football, never soccer. Emoji sparingly (a 👑 or 🥄, not a wall of 🔥💯).
+  "fair play", "chancer", "some man for one man". **Ban Americanisms:** "crushed it", "MVP",
+  "clutch", "soccer", "gameday", "you da man". Football, never soccer. Emoji sparingly
+  (a 👑 or 🥄, not a wall of 🔥💯).
 
 ---
 
