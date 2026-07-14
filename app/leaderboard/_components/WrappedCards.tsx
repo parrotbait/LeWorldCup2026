@@ -44,14 +44,70 @@ function Kicker({ children }: { children: ReactNode }) {
 function personaBlurb(d: WrappedData): string {
     switch (d.persona) {
         case "EARLY_RETIREMENT":
-            return "You filed a few and then rode off into the sunset. We kept your seat warm.";
+            // Kept a wink, not a kicking — disappearing can have real-life reasons.
+            return "A handful of picks and then you legged it — the tournament carried on grand without you.";
         case "CHAMPION":
-            return `Top of the pile on ${d.totalPoints} points. Insufferable, and entitled to be.`;
+            return `Top on ${d.totalPoints}. Insufferable then, insufferable now. Off you pop and gloat.`;
         case "WOODEN_SPOON":
-            return "Dead last of the lot. Someone has to prop up the table, and by God you committed to the role.";
+            return "Dead last. You didn't finish bottom by accident — you earned that, every miserable week of it.";
+        case "ORACLE":
+            return `${d.exactCount} exact scorelines. Either a savant or you've the match-fixing hotline on speed dial.`;
+        case "SNIPER":
+            return "Barely turned up with picks, but lethal when you did. Smug about it too, no doubt.";
+        case "CONTRARIAN":
+            return "You backed the mad option nobody else would touch — and it came in. Insufferable.";
+        case "MAVERICK":
+            return "Never met a chalk pick you'd lower yourself to. Pure chaos merchant.";
+        case "CHANCER":
+            return "Threw wild scorelines at the wall all tournament. A couple stuck. Barely.";
+        case "BONUS_MERCHANT":
+            return "Half your points came off the bonus board. Couldn't pick a match to save your life.";
+        case "PROPHET":
+            return "You called the winner before a ball was kicked. Lucky guess, we'll assume.";
+        case "DARK_HORSE_WHISPERER":
+            return "Backed an outsider that actually ran. Don't let it go to your head.";
+        case "CLOSER":
+            return "Useless in the groups, deadly in the knockouts. A big-game bluffer — but it worked.";
+        case "FAST_STARTER":
+            return "Flew out of the traps, then faded like a cheap suit. Classic.";
+        case "COMEBACK":
+            return "Left for dead, then clawed your way back up the table. Nine lives, no shame.";
+        case "FRONTRUNNER":
+            return "Top of the pile for a while — then the wheels came off in spectacular fashion.";
+        case "OPTIMIST":
+            return "Every game a goal-fest in your head. Reality had other ideas.";
+        case "CAGEY_ONE":
+            return "A nil-all merchant to your bones. Thrilling company, we're sure.";
+        case "METRONOME":
+            return "No fireworks, no disasters, just a steady drip. Beige, but it kept you afloat.";
+        case "NEARLY_MAN":
+            return "Second or third and never the top. Always the bridesmaid, wha?";
         default:
-            return "Here's how your tournament shook out.";
+            return "Grand, middling, forgettable. The human equivalent of a nil-all draw.";
     }
+}
+
+/** Tiered accuracy jab for the verdict card — never prints an awkward "0 of N". */
+function verdictLine(d: WrappedData): string {
+    // Drop-out: don't rub the accuracy stats in.
+    if (d.persona === "EARLY_RETIREMENT") {
+        return "You barely played, so we'll draw a veil over the accuracy. Probably for the best.";
+    }
+    const others = d.comparableCount - 1;
+    if (others <= 0) {
+        return "Sure you were the only one who really played. Hollow, but a win's a win.";
+    }
+    const beat = d.moreAccurateThan;
+    if (beat >= others) {
+        return "Sharper than every last one of them. Sickening, really.";
+    }
+    if (beat === 0) {
+        return `You out-read exactly nobody. All ${others} of them called it better. Grim.`;
+    }
+    if (beat * 2 >= others) {
+        return `You read it better than ${beat} of the ${others}. Notions, but earned.`;
+    }
+    return "Better than a couple, worse than the rest. Mid-table, through and through.";
 }
 
 /**
@@ -80,7 +136,8 @@ export function buildCards(d: WrappedData): ReactNode[] {
             <p className="font-display text-7xl tabular">{d.totalPoints}</p>
             <p className="text-sm uppercase tracking-widest opacity-70">points</p>
             <p className="max-w-xs text-base opacity-80">
-                {d.predPoints} off the pitch, {d.bonusPoints} off the bonus board.
+                {d.predPoints} earned on the pitch, {d.bonusPoints} off the bonus board. We won&apos;t
+                ask how many were flukes.
             </p>
         </Shell>,
     );
@@ -92,7 +149,7 @@ export function buildCards(d: WrappedData): ReactNode[] {
                 <Kicker>Your best call</Kicker>
                 <p className="font-display text-2xl">{d.bestCall.matchLabel}</p>
                 <p className="text-lg">
-                    You said {d.bestCall.pick} · it finished {d.bestCall.actual}
+                    You called {d.bestCall.actual} on the nose. Broken clock, twice a day, wha?
                 </p>
                 {d.bestCall.points !== undefined ? (
                     <p className="font-display text-4xl text-pitch tabular">+{d.bestCall.points}</p>
@@ -108,7 +165,8 @@ export function buildCards(d: WrappedData): ReactNode[] {
                 <Kicker>Your worst call</Kicker>
                 <p className="font-display text-2xl">{d.worstCall.matchLabel}</p>
                 <p className="text-lg">
-                    You had {d.worstCall.pick} · it finished {d.worstCall.actual}. Ah here.
+                    Your masterstroke: {d.worstCall.pick}. What actually happened: {d.worstCall.actual}.
+                    Were you even in the room?
                 </p>
             </Shell>,
         );
@@ -121,7 +179,7 @@ export function buildCards(d: WrappedData): ReactNode[] {
                 <Kicker>Your high-water mark</Kicker>
                 <p className="font-display text-7xl tabular">#{d.peakRank}</p>
                 <p className="max-w-xs text-base opacity-80">
-                    The highest you climbed all tournament. We saw it. It counted.
+                    #{d.peakRank}, and that was the ceiling. All downhill from there, all the way to now.
                 </p>
             </Shell>,
         );
@@ -164,11 +222,7 @@ export function buildCards(d: WrappedData): ReactNode[] {
         <Shell key="verdict">
             <Kicker>The verdict</Kicker>
             <p className="font-display text-6xl tabular">#{d.finalRank}</p>
-            <p className="max-w-xs text-lg">
-                {d.comparableCount > 1
-                    ? `More accurate than ${d.moreAccurateThan} of the ${d.comparableCount} who saw it through.`
-                    : "You showed up. That's the main thing."}
-            </p>
+            <p className="max-w-xs text-lg">{verdictLine(d)}</p>
         </Shell>,
     );
 
