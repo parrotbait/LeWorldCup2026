@@ -149,7 +149,7 @@ export function buildCards(d: WrappedData): ReactNode[] {
                 <Kicker>Your best call</Kicker>
                 <p className="font-display text-2xl">{d.bestCall.matchLabel}</p>
                 <p className="text-lg">
-                    You called {d.bestCall.actual} on the nose. Broken clock, twice a day, wha?
+                    You called {d.bestCall.actual} on the nose. Broken clock, twice a day, etc.
                 </p>
                 {d.bestCall.points !== undefined ? (
                     <p className="font-display text-4xl text-pitch tabular">+{d.bestCall.points}</p>

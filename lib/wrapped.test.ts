@@ -237,4 +237,20 @@ describe("buildWrapped", () => {
     it("is deterministic", () => {
         expect([...buildWrapped(base)]).toEqual([...buildWrapped(base)]);
     });
+
+    it("pitch + bonus always equals total, even when total includes joker points", () => {
+        // Player 1's leaderboard total (13) exceeds their raw prediction sum (10)
+        // — as happens with joker doubling. The card must still reconcile.
+        const withJoker: WrappedInput = {
+            ...base,
+            leaderboardRows: [
+                { playerId: 1, displayName: "Winner", points: 13, exactCount: 2, bonusPoints: 3, knockoutResults: 1, joinedAt: new Date("2026-01-01") },
+                { playerId: 2, displayName: "Dropout", points: 0, exactCount: 0, bonusPoints: 0, knockoutResults: 0, joinedAt: new Date("2026-01-02") },
+            ],
+        };
+        const w = buildWrapped(withJoker).get(1)!;
+        expect(w.totalPoints).toBe(13);
+        expect(w.bonusPoints).toBe(3);
+        expect(w.predPoints + w.bonusPoints).toBe(w.totalPoints);
+    });
 });

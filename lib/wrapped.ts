@@ -619,7 +619,10 @@ export function buildWrapped(input: WrappedInput): Map<number, WrappedData> {
             footballer: FOOTBALLER_BY_PERSONA[persona],
             finalRank: rankByPlayer.get(p.id) ?? lastRank,
             totalPoints: row?.points ?? 0,
-            predPoints: st.predPoints,
+            // Derive pitch points as total − bonus (matches the leaderboard's
+            // definition) so the "damage" card always reconciles, including
+            // joker-doubled points that computePlayerStats doesn't see.
+            predPoints: (row?.points ?? 0) - (row?.bonusPoints ?? 0),
             bonusPoints: row?.bonusPoints ?? 0,
             exactCount: st.exactCount,
             filed: st.filed,
