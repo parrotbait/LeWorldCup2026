@@ -37,7 +37,7 @@ cp .env.example .env.local
 # Generate secrets:
 openssl rand -base64 48              # → AUTH_SECRET
 openssl rand -hex 32                 # → CRON_SECRET
-pnpm admin:hash 'your-admin-pw'      # → ADMIN_PASSWORD_HASH (paste into .env.local)
+pnpm admin:hash 'your-admin-pw'      # → ADMIN_PASSWORD_HASH; escape each $ as \$ before pasting (Next expands unescaped $ and mangles the hash)
 # Get a free token at https://www.football-data.org/client/register → FOOTBALL_DATA_TOKEN
 
 # 4. Migrate + seed
