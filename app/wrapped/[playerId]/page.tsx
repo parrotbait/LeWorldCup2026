@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { requireSession } from "@/lib/auth";
+import { isAdmin, requireSession } from "@/lib/auth";
 import { getFrozenWrapped } from "@/lib/wrapped-store";
 import { buildWrappedForPreview } from "@/lib/wrapped-store-preview";
 import { WrappedModalClient } from "@/app/leaderboard/_components/WrappedModalClient";
@@ -18,10 +18,12 @@ export default async function WrappedPage({ params, searchParams }: PageProps) {
         notFound();
     }
 
-    // Dev-only bypass so any player's Wrapped can be previewed without waiting
-    // for the unlock gate. Guarded like lib/bonus-lock.ts's override.
-    const isDevPreview = preview === "1" && process.env.NODE_ENV !== "production";
-    const data = isDevPreview
+    // Preview bypass (ignore the unlock gate, render any player) is allowed in
+    // dev for everyone, and for admins in any environment — so the admin index
+    // at /admin/wrapped can preview each player. Guarded like lib/bonus-lock.ts.
+    const previewAllowed =
+        preview === "1" && (process.env.NODE_ENV !== "production" || (await isAdmin()));
+    const data = previewAllowed
         ? await buildWrappedForPreview(playerId)
         : await getFrozenWrapped(playerId);
 
@@ -36,3 +38,4 @@ export default async function WrappedPage({ params, searchParams }: PageProps) {
         </main>
     );
 }
+

@@ -75,6 +75,12 @@ export default async function AdminDashboardPage() {
                         — set the resolved value for each bonus (winner, golden boot, sieve, etc.). Drives bonus payouts on the leaderboard.
                     </li>
                     <li>
+                        <Link href={"/admin/wrapped" as never} className="underline">
+                            World Cup Wrapped preview
+                        </Link>{" "}
+                        — view each player&apos;s end-of-tournament Wrapped, per player, even before the public unlock.
+                    </li>
+                    <li>
                         <div className="mb-2">Trigger results sync:</div>
                         <SyncNowButton />
                     </li>
