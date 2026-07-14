@@ -166,7 +166,7 @@ export function buildCards(d: WrappedData): ReactNode[] {
                 <p className="font-display text-2xl">{d.worstCall.matchLabel}</p>
                 <p className="text-lg">
                     Your masterstroke: {d.worstCall.pick}. What actually happened: {d.worstCall.actual}.
-                    Were you even in the room?
+                    Miles off — not even the same postcode.
                 </p>
             </Shell>,
         );
