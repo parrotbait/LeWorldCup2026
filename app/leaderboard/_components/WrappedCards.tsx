@@ -151,8 +151,8 @@ export function buildCards(d: WrappedData): ReactNode[] {
                 src={d.footballer.sticker}
                 alt={d.footballer.name}
                 width={260}
-                height={380}
-                className="rounded-lg shadow-xl"
+                height={390}
+                className="max-h-[52vh] max-w-full rounded-lg object-contain shadow-xl"
             />
             <p className="font-display text-2xl uppercase">{d.footballer.name}</p>
             <p className="max-w-xs text-base opacity-80">{d.footballer.tie}</p>
