@@ -30,21 +30,41 @@ describe("isTournamentComplete", () => {
 
 describe("isWrappedUnlocked", () => {
     const finalDone = [{ round: "FINAL" as const, status: "FINISHED" }];
+    const allRequired = [
+        { kind: "WINNER" as const },
+        { kind: "TOP_SCORER" as const },
+        { kind: "MOST_ASSISTS" as const },
+        { kind: "WOODEN_SPOON" as const },
+        { kind: "PANTOMIME_VILLAIN" as const },
+        { kind: "SIEVE" as const },
+        { kind: "MIGHTY_FALLEN" as const },
+    ];
 
-    it("false when FINAL finished but no WINNER resolution", () => {
+    it("false when FINAL not finished, even if every bonus resolved", () => {
+        const finalLive = [{ round: "FINAL" as const, status: "LIVE" }];
+        expect(isWrappedUnlocked(finalLive, allRequired)).toBe(false);
+    });
+
+    it("false when FINAL finished but no bonuses resolved", () => {
         expect(isWrappedUnlocked(finalDone, [])).toBe(false);
     });
 
-    it("false when a WINNER resolution row exists but has no team", () => {
-        expect(
-            isWrappedUnlocked(finalDone, [{ kind: "WINNER", teamIds: [] }]),
-        ).toBe(false);
+    it("false when a required bonus kind is still missing", () => {
+        const missingMightyFallen = allRequired.filter((r) => r.kind !== "MIGHTY_FALLEN");
+        expect(isWrappedUnlocked(finalDone, missingMightyFallen)).toBe(false);
     });
 
-    it("true when FINAL finished AND WINNER resolution has a team", () => {
-        expect(
-            isWrappedUnlocked(finalDone, [{ kind: "WINNER", teamIds: [7] }]),
-        ).toBe(true);
+    it("true when FINAL finished and every required kind has a resolution row — empty teamIds counts", () => {
+        expect(isWrappedUnlocked(finalDone, allRequired)).toBe(true);
+    });
+
+    it("does NOT wait on DARK_HORSE — scored per-pick, no resolution row is ever written", () => {
+        expect(isWrappedUnlocked(finalDone, allRequired)).toBe(true);
+    });
+
+    it("waits on PANTOMIME_VILLAIN as an admin-controlled unlock switch", () => {
+        const withoutPantomime = allRequired.filter((r) => r.kind !== "PANTOMIME_VILLAIN");
+        expect(isWrappedUnlocked(finalDone, withoutPantomime)).toBe(false);
     });
 });
 
@@ -173,6 +193,21 @@ describe("allocatePersonas", () => {
         const players = [player(1, { exactCount: 5 }), player(2, { exactCount: 5 })];
         expect([...allocatePersonas(players)]).toEqual([...allocatePersonas(players)]);
     });
+
+    it("gives WOODEN_SPOON to the worst participating player, not a ghost at the bottom", () => {
+        // Player 3 is dead last but stopped playing early — they're a ghost, not
+        // a wooden-spooner. The spoon should slide up to player 2, the worst
+        // still-playing finisher. Player 1 wins.
+        const players = [
+            player(1, { finalRank: 1, lastRank: 3, participationRate: 1 }),
+            player(2, { finalRank: 2, lastRank: 3, participationRate: 1 }),
+            player(3, { finalRank: 3, lastRank: 3, participationRate: 0.1, filed: 2 }),
+        ];
+        const out = allocatePersonas(players);
+        expect(out.get(1)).toBe("CHAMPION");
+        expect(out.get(3)).toBe("EARLY_RETIREMENT");
+        expect(out.get(2)).toBe("WOODEN_SPOON");
+    });
 });
 
 describe("footballer mapping", () => {
@@ -252,5 +287,23 @@ describe("buildWrapped", () => {
         expect(w.totalPoints).toBe(13);
         expect(w.bonusPoints).toBe(3);
         expect(w.predPoints + w.bonusPoints).toBe(w.totalPoints);
+    });
+
+    it("captures rankHistory in chronological order for the peak-card sparkline", () => {
+        const withSnaps: WrappedInput = {
+            ...base,
+            snapshotSeries: [
+                { capturedAt: 1000, rowsByPlayerId: { 1: { rank: 3, points: 0 }, 2: { rank: 4, points: 0 } } },
+                { capturedAt: 2000, rowsByPlayerId: { 1: { rank: 1, points: 4 }, 2: { rank: 4, points: 0 } } },
+                { capturedAt: 3000, rowsByPlayerId: { 1: { rank: 2, points: 7 }, 2: { rank: 4, points: 0 } } },
+            ],
+        };
+        const w = buildWrapped(withSnaps).get(1)!;
+        expect(w.rankHistory).toEqual([
+            { t: 1000, rank: 3 },
+            { t: 2000, rank: 1 },
+            { t: 3000, rank: 2 },
+        ]);
+        expect(w.peakRank).toBe(1);
     });
 });

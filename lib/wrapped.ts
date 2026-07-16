@@ -18,18 +18,44 @@ export function isTournamentComplete(
 }
 
 /**
- * Wrapped unlocks only when the tournament is complete AND the terminal
- * admin-set bonus (WINNER) is resolved — otherwise bonus/persona cards would
- * show a false "0 bonuses landed". See spec §2.
+ * Bonus kinds that Wrapped waits on before unlocking. These are the kinds
+ * that produce a `bonus_resolutions` row via `autoResolveBonuses` — or, in
+ * the case of PANTOMIME_VILLAIN, admin action. Notable exclusions:
+ *   - DARK_HORSE: scored per-pick from each team's furthest round via
+ *     `deriveDarkHorseStage`; no resolution row is ever written.
+ *   - GROUP_WINNER: not offered in the v1 picks UI.
+ * PANTOMIME_VILLAIN stays on the list as an admin gate — Eddie resolves it
+ * manually (card data isn't in the free football-data tier), and its presence
+ * doubles as a "yes, I'm ready to unlock Wrapped" switch.
+ * Empty `teamIds` counts as resolved (e.g. no pot-1 team fell → MIGHTY_FALLEN
+ * with []).
+ */
+const REQUIRED_BONUS_KINDS = [
+    "WINNER",
+    "TOP_SCORER",
+    "MOST_ASSISTS",
+    "WOODEN_SPOON",
+    "PANTOMIME_VILLAIN",
+    "SIEVE",
+    "MIGHTY_FALLEN",
+] as const;
+
+/**
+ * Wrapped unlocks only when the tournament is complete AND every expected
+ * bonus kind has been resolved — otherwise persona/bonus cards would show
+ * false "0 bonuses landed" figures for kinds still pending. An empty
+ * resolution (teamIds: []) counts as resolved; the admin has explicitly said
+ * "nothing qualified". See spec §2.
  */
 export function isWrappedUnlocked(
     matches: { round: Round; status: string }[],
-    resolutions: Pick<BonusResolutionLite, "kind" | "teamIds">[],
+    resolutions: Pick<BonusResolutionLite, "kind">[],
 ): boolean {
     if (!isTournamentComplete(matches)) {
         return false;
     }
-    return resolutions.some((r) => r.kind === "WINNER" && r.teamIds.length > 0);
+    const resolvedKinds = new Set(resolutions.map((r) => r.kind));
+    return REQUIRED_BONUS_KINDS.every((kind) => resolvedKinds.has(kind));
 }
 
 export type PersonaKey =
@@ -332,13 +358,24 @@ export function allocatePersonas(inputs: PersonaInput[]): Map<number, PersonaKey
     const result = new Map<number, PersonaKey>();
     const remaining: PersonaInput[] = [];
 
+    // Wooden Spoon goes to the lowest-ranked player who actually participated —
+    // NOT necessarily the literal last row. If the true bottom player checked
+    // out early (participation < 0.5) they take EARLY_RETIREMENT below and the
+    // spoon slides up to the worst still-playing finisher. Otherwise it's just
+    // the last row as normal.
+    const participants = sorted.filter((p) => p.participationRate >= 0.5);
+    const woodenSpoonPlayerId =
+        participants.length > 0
+            ? participants.reduce((worst, p) => (p.finalRank > worst.finalRank ? p : worst)).playerId
+            : null;
+
     // Step 1 — reserved.
     for (const p of sorted) {
         if (p.participationRate < 0.25) {
             result.set(p.playerId, "EARLY_RETIREMENT");
         } else if (p.finalRank === 1) {
             result.set(p.playerId, "CHAMPION");
-        } else if (p.finalRank === p.lastRank && p.participationRate >= 0.5) {
+        } else if (p.playerId === woodenSpoonPlayerId && p.finalRank !== 1) {
             result.set(p.playerId, "WOODEN_SPOON");
         } else {
             remaining.push(p);
@@ -486,6 +523,12 @@ export interface WrappedData {
     bestCall: WrappedCallView | null;
     worstCall: WrappedCallView | null;
     peakRank: number | null;
+    /**
+     * Compact rank history for the peak card's sparkline. One entry per
+     * snapshot the player appears in, in chronological order. Frozen at
+     * unlock so screenshots don't shift with later corrections.
+     */
+    rankHistory: { t: number; rank: number }[];
     bonusHits: { label: string; pick: string; points: number }[];
     /** Count of comparable players (>=1 settled pick) this player out-accuracy'd. */
     moreAccurateThan: number;
@@ -519,11 +562,17 @@ export function buildWrapped(input: WrappedInput): Map<number, WrappedData> {
     // Snapshot-derived facts per player.
     const snapshotFacts = (
         playerId: number,
-    ): { led: number; peak: number | null; climb: number } => {
+    ): {
+        led: number;
+        peak: number | null;
+        climb: number;
+        history: { t: number; rank: number }[];
+    } => {
         let led = 0;
         let peak: number | null = null;
         let worst: number | null = null;
         let last: number | null = null;
+        const history: { t: number; rank: number }[] = [];
         for (const snap of input.snapshotSeries) {
             const row = snap.rowsByPlayerId[playerId];
             if (row === undefined) {
@@ -535,9 +584,10 @@ export function buildWrapped(input: WrappedInput): Map<number, WrappedData> {
             peak = peak === null ? row.rank : Math.min(peak, row.rank);
             worst = worst === null ? row.rank : Math.max(worst, row.rank);
             last = row.rank;
+            history.push({ t: snap.capturedAt, rank: row.rank });
         }
         const climb = worst !== null && last !== null ? worst - last : 0;
-        return { led, peak, climb };
+        return { led, peak, climb, history };
     };
 
     // Persona inputs.
@@ -630,6 +680,7 @@ export function buildWrapped(input: WrappedInput): Map<number, WrappedData> {
             bestCall: bestView,
             worstCall: worstView,
             peakRank: snap.peak,
+            rankHistory: snap.history,
             bonusHits: breakdown
                 .filter((e) => e.points > 0)
                 .map((e) => ({ label: e.label, pick: e.pick, points: e.points })),

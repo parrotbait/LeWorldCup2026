@@ -50,13 +50,14 @@ function relativeAgo(d: Date): string {
 }
 
 interface PageProps {
-    searchParams: Promise<{ view?: string; range?: string }>;
+    searchParams: Promise<{ view?: string; range?: string; wrapped?: string }>;
 }
 
 export default async function LeaderboardPage({ searchParams }: PageProps) {
     const session = await requireSession();
     const params = await searchParams;
     const view: "table" | "chart" = params.view === "chart" ? "chart" : "table";
+    const forceOpenWrapped = params.wrapped === "1";
 
     const [
         allPlayers,
@@ -301,7 +302,7 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
                     );
                 })()}
                 <RefreshDataButton />
-                <WrappedGate playerId={session.playerId} />
+                <WrappedGate playerId={session.playerId} forceOpen={forceOpenWrapped} />
 
                 {view === "chart" ? (
                     <LeaderboardChart

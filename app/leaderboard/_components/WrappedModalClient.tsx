@@ -10,6 +10,7 @@ export function WrappedModalClient({ data, autoOpen }: { data: WrappedData; auto
     const [open, setOpen] = useState(false);
     const [index, setIndex] = useState(0);
     const [showToast, setShowToast] = useState(false);
+    const [shareState, setShareState] = useState<"idle" | "copied">("idle");
     const launchRef = useRef<HTMLButtonElement>(null);
     const closeRef = useRef<HTMLButtonElement>(null);
 
@@ -91,13 +92,31 @@ export function WrappedModalClient({ data, autoOpen }: { data: WrappedData; auto
 
     return (
         <div className="mt-4">
-            <button
-                ref={launchRef}
-                onClick={() => setOpen(true)}
-                className="rounded border border-tournament/50 bg-tournament/10 px-3 py-1.5 font-display text-[11px] uppercase tracking-wider text-tournament hover:bg-tournament/20"
-            >
-                ↺ replay your 2026 wrapped
-            </button>
+            <div className="flex flex-wrap gap-2">
+                <button
+                    ref={launchRef}
+                    onClick={() => setOpen(true)}
+                    className="rounded border border-tournament/50 bg-tournament/10 px-3 py-1.5 font-display text-[11px] uppercase tracking-wider text-tournament hover:bg-tournament/20"
+                >
+                    ↺ replay your 2026 wrapped
+                </button>
+                <button
+                    onClick={async () => {
+                        const url = `${window.location.origin}/leaderboard?wrapped=1`;
+                        try {
+                            await navigator.clipboard.writeText(url);
+                            setShareState("copied");
+                            window.setTimeout(() => setShareState("idle"), 2500);
+                        } catch {
+                            // Clipboard blocked — fall back to a prompt so the URL is still grabbable.
+                            window.prompt("Copy this link", url);
+                        }
+                    }}
+                    className="rounded border border-tournament/50 bg-tournament/10 px-3 py-1.5 font-display text-[11px] uppercase tracking-wider text-tournament hover:bg-tournament/20"
+                >
+                    {shareState === "copied" ? "✓ link copied" : "↗ share wrapped link"}
+                </button>
+            </div>
 
             {showToast ? (
                 <p className="mt-2 text-[11px] uppercase tracking-wider text-tournament/80">

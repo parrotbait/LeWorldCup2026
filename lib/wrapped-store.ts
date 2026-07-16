@@ -176,7 +176,7 @@ export async function wrappedUnlocked(): Promise<boolean> {
     const [allMatches, allResolutions] = await Promise.all([
         db.select({ round: matches.round, status: matches.status }).from(matches),
         db
-            .select({ kind: bonusResolutions.kind, teamIds: bonusResolutions.teamIds })
+            .select({ kind: bonusResolutions.kind })
             .from(bonusResolutions),
     ]);
     return isWrappedUnlocked(allMatches, allResolutions);
