@@ -371,7 +371,7 @@ export function allocatePersonas(inputs: PersonaInput[]): Map<number, PersonaKey
 
     // Step 1 — reserved.
     for (const p of sorted) {
-        if (p.participationRate < 0.25) {
+        if (p.participationRate < 0.5) {
             result.set(p.playerId, "EARLY_RETIREMENT");
         } else if (p.finalRank === 1) {
             result.set(p.playerId, "CHAMPION");
@@ -560,6 +560,13 @@ export function buildWrapped(input: WrappedInput): Map<number, WrappedData> {
     const comparableCount = comparable.length;
 
     // Snapshot-derived facts per player.
+    //
+    // NOTE on peak: at the very start of the tournament every player is joint
+    // #1 on 0 points, so a naive min(rank) always reports "#1 was your peak"
+    // for everyone. We exclude 0-point snapshots from the peak calc — that's
+    // the "before you'd scored anything" window and it isn't a real ranking.
+    // The full series is still returned for the sparkline so the story stays
+    // honest visually.
     const snapshotFacts = (
         playerId: number,
     ): {
@@ -578,13 +585,18 @@ export function buildWrapped(input: WrappedInput): Map<number, WrappedData> {
             if (row === undefined) {
                 continue;
             }
+            history.push({ t: snap.capturedAt, rank: row.rank });
+            // Skip pre-scoring snapshots for the peak/led/climb metrics only —
+            // during that window everyone is tied at rank 1.
+            if (row.points === 0) {
+                continue;
+            }
             if (row.rank === 1) {
                 led += 1;
             }
             peak = peak === null ? row.rank : Math.min(peak, row.rank);
             worst = worst === null ? row.rank : Math.max(worst, row.rank);
             last = row.rank;
-            history.push({ t: snap.capturedAt, rank: row.rank });
         }
         const climb = worst !== null && last !== null ? worst - last : 0;
         return { led, peak, climb, history };

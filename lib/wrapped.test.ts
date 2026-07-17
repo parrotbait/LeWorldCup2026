@@ -306,4 +306,24 @@ describe("buildWrapped", () => {
         ]);
         expect(w.peakRank).toBe(1);
     });
+
+    it("ignores pre-scoring snapshots when computing peak — everyone is joint-#1 at 0 pts", () => {
+        // Two early snapshots where the player sits at rank 1 with 0 points (the
+        // "everyone tied" opening window), then real ranks emerge. The peak
+        // should reflect the post-scoring window, not the meaningless #1.
+        const withSnaps: WrappedInput = {
+            ...base,
+            snapshotSeries: [
+                { capturedAt: 1000, rowsByPlayerId: { 1: { rank: 1, points: 0 }, 2: { rank: 1, points: 0 } } },
+                { capturedAt: 2000, rowsByPlayerId: { 1: { rank: 1, points: 0 }, 2: { rank: 1, points: 0 } } },
+                { capturedAt: 3000, rowsByPlayerId: { 1: { rank: 4, points: 3 }, 2: { rank: 2, points: 5 } } },
+                { capturedAt: 4000, rowsByPlayerId: { 1: { rank: 3, points: 6 }, 2: { rank: 2, points: 6 } } },
+            ],
+        };
+        const w = buildWrapped(withSnaps).get(1)!;
+        // Full sparkline series is preserved…
+        expect(w.rankHistory.map((h) => h.rank)).toEqual([1, 1, 4, 3]);
+        // …but peak reflects only the post-scoring window, not the phantom #1.
+        expect(w.peakRank).toBe(3);
+    });
 });
