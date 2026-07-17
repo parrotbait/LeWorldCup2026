@@ -4,6 +4,7 @@ import { db } from "@/db/client";
 import { players } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth";
 import { computeAllWrappedForPreview, wrappedUnlocked } from "@/lib/wrapped-store";
+import { RebuildAllWrappedButton } from "./_components/RebuildAllWrappedButton";
 
 export const revalidate = 0;
 
@@ -56,6 +57,14 @@ export default async function AdminWrappedPage() {
                 </span>{" "}
                 — as admin you can preview regardless.
             </p>
+
+            <div className="mt-4">
+                <RebuildAllWrappedButton />
+                <p className="mt-1 text-[11px] opacity-50">
+                    Clears every frozen Wrapped payload so the next open recomputes each player&apos;s
+                    story from live data. Safe to run before the tournament ends.
+                </p>
+            </div>
 
             <ul className="mt-6 divide-y divide-ink/15 text-sm">
                 {allPlayers.map((p) => {
