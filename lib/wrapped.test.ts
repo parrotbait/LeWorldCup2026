@@ -208,6 +208,21 @@ describe("allocatePersonas", () => {
         expect(out.get(3)).toBe("EARLY_RETIREMENT");
         expect(out.get(2)).toBe("WOODEN_SPOON");
     });
+
+    it("gives BONUS_MERCHANT to the actual top bonus scorer, not a runner-up", () => {
+        // Player 2 has the most bonusPoints (30) but ALSO the most darkHorsePoints (50).
+        // The old greedy would pick DARK_HORSE_WHISPERER for player 2 first (score 50 >
+        // 30), leaving BONUS_MERCHANT for player 3 (bonusPoints 15) — wrong.
+        const players = [
+            player(1, { finalRank: 1, lastRank: 4, participationRate: 1 }),
+            player(2, { finalRank: 2, lastRank: 4, participationRate: 1, bonusPoints: 30, darkHorsePoints: 50 }),
+            player(3, { finalRank: 3, lastRank: 4, participationRate: 1, bonusPoints: 15 }),
+            player(4, { finalRank: 4, lastRank: 4, participationRate: 1 }),
+        ];
+        const out = allocatePersonas(players);
+        expect(out.get(2)).toBe("BONUS_MERCHANT");
+        expect(out.get(3)).not.toBe("BONUS_MERCHANT");
+    });
 });
 
 describe("footballer mapping", () => {

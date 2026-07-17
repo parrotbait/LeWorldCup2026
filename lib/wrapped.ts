@@ -329,23 +329,30 @@ interface AllocatablePersona {
     score: (p: PersonaInput) => number;
 }
 
+// Order matters: personas earlier in this list have priority in Step 2's
+// per-persona reservation. Verifiable, unique-stat signatures (bonus board,
+// exact scorelines, dark-horse picks, comeback climb) come first so their
+// clear leaders can't lose the persona to a runner-up on a fuzzier stat.
+// Shared-score personas (CHANCER/OPTIMIST both key off meanPredGoals;
+// CONTRARIAN/MAVERICK both key off bestBoldness) still work — the first one
+// in the list gets the top scorer, the second falls to the next-best.
 const ALLOCATABLE: AllocatablePersona[] = [
-    { key: "ORACLE", eligible: (p) => p.filed >= MIN_FILED_FOR_RATE && p.exactCount >= 3, score: (p) => p.exactCount },
-    { key: "SNIPER", eligible: (p) => p.filed >= MIN_FILED_FOR_RATE, score: (p) => p.perMatchPoints },
-    { key: "CONTRARIAN", eligible: (p) => p.knockoutCorrect + p.exactCount > 0, score: (p) => p.bestBoldness },
-    { key: "MAVERICK", eligible: (p) => p.filed >= MIN_FILED_FOR_RATE, score: (p) => p.bestBoldness },
-    { key: "CHANCER", eligible: (p) => p.filed >= MIN_FILED_FOR_RATE, score: (p) => p.meanPredGoals },
     { key: "BONUS_MERCHANT", eligible: (p) => p.bonusPoints > 0, score: (p) => p.bonusPoints },
+    { key: "ORACLE", eligible: (p) => p.filed >= MIN_FILED_FOR_RATE && p.exactCount >= 3, score: (p) => p.exactCount },
     { key: "PROPHET", eligible: (p) => p.wonBonusWinner, score: () => 1 },
     { key: "DARK_HORSE_WHISPERER", eligible: (p) => p.darkHorsePoints > 0, score: (p) => p.darkHorsePoints },
-    { key: "CLOSER", eligible: (p) => p.knockoutPicks >= 3, score: (p) => p.knockoutCorrect / Math.max(1, p.knockoutPicks) },
-    { key: "FAST_STARTER", eligible: (p) => p.filed >= MIN_FILED_FOR_RATE, score: (p) => p.groupPointsShare },
     { key: "COMEBACK", eligible: (p) => p.rankClimb > 0, score: (p) => p.rankClimb },
     { key: "FRONTRUNNER", eligible: (p) => p.snapshotsLed > 0 && p.finalRank !== 1, score: (p) => p.snapshotsLed },
-    { key: "OPTIMIST", eligible: (p) => p.filed >= MIN_FILED_FOR_RATE, score: (p) => p.meanPredGoals },
-    { key: "CAGEY_ONE", eligible: (p) => p.filed >= MIN_FILED_FOR_RATE, score: (p) => p.drawShare },
-    { key: "METRONOME", eligible: (p) => p.participationRate >= 0.9, score: (p) => p.perMatchPoints * (1 - p.drawShare) },
+    { key: "CLOSER", eligible: (p) => p.knockoutPicks >= 3, score: (p) => p.knockoutCorrect / Math.max(1, p.knockoutPicks) },
     { key: "NEARLY_MAN", eligible: (p) => p.finalRank === 2 || p.finalRank === 3, score: (p) => 4 - p.finalRank },
+    { key: "CONTRARIAN", eligible: (p) => p.knockoutCorrect + p.exactCount > 0, score: (p) => p.bestBoldness },
+    { key: "MAVERICK", eligible: (p) => p.filed >= MIN_FILED_FOR_RATE, score: (p) => p.bestBoldness },
+    { key: "FAST_STARTER", eligible: (p) => p.filed >= MIN_FILED_FOR_RATE, score: (p) => p.groupPointsShare },
+    { key: "CAGEY_ONE", eligible: (p) => p.filed >= MIN_FILED_FOR_RATE, score: (p) => p.drawShare },
+    { key: "OPTIMIST", eligible: (p) => p.filed >= MIN_FILED_FOR_RATE, score: (p) => p.meanPredGoals },
+    { key: "CHANCER", eligible: (p) => p.filed >= MIN_FILED_FOR_RATE, score: (p) => p.meanPredGoals },
+    { key: "SNIPER", eligible: (p) => p.filed >= MIN_FILED_FOR_RATE, score: (p) => p.perMatchPoints },
+    { key: "METRONOME", eligible: (p) => p.participationRate >= 0.9, score: (p) => p.perMatchPoints * (1 - p.drawShare) },
 ];
 
 /**
@@ -382,40 +389,52 @@ export function allocatePersonas(inputs: PersonaInput[]): Map<number, PersonaKey
         }
     }
 
-    // Step 2 — greedy allocation.
-    const available = new Set(ALLOCATABLE.map((a) => a.key));
-    const unplaced = new Set(remaining.map((p) => p.playerId));
-    const byId = new Map(remaining.map((p) => [p.playerId, p]));
+    // Step 2 — per-persona reservation.
+    //
+    // For each persona in ALLOCATABLE order, pin it to its top-scoring
+    // eligible unplaced player. This guarantees that whoever leads a given
+    // stat (exact scorelines, bonus points, dark-horse points, boldness, etc.)
+    // actually receives that persona — not a runner-up who happened to have a
+    // bigger raw score in an unrelated stat. Ties within a persona: lower
+    // playerId wins (deterministic).
+    //
+    // Priority is ALLOCATABLE list order: when a player leads more than one
+    // stat, they get the earlier persona in the list and the later one falls
+    // to the next-best eligible player. If nobody is eligible for a given
+    // persona, it goes unassigned — that's fine, we have 16 personas for 12
+    // players by design.
+    const alreadyTaken = new Set(result.values());
+    const placed = new Set(result.keys());
 
-    while (unplaced.size > 0) {
-        let bestPair: { playerId: number; key: PersonaKey; score: number } | null = null;
-        for (const playerId of unplaced) {
-            const p = byId.get(playerId)!;
-            for (const persona of ALLOCATABLE) {
-                if (!available.has(persona.key) || !persona.eligible(p)) {
-                    continue;
-                }
-                const score = persona.score(p);
-                if (
-                    bestPair === null ||
-                    score > bestPair.score ||
-                    // Deterministic tie-break: lower playerId, then catalogue order.
-                    (score === bestPair.score && playerId < bestPair.playerId)
-                ) {
-                    bestPair = { playerId, key: persona.key, score };
-                }
+    for (const persona of ALLOCATABLE) {
+        if (alreadyTaken.has(persona.key)) {
+            continue;
+        }
+        let best: { playerId: number; score: number } | null = null;
+        for (const p of remaining) {
+            if (placed.has(p.playerId) || !persona.eligible(p)) {
+                continue;
+            }
+            const score = persona.score(p);
+            if (
+                best === null ||
+                score > best.score ||
+                (score === best.score && p.playerId < best.playerId)
+            ) {
+                best = { playerId: p.playerId, score };
             }
         }
-        if (bestPair === null) {
-            // No eligible persona left for anyone — catch-all.
-            for (const playerId of unplaced) {
-                result.set(playerId, "STEADY_EDDIE");
-            }
-            break;
+        if (best !== null) {
+            result.set(best.playerId, persona.key);
+            placed.add(best.playerId);
         }
-        result.set(bestPair.playerId, bestPair.key);
-        available.delete(bestPair.key);
-        unplaced.delete(bestPair.playerId);
+    }
+
+    // Anyone still unplaced (fitted no persona) → STEADY_EDDIE catch-all.
+    for (const p of remaining) {
+        if (!placed.has(p.playerId)) {
+            result.set(p.playerId, "STEADY_EDDIE");
+        }
     }
 
     return result;
