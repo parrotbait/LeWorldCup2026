@@ -580,12 +580,14 @@ export function buildWrapped(input: WrappedInput): Map<number, WrappedData> {
 
     // Snapshot-derived facts per player.
     //
-    // NOTE on peak: at the very start of the tournament every player is joint
-    // #1 on 0 points, so a naive min(rank) always reports "#1 was your peak"
-    // for everyone. We exclude 0-point snapshots from the peak calc — that's
-    // the "before you'd scored anything" window and it isn't a real ranking.
-    // The full series is still returned for the sparkline so the story stays
-    // honest visually.
+    // NOTE on peak + history: at the very start of the tournament every player
+    // is tied at rank 1 on 0 points, so a naive min(rank) — or a sparkline
+    // drawn from raw history — reports the pre-scoring window as "you led".
+    // We exclude 0-point snapshots from ALL derived facts (peak, led, climb,
+    // AND the sparkline history) so the story starts from the first snapshot
+    // where the player has actually scored. Points are monotonically
+    // non-decreasing, so this cleanly trims the leading no-op period without
+    // dropping legitimate later dips.
     const snapshotFacts = (
         playerId: number,
     ): {
@@ -604,12 +606,12 @@ export function buildWrapped(input: WrappedInput): Map<number, WrappedData> {
             if (row === undefined) {
                 continue;
             }
-            history.push({ t: snap.capturedAt, rank: row.rank });
-            // Skip pre-scoring snapshots for the peak/led/climb metrics only —
-            // during that window everyone is tied at rank 1.
+            // Skip pre-scoring snapshots entirely — they poison peak and the
+            // sparkline visual (everyone joint-#1 at 0 pts is not a real rank).
             if (row.points === 0) {
                 continue;
             }
+            history.push({ t: snap.capturedAt, rank: row.rank });
             if (row.rank === 1) {
                 led += 1;
             }

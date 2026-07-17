@@ -335,7 +335,7 @@ function bestCallLine(playerId: number, actual: string): string {
         `${actual} on the nose. A stopped clock has its moments.`,
         `Called ${actual} exactly. Write it down, it won't happen twice.`,
         `Nailed ${actual} to the wall. Not a habit, we'll take it.`,
-        `${actual}, spot on. Enjoy the moment — it may not repeat.`,
+        `${actual}, spot on. File it under one-offs.`,
     ]);
 }
 

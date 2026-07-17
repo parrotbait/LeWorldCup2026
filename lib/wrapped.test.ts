@@ -305,6 +305,8 @@ describe("buildWrapped", () => {
     });
 
     it("captures rankHistory in chronological order for the peak-card sparkline", () => {
+        // Player 1 has 0 pts at t=1000 (skipped from history — pre-scoring),
+        // then 4 pts at t=2000 (rank 1), then 7 pts at t=3000 (rank 2).
         const withSnaps: WrappedInput = {
             ...base,
             snapshotSeries: [
@@ -315,7 +317,6 @@ describe("buildWrapped", () => {
         };
         const w = buildWrapped(withSnaps).get(1)!;
         expect(w.rankHistory).toEqual([
-            { t: 1000, rank: 3 },
             { t: 2000, rank: 1 },
             { t: 3000, rank: 2 },
         ]);
@@ -336,9 +337,12 @@ describe("buildWrapped", () => {
             ],
         };
         const w = buildWrapped(withSnaps).get(1)!;
-        // Full sparkline series is preserved…
-        expect(w.rankHistory.map((h) => h.rank)).toEqual([1, 1, 4, 3]);
-        // …but peak reflects only the post-scoring window, not the phantom #1.
+        // Sparkline history starts from the first post-scoring snapshot, not
+        // the meaningless joint-#1 opening.
+        expect(w.rankHistory).toEqual([
+            { t: 3000, rank: 4 },
+            { t: 4000, rank: 3 },
+        ]);
         expect(w.peakRank).toBe(3);
     });
 });
