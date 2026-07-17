@@ -93,8 +93,8 @@ function personaBlurb(d: WrappedData): string {
             ]);
         case "WOODEN_SPOON":
             return pick(d.playerId, "persona:WOODEN_SPOON", [
-                "Dead last (except Dan). Not an accident — that took commitment.",
-                "Rock bottom of the players still turning up. Consistent, at least.",
+                "Dead last (except for Dan). Not an accident — that took commitment.",
+                "Rock bottom (except for Dan). Consistent, at least.",
                 "The spoon's yours. You'll have plenty of time with it.",
             ]);
         case "ORACLE":
@@ -236,9 +236,9 @@ function verdictLine(d: WrappedData): string {
     }
     if (beat === 0) {
         return pick(d.playerId, "verdict:bottom", [
-            `Out-read exactly nobody on accuracy. All ${others} called more games right.`,
-            `${others} of them read the games better than you. Every single one.`,
-            `Bottom on accuracy — every one of the ${others} called more games right. Something to work on.`,
+            `Out-read exactly nobody on accuracy (except for Dan). All ${others} called more games right.`,
+            `${others} of them read the games better than you. Every single one (except for Dan).`,
+            `Bottom on accuracy (except for Dan) — every one of the ${others} called more games right. Something to work on.`,
         ]);
     }
     if (beat * 2 >= others) {
