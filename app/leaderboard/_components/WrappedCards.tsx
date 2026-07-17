@@ -57,6 +57,25 @@ function pick<T>(playerId: number, key: string, variants: readonly T[]): T {
     return variants[idx];
 }
 
+/** "1st", "2nd", "3rd", "4th" — with the correct English exceptions for 11–13. */
+function ordinal(n: number): string {
+    const mod100 = n % 100;
+    if (mod100 >= 11 && mod100 <= 13) {
+        return `${n}th`;
+    }
+    const mod10 = n % 10;
+    if (mod10 === 1) {
+        return `${n}st`;
+    }
+    if (mod10 === 2) {
+        return `${n}nd`;
+    }
+    if (mod10 === 3) {
+        return `${n}rd`;
+    }
+    return `${n}th`;
+}
+
 function personaBlurb(d: WrappedData): string {
     switch (d.persona) {
         case "EARLY_RETIREMENT":
@@ -461,7 +480,8 @@ export function buildCards(d: WrappedData): ReactNode[] {
     cards.push(
         <Shell key="verdict">
             <Kicker>The verdict</Kicker>
-            <p className="font-display text-6xl tabular">#{d.finalRank}</p>
+            <p className="font-display text-5xl">{ordinal(d.finalRank)} position</p>
+            <p className="text-xs uppercase tracking-widest opacity-70">on points</p>
             <p className="max-w-xs text-lg">{verdictLine(d)}</p>
         </Shell>,
     );
