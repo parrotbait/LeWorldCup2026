@@ -222,12 +222,18 @@ async function fetchDisciplineFromEspn(): Promise<DisciplineEntry[] | null> {
     }
 
     try {
-        // Mimic a real browser UA — ESPN's HTML pages 403 for generic fetchers.
+        // Mimic a real browser — ESPN's HTML pages 403 for generic fetchers
+        // and (worse) sometimes serve a slimmer bot template that omits the
+        // __espnfitt__ blob entirely. UA + Accept-Language make the response
+        // consistent between local dev and serverless egress (Vercel).
         const res = await fetch(DISCIPLINE_URL, {
             cache: "no-store",
             headers: {
                 "User-Agent":
                     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Safari/537.36",
+                "Accept":
+                    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+                "Accept-Language": "en-GB,en;q=0.9",
             },
         });
         if (!res.ok) {
@@ -240,13 +246,18 @@ async function fetchDisciplineFromEspn(): Promise<DisciplineEntry[] | null> {
         // escapes, and stop when the outer object closes. A naive
         // indexOf("};") breaks whenever the blob contains that literal inside a
         // string value (SyntaxError on JSON.parse) — brace counting is safe.
-        const marker = "window['__espnfitt__'] = ";
-        const startIdx = html.indexOf(marker);
-        if (startIdx === -1) {
+        //
+        // Marker matching is intentionally loose: ESPN serves slightly
+        // different variants to different regions/IPs (Vercel egress vs local
+        // dev), and the assignment can appear as `window['__espnfitt__']`,
+        // `window["__espnfitt__"]`, or `window.__espnfitt__`. Match all three.
+        const markerRegex = /window\s*(?:\[\s*['"]__espnfitt__['"]\s*\]|\.__espnfitt__)\s*=\s*/;
+        const markerMatch = markerRegex.exec(html);
+        if (markerMatch === null) {
             console.warn("[espn-stats] discipline: __espnfitt__ blob not found");
             return disciplineCache?.entries ?? null;
         }
-        const jsonStart = html.indexOf("{", startIdx);
+        const jsonStart = html.indexOf("{", markerMatch.index + markerMatch[0].length - 1);
         if (jsonStart === -1) {
             console.warn("[espn-stats] discipline: could not locate blob start");
             return disciplineCache?.entries ?? null;
