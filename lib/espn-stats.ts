@@ -241,6 +241,25 @@ async function fetchDisciplineFromEspn(): Promise<DisciplineEntry[] | null> {
             return disciplineCache?.entries ?? null;
         }
         const html = await res.text();
+        // Diagnostics: dump response shape when the marker doesn't match, so we
+        // can tell whether ESPN sent a bot wall, a redirect landing page, or a
+        // real page with a different assignment syntax. Cheap: only fires on
+        // the failure path.
+        const logResponseShape = (reason: string): void => {
+            const finalUrl = res.url;
+            const contentType = res.headers.get("content-type") ?? "?";
+            const length = html.length;
+            const head = html.slice(0, 400).replace(/\s+/g, " ");
+            const espnfittIdx = html.indexOf("__espnfitt__");
+            const espnfittContext =
+                espnfittIdx === -1
+                    ? "(not present)"
+                    : html.slice(Math.max(0, espnfittIdx - 40), espnfittIdx + 120)
+                          .replace(/\s+/g, " ");
+            console.warn(
+                `[espn-stats] discipline ${reason}: status=${res.status} finalUrl=${finalUrl} contentType=${contentType} bodyLength=${length} head=${JSON.stringify(head)} espnfittContext=${JSON.stringify(espnfittContext)}`,
+            );
+        };
 
         // Walk the JSON forward from the opening `{`, tracking string state and
         // escapes, and stop when the outer object closes. A naive
@@ -254,12 +273,12 @@ async function fetchDisciplineFromEspn(): Promise<DisciplineEntry[] | null> {
         const markerRegex = /window\s*(?:\[\s*['"]__espnfitt__['"]\s*\]|\.__espnfitt__)\s*=\s*/;
         const markerMatch = markerRegex.exec(html);
         if (markerMatch === null) {
-            console.warn("[espn-stats] discipline: __espnfitt__ blob not found");
+            logResponseShape("__espnfitt__ blob not found");
             return disciplineCache?.entries ?? null;
         }
         const jsonStart = html.indexOf("{", markerMatch.index + markerMatch[0].length - 1);
         if (jsonStart === -1) {
-            console.warn("[espn-stats] discipline: could not locate blob start");
+            logResponseShape("could not locate blob start");
             return disciplineCache?.entries ?? null;
         }
         let depth = 0;
@@ -291,7 +310,7 @@ async function fetchDisciplineFromEspn(): Promise<DisciplineEntry[] | null> {
             }
         }
         if (jsonEnd === -1) {
-            console.warn("[espn-stats] discipline: could not locate blob end");
+            logResponseShape("could not locate blob end");
             return disciplineCache?.entries ?? null;
         }
         const blob = JSON.parse(html.slice(jsonStart, jsonEnd + 1)) as {
