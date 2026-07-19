@@ -236,8 +236,10 @@ async function fetchDisciplineFromEspn(): Promise<DisciplineEntry[] | null> {
         }
         const html = await res.text();
 
-        // Blob is assigned via `window['__espnfitt__'] = { ... };` — grab
-        // everything between the opening `{` and the terminating `};`.
+        // Walk the JSON forward from the opening `{`, tracking string state and
+        // escapes, and stop when the outer object closes. A naive
+        // indexOf("};") breaks whenever the blob contains that literal inside a
+        // string value (SyntaxError on JSON.parse) — brace counting is safe.
         const marker = "window['__espnfitt__'] = ";
         const startIdx = html.indexOf(marker);
         if (startIdx === -1) {
@@ -245,9 +247,40 @@ async function fetchDisciplineFromEspn(): Promise<DisciplineEntry[] | null> {
             return disciplineCache?.entries ?? null;
         }
         const jsonStart = html.indexOf("{", startIdx);
-        const jsonEnd = html.indexOf("};", jsonStart);
-        if (jsonStart === -1 || jsonEnd === -1) {
-            console.warn("[espn-stats] discipline: could not locate blob bounds");
+        if (jsonStart === -1) {
+            console.warn("[espn-stats] discipline: could not locate blob start");
+            return disciplineCache?.entries ?? null;
+        }
+        let depth = 0;
+        let inString = false;
+        let escaped = false;
+        let jsonEnd = -1;
+        for (let i = jsonStart; i < html.length; i++) {
+            const ch = html[i];
+            if (inString) {
+                if (escaped) {
+                    escaped = false;
+                } else if (ch === "\\") {
+                    escaped = true;
+                } else if (ch === '"') {
+                    inString = false;
+                }
+                continue;
+            }
+            if (ch === '"') {
+                inString = true;
+            } else if (ch === "{") {
+                depth += 1;
+            } else if (ch === "}") {
+                depth -= 1;
+                if (depth === 0) {
+                    jsonEnd = i;
+                    break;
+                }
+            }
+        }
+        if (jsonEnd === -1) {
+            console.warn("[espn-stats] discipline: could not locate blob end");
             return disciplineCache?.entries ?? null;
         }
         const blob = JSON.parse(html.slice(jsonStart, jsonEnd + 1)) as {
