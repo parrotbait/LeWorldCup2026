@@ -365,6 +365,14 @@ async function fetchDisciplineFromEspn(): Promise<DisciplineEntry[] | null> {
  * Team-level discipline leaderboard from ESPN's discipline stats page. Used
  * to auto-resolve PANTOMIME_VILLAIN — the team with the most discipline
  * points (yellow=1, red=3) wins the bonus. Returns null on fetch failure.
+ *
+ * **Not wired up in production.** The `/football/stats/.../discipline` HTML
+ * page is behind AWS WAF (JavaScript challenge / gokuProps) from serverless
+ * egress — Vercel gets a 202 with a ~2KB stub, not the real page with the
+ * `__espnfitt__` blob. Local dev works because your IP has a good reputation.
+ * PANTOMIME_VILLAIN is resolved manually by admin from the public ESPN page.
+ * Left in place in case we later route this call through a residential
+ * proxy, Cloudflare Workers egress, or a scheduled sync from a different host.
  */
 export async function fetchTeamDiscipline(): Promise<DisciplineEntry[] | null> {
     return fetchDisciplineFromEspn();

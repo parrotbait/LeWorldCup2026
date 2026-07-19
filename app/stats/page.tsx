@@ -5,7 +5,7 @@ import { auditLog, bonusPicks, matches, players, teams } from "@/db/schema";
 import { NavBar } from "@/app/_components/navbar";
 import { requireSession } from "@/lib/auth";
 import { fetchScorers, type FdScorer } from "@/lib/football-data";
-import { fetchTeamDiscipline, fetchTopAssists, resolveEspnTeamName, type AssistLeader } from "@/lib/espn-stats";
+import { fetchTopAssists, type AssistLeader } from "@/lib/espn-stats";
 import { findPlayer } from "@/lib/players";
 import { flag } from "@/lib/utils";
 import { getBonusLockState } from "@/lib/bonus-lock";
@@ -104,7 +104,7 @@ async function loadBonusPickers(): Promise<BonusPickerMaps> {
         .innerJoin(players, eq(bonusPicks.playerId, players.id))
         .where(
             and(
-                inArray(bonusPicks.kind, ["SIEVE", "TOP_SCORER", "MOST_ASSISTS", "PANTOMIME_VILLAIN"]),
+                inArray(bonusPicks.kind, ["SIEVE", "TOP_SCORER", "MOST_ASSISTS"]),
                 eq(bonusPicks.groupLetter, ""),
             ),
         );
@@ -155,7 +155,7 @@ async function loadBonusPickers(): Promise<BonusPickerMaps> {
 export default async function StatsPage() {
     await requireSession();
 
-    const [scorers, conceded, lastSync, lockState, assistLeaders, discipline] = await Promise.all([
+    const [scorers, conceded, lastSync, lockState, assistLeaders] = await Promise.all([
         fetchScorersOrNull(),
         loadConceded(),
         db
@@ -166,7 +166,6 @@ export default async function StatsPage() {
             .limit(1),
         getBonusLockState(),
         fetchTopAssists(),
-        fetchTeamDiscipline(),
     ]);
 
     // Picks reveal at the bonus deadline — same boundary edits use — so
@@ -230,39 +229,6 @@ export default async function StatsPage() {
 
     const concededTop = conceded.slice(0, ROW_CAP);
     const concededTie = tieFooter(conceded, (r) => r.conceded);
-
-    // Discipline: map ESPN names → our DB team ids/codes so the picker chips
-    // and flags resolve. Falls back to the raw ESPN name if no DB match.
-    interface DisciplineRow {
-        teamId: number | null;
-        teamCode: string;
-        teamName: string;
-        matchesPlayed: number;
-        yellowCards: number;
-        redCards: number;
-        points: number;
-    }
-    const disciplineByDbName = new Map(
-        conceded.map((c) => [c.name.toLowerCase(), { id: c.teamId, code: c.code }]),
-    );
-    const disciplineRows: DisciplineRow[] =
-        discipline !== null
-            ? discipline.map((d) => {
-                  const canonical = resolveEspnTeamName(d.teamName);
-                  const match = disciplineByDbName.get(canonical.toLowerCase());
-                  return {
-                      teamId: match?.id ?? null,
-                      teamCode: match?.code ?? "",
-                      teamName: canonical,
-                      matchesPlayed: d.matchesPlayed,
-                      yellowCards: d.yellowCards,
-                      redCards: d.redCards,
-                      points: d.points,
-                  };
-              })
-            : [];
-    const disciplineTop = disciplineRows.slice(0, ROW_CAP);
-    const disciplineTie = tieFooter(disciplineRows, (r) => r.points);
 
     const lastSyncAt = lastSync[0]?.at ?? null;
 
@@ -410,65 +376,19 @@ export default async function StatsPage() {
                     <h2 className="font-display text-sm uppercase tracking-[0.25em] text-tournament">
                         Cards (Pantomime Villain)
                     </h2>
-                    <p className="mt-1 text-[10px] uppercase tracking-wider opacity-40">
-                        Yellow = 1 pt · Red = 3 pts · source: ESPN discipline table
+                    <p className="mt-3 text-xs opacity-60">
+                        Cross-check ESPN&rsquo;s{" "}
+                        <a
+                            href="https://www.espn.co.uk/football/stats/_/league/FIFA.WORLD/view/discipline"
+                            className="underline hover:text-tournament"
+                            rel="noreferrer"
+                            target="_blank"
+                        >
+                            discipline table ↗
+                        </a>
+                        . Admin will resolve this bonus manually — the ESPN page sits behind a bot
+                        challenge that blocks server-side scraping.
                     </p>
-                    {discipline === null ? (
-                        <p className="mt-3 text-xs opacity-60">
-                            Couldn&apos;t load discipline data right now. Try again after the next sync.
-                        </p>
-                    ) : disciplineTop.length === 0 ? (
-                        <p className="mt-3 text-xs opacity-60">
-                            No cards issued yet. Check back after the first match.
-                        </p>
-                    ) : (
-                        <table className="mt-3 w-full text-sm tabular">
-                            <thead className="border-b border-ink/30 text-left font-display text-[11px] uppercase tracking-wider">
-                                <tr>
-                                    <th className="py-2 pr-2">#</th>
-                                    <th className="py-2 pr-2">Team</th>
-                                    <th className="py-2 pr-2 text-right">P</th>
-                                    <th className="py-2 pr-2 text-right">YC</th>
-                                    <th className="py-2 pr-2 text-right">RC</th>
-                                    <th className="py-2 pr-2 text-right">Pts</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {disciplineTop.map((r, i) => {
-                                    const rowPickers =
-                                        r.teamId !== null
-                                            ? pickersForTeam("PANTOMIME_VILLAIN", r.teamId)
-                                            : [];
-                                    return (
-                                        <tr key={r.teamName} className="border-b border-ink/10 last:border-b-0">
-                                            <td className="py-2 pr-2 align-top opacity-60">{i + 1}</td>
-                                            <td className="py-2 pr-2 align-top">
-                                                <div>
-                                                    <span className="mr-2" aria-hidden>{flag(r.teamCode)}</span>
-                                                    {r.teamName}
-                                                </div>
-                                                <PickersLine pickers={rowPickers} />
-                                            </td>
-                                            <td className="py-2 pr-2 text-right align-top opacity-70">{r.matchesPlayed}</td>
-                                            <td className="py-2 pr-2 text-right align-top opacity-70">{r.yellowCards}</td>
-                                            <td className="py-2 pr-2 text-right align-top opacity-70">{r.redCards}</td>
-                                            <td className="py-2 pr-2 text-right align-top font-medium">{r.points}</td>
-                                        </tr>
-                                    );
-                                })}
-                                {disciplineTie !== null ? (
-                                    <tr>
-                                        <td
-                                            colSpan={6}
-                                            className="py-2 pr-2 text-center font-display text-[11px] uppercase tracking-wider opacity-50"
-                                        >
-                                            +{disciplineTie.count} more on {disciplineTie.cutoff} pt{disciplineTie.cutoff === 1 ? "" : "s"}
-                                        </td>
-                                    </tr>
-                                ) : null}
-                            </tbody>
-                        </table>
-                    )}
                 </section>
 
                 <p className="mt-12 text-[11px] uppercase tracking-wider opacity-50">

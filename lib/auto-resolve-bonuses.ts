@@ -13,7 +13,7 @@ import { and, eq } from "drizzle-orm";
 import { db as dbInstance } from "@/db/client";
 import { auditLog, bonusResolutions, matches, teams } from "@/db/schema";
 import { sortWoodenSpoonCandidates } from "@/lib/live-leaders-pure";
-import { fetchTeamDiscipline, fetchTopAssists, fetchTopGoals, resolveEspnTeamName } from "@/lib/espn-stats";
+import { fetchTopAssists, fetchTopGoals } from "@/lib/espn-stats";
 import { findPlayer } from "@/lib/players";
 import {
     computeSnapshotState,
@@ -337,50 +337,13 @@ export async function autoResolveBonuses(
         }
 
 
-        // PANTOMIME_VILLAIN: team with most discipline points (yellow=1, red=3)
-        // from ESPN's team-level discipline table. Was admin-only for years
-        // because football-data's free tier doesn't surface card counts; the
-        // ESPN discipline page inlines the whole table, so we can now
-        // auto-resolve it.
-        try {
-            const discipline = await fetchTeamDiscipline();
-            if (discipline !== null && discipline.length > 0) {
-                const maxPoints = Math.max(...discipline.map((d) => d.points));
-                if (maxPoints > 0) {
-                    const worst = discipline.filter((d) => d.points === maxPoints);
-                    // Map ESPN team names → our DB team ids. Match on name
-                    // (case-insensitive) — ESPN and our seed both use FIFA's
-                    // canonical English names, so this is high-hit-rate.
-                    const teamByName = new Map(
-                        progress.map((t) => [t.name.toLowerCase(), t.id]),
-                    );
-                    const matchedIds: number[] = [];
-                    for (const w of worst) {
-                        const canonicalName = resolveEspnTeamName(w.teamName);
-                        const id = teamByName.get(canonicalName.toLowerCase());
-                        if (id !== undefined) {
-                            matchedIds.push(id);
-                        } else {
-                            console.warn(
-                                `[auto-resolve] PANTOMIME_VILLAIN: no DB team match for "${w.teamName}" (tried alias "${canonicalName}")`,
-                            );
-                        }
-                    }
-                    if (matchedIds.length > 0) {
-                        const changed = await upsertResolution(db, {
-                            kind: "PANTOMIME_VILLAIN",
-                            teamIds: matchedIds,
-                            playerNames: [],
-                        }, actor);
-                        if (changed) {
-                            resolved.push("PANTOMIME_VILLAIN");
-                        }
-                    }
-                }
-            }
-        } catch {
-            // ESPN fetch failure shouldn't block the rest of sync.
-        }
+        // PANTOMIME_VILLAIN is admin-only. We can't auto-resolve it: the
+        // sitewebapi discipline endpoint doesn't exist, and the HTML stats
+        // page sits behind AWS WAF (JavaScript challenge / gokuProps) which
+        // ships a 2KB stub to server-side fetchers instead of the real page.
+        // Admin resolves manually via /admin/bonuses using ESPN's discipline
+        // table as reference. See the PANTOMIME_VILLAIN entry in the unlock
+        // gate list in lib/wrapped.ts — Wrapped won't unlock until this is set.
     }
 
     return resolved;

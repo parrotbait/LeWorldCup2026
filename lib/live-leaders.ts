@@ -17,7 +17,7 @@
 import { eq } from "drizzle-orm";
 import { db as dbInstance } from "@/db/client";
 import { matches, teams } from "@/db/schema";
-import { type AssistLeader, type GoalLeader, fetchTeamDiscipline, fetchTopAssists, fetchTopGoals, resolveEspnTeamName } from "@/lib/espn-stats";
+import { type AssistLeader, type GoalLeader, fetchTopAssists, fetchTopGoals } from "@/lib/espn-stats";
 import { findPlayer } from "@/lib/players";
 import { topByMetric, sortWoodenSpoonCandidates } from "@/lib/live-leaders-pure";
 
@@ -355,39 +355,9 @@ export async function getMightyFallenLeader(db: DB = dbInstance): Promise<LiveLe
 }
 
 export async function getPantomimeVillainLeader(): Promise<LiveLeader> {
-    // Team with the most discipline points (yellow=1, red=3) per ESPN's
-    // team-level discipline table. Was previously "unavailable" because
-    // football-data doesn't surface cards; ESPN's HTML page inlines the
-    // full table so we can render a live chip and auto-resolve the bonus.
-    let discipline: Awaited<ReturnType<typeof fetchTeamDiscipline>>;
-    try {
-        discipline = await fetchTeamDiscipline();
-    } catch {
-        return { kind: "unavailable", reason: "espn_fetch_failed" };
-    }
-    if (discipline === null) {
-        return { kind: "unavailable", reason: "espn_fetch_failed" };
-    }
-    if (discipline.length === 0) {
-        return { kind: "hidden", reason: "no_data_yet" };
-    }
-    const top = topByMetric(discipline, (d) => d.points);
-    if (top === null || top.value === 0) {
-        return { kind: "hidden", reason: "no_data_yet" };
-    }
-    // ESPN gives us team names but no code/DB id. Look up the tla from
-    // our teams table when possible so the chip picks up the right flag.
-    const teamRows = await dbInstance
-        .select({ code: teams.code, name: teams.name })
-        .from(teams);
-    const codeByName = new Map(teamRows.map((t) => [t.name.toLowerCase(), t.code]));
-    const asRows = top.tied.map((d) => {
-        const canonicalName = resolveEspnTeamName(d.teamName);
-        return {
-            id: 0,
-            code: codeByName.get(canonicalName.toLowerCase()) ?? "",
-            name: canonicalName,
-        };
-    });
-    return asTeamLeader({ value: top.value, tied: asRows }, "teams");
+    // Admin-only bonus: the ESPN discipline HTML page is behind AWS WAF from
+    // serverless egress (Vercel gets a 202 challenge stub), and there's no
+    // equivalent JSON endpoint. Chip stays hidden; admin resolves manually
+    // from ESPN's public discipline table.
+    return { kind: "unavailable", reason: "espn_waf_blocks_scraping" };
 }
