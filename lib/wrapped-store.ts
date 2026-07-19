@@ -50,7 +50,11 @@ async function computeAllWrapped(): Promise<Map<number, WrappedData>> {
         db.select().from(bonusResolutions),
         db.select().from(teams),
         db
-            .select({ id: leaderboardSnapshots.id, capturedAt: leaderboardSnapshots.capturedAt })
+            .select({
+                id: leaderboardSnapshots.id,
+                capturedAt: leaderboardSnapshots.capturedAt,
+                causeKind: leaderboardSnapshots.causeKind,
+            })
             .from(leaderboardSnapshots)
             .orderBy(asc(leaderboardSnapshots.capturedAt), asc(leaderboardSnapshots.id)),
         db
@@ -135,6 +139,7 @@ async function computeAllWrapped(): Promise<Map<number, WrappedData>> {
     }
     const snapshotSeries = allSnapshots.map((s) => ({
         capturedAt: s.capturedAt.getTime(),
+        causeKind: s.causeKind,
         rowsByPlayerId: rowsBySnapshot.get(s.id) ?? {},
     }));
 

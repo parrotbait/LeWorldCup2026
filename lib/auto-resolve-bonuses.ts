@@ -13,7 +13,7 @@ import { and, eq } from "drizzle-orm";
 import { db as dbInstance } from "@/db/client";
 import { auditLog, bonusResolutions, matches, teams } from "@/db/schema";
 import { sortWoodenSpoonCandidates } from "@/lib/live-leaders-pure";
-import { fetchScorers } from "@/lib/football-data";
+import { fetchTeamDiscipline, fetchTopAssists, fetchTopGoals, resolveEspnTeamName } from "@/lib/espn-stats";
 import { findPlayer } from "@/lib/players";
 import {
     computeSnapshotState,
@@ -283,17 +283,20 @@ export async function autoResolveBonuses(
             }
         }
 
-        // TOP_SCORER and MOST_ASSISTS from football-data
+        // TOP_SCORER and MOST_ASSISTS from ESPN (single source of truth,
+        // matches what the /stats page shows). football-data /scorers is
+        // no longer consulted — it disagreed with ESPN on both goals and
+        // assists at the free tier and produced resolutions that named
+        // different players than the Stats page.
         try {
-            const scorers = await fetchScorers();
-            if (scorers.length > 0) {
-                // Top scorer
-                const maxGoals = Math.max(...scorers.map((s) => s.goals));
+            const goalLeaders = await fetchTopGoals();
+            if (goalLeaders !== null && goalLeaders.length > 0) {
+                const maxGoals = Math.max(...goalLeaders.map((g) => g.goals));
                 if (maxGoals > 0) {
-                    const topScorers = scorers.filter((s) => s.goals === maxGoals);
-                    const names = topScorers.map((s) => {
-                        const canonical = findPlayer(s.player.name);
-                        return canonical?.displayName ?? s.player.name;
+                    const topScorers = goalLeaders.filter((g) => g.goals === maxGoals);
+                    const names = topScorers.map((g) => {
+                        const canonical = findPlayer(g.playerName);
+                        return canonical?.displayName ?? g.playerName;
                     });
                     const changed = await upsertResolution(db, {
                         kind: "TOP_SCORER",
@@ -304,30 +307,79 @@ export async function autoResolveBonuses(
                         resolved.push("TOP_SCORER");
                     }
                 }
+            }
+        } catch {
+            // ESPN goals fetch failure shouldn't block the rest of sync.
+        }
 
-                // Most assists
-                const withAssists = scorers.filter((s) => s.assists !== null);
-                if (withAssists.length > 0) {
-                    const maxAssists = Math.max(...withAssists.map((s) => s.assists!));
-                    if (maxAssists > 0) {
-                        const topAssisters = withAssists.filter((s) => s.assists === maxAssists);
-                        const names = topAssisters.map((s) => {
-                            const canonical = findPlayer(s.player.name);
-                            return canonical?.displayName ?? s.player.name;
-                        });
+        try {
+            const assistLeaders = await fetchTopAssists();
+            if (assistLeaders !== null && assistLeaders.length > 0) {
+                const maxAssists = Math.max(...assistLeaders.map((a) => a.assists));
+                if (maxAssists > 0) {
+                    const topAssisters = assistLeaders.filter((a) => a.assists === maxAssists);
+                    const names = topAssisters.map((a) => {
+                        const canonical = findPlayer(a.playerName);
+                        return canonical?.displayName ?? a.playerName;
+                    });
+                    const changed = await upsertResolution(db, {
+                        kind: "MOST_ASSISTS",
+                        teamIds: [],
+                        playerNames: names,
+                    }, actor);
+                    if (changed) {
+                        resolved.push("MOST_ASSISTS");
+                    }
+                }
+            }
+        } catch {
+            // ESPN assists fetch failure shouldn't block the rest of sync.
+        }
+
+
+        // PANTOMIME_VILLAIN: team with most discipline points (yellow=1, red=3)
+        // from ESPN's team-level discipline table. Was admin-only for years
+        // because football-data's free tier doesn't surface card counts; the
+        // ESPN discipline page inlines the whole table, so we can now
+        // auto-resolve it.
+        try {
+            const discipline = await fetchTeamDiscipline();
+            if (discipline !== null && discipline.length > 0) {
+                const maxPoints = Math.max(...discipline.map((d) => d.points));
+                if (maxPoints > 0) {
+                    const worst = discipline.filter((d) => d.points === maxPoints);
+                    // Map ESPN team names → our DB team ids. Match on name
+                    // (case-insensitive) — ESPN and our seed both use FIFA's
+                    // canonical English names, so this is high-hit-rate.
+                    const teamByName = new Map(
+                        progress.map((t) => [t.name.toLowerCase(), t.id]),
+                    );
+                    const matchedIds: number[] = [];
+                    for (const w of worst) {
+                        const canonicalName = resolveEspnTeamName(w.teamName);
+                        const id = teamByName.get(canonicalName.toLowerCase());
+                        if (id !== undefined) {
+                            matchedIds.push(id);
+                        } else {
+                            console.warn(
+                                `[auto-resolve] PANTOMIME_VILLAIN: no DB team match for "${w.teamName}" (tried alias "${canonicalName}")`,
+                            );
+                        }
+                    }
+                    if (matchedIds.length > 0) {
                         const changed = await upsertResolution(db, {
-                            kind: "MOST_ASSISTS",
-                            teamIds: [],
-                            playerNames: names,
+                            kind: "PANTOMIME_VILLAIN",
+                            teamIds: matchedIds,
+                            playerNames: [],
                         }, actor);
                         if (changed) {
-                            resolved.push("MOST_ASSISTS");
+                            resolved.push("PANTOMIME_VILLAIN");
                         }
                     }
                 }
             }
         } catch {
-            // football-data fetch failure shouldn't block the rest of sync
+            // ESPN fetch failure shouldn't block the rest of sync.
         }
     }
 

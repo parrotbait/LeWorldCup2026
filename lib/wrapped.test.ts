@@ -305,14 +305,14 @@ describe("buildWrapped", () => {
     });
 
     it("captures rankHistory in chronological order for the peak-card sparkline", () => {
-        // Player 1 has 0 pts at t=1000 (skipped from history — pre-scoring),
-        // then 4 pts at t=2000 (rank 1), then 7 pts at t=3000 (rank 2).
+        // Uses causeKind: BONUS so the match-warmup skip doesn't fire — this
+        // test is about the 0-point pre-scoring skip only.
         const withSnaps: WrappedInput = {
             ...base,
             snapshotSeries: [
-                { capturedAt: 1000, rowsByPlayerId: { 1: { rank: 3, points: 0 }, 2: { rank: 4, points: 0 } } },
-                { capturedAt: 2000, rowsByPlayerId: { 1: { rank: 1, points: 4 }, 2: { rank: 4, points: 0 } } },
-                { capturedAt: 3000, rowsByPlayerId: { 1: { rank: 2, points: 7 }, 2: { rank: 4, points: 0 } } },
+                { capturedAt: 1000, causeKind: "BONUS", rowsByPlayerId: { 1: { rank: 3, points: 0 }, 2: { rank: 4, points: 0 } } },
+                { capturedAt: 2000, causeKind: "BONUS", rowsByPlayerId: { 1: { rank: 1, points: 4 }, 2: { rank: 4, points: 0 } } },
+                { capturedAt: 3000, causeKind: "BONUS", rowsByPlayerId: { 1: { rank: 2, points: 7 }, 2: { rank: 4, points: 0 } } },
             ],
         };
         const w = buildWrapped(withSnaps).get(1)!;
@@ -324,16 +324,15 @@ describe("buildWrapped", () => {
     });
 
     it("ignores pre-scoring snapshots when computing peak — everyone is joint-#1 at 0 pts", () => {
-        // Two early snapshots where the player sits at rank 1 with 0 points (the
-        // "everyone tied" opening window), then real ranks emerge. The peak
-        // should reflect the post-scoring window, not the meaningless #1.
+        // Same isolation trick — BONUS-cause snapshots aren't counted toward
+        // the match-warmup, so this test targets the 0-point rule only.
         const withSnaps: WrappedInput = {
             ...base,
             snapshotSeries: [
-                { capturedAt: 1000, rowsByPlayerId: { 1: { rank: 1, points: 0 }, 2: { rank: 1, points: 0 } } },
-                { capturedAt: 2000, rowsByPlayerId: { 1: { rank: 1, points: 0 }, 2: { rank: 1, points: 0 } } },
-                { capturedAt: 3000, rowsByPlayerId: { 1: { rank: 4, points: 3 }, 2: { rank: 2, points: 5 } } },
-                { capturedAt: 4000, rowsByPlayerId: { 1: { rank: 3, points: 6 }, 2: { rank: 2, points: 6 } } },
+                { capturedAt: 1000, causeKind: "BONUS", rowsByPlayerId: { 1: { rank: 1, points: 0 }, 2: { rank: 1, points: 0 } } },
+                { capturedAt: 2000, causeKind: "BONUS", rowsByPlayerId: { 1: { rank: 1, points: 0 }, 2: { rank: 1, points: 0 } } },
+                { capturedAt: 3000, causeKind: "BONUS", rowsByPlayerId: { 1: { rank: 4, points: 3 }, 2: { rank: 2, points: 5 } } },
+                { capturedAt: 4000, causeKind: "BONUS", rowsByPlayerId: { 1: { rank: 3, points: 6 }, 2: { rank: 2, points: 6 } } },
             ],
         };
         const w = buildWrapped(withSnaps).get(1)!;
@@ -344,5 +343,30 @@ describe("buildWrapped", () => {
             { t: 4000, rank: 3 },
         ]);
         expect(w.peakRank).toBe(3);
+    });
+
+    it("skips the first few MATCH snapshots so an early scorer's fluke rank-1 doesn't become their peak", () => {
+        // Player 1 scores in the very first match and jumps to rank 1 (only
+        // player with points). That's not a real peak — the field hasn't
+        // spread out. Warm-up quota is 3 MATCH snapshots; the peak should
+        // reflect only what happens after them.
+        const withSnaps: WrappedInput = {
+            ...base,
+            snapshotSeries: [
+                // 3 MATCH warm-up snapshots — early rank-1 fluke, ignored.
+                { capturedAt: 1000, causeKind: "MATCH", rowsByPlayerId: { 1: { rank: 1, points: 3 }, 2: { rank: 2, points: 0 } } },
+                { capturedAt: 2000, causeKind: "MATCH", rowsByPlayerId: { 1: { rank: 1, points: 3 }, 2: { rank: 2, points: 0 } } },
+                { capturedAt: 3000, causeKind: "MATCH", rowsByPlayerId: { 1: { rank: 2, points: 3 }, 2: { rank: 1, points: 5 } } },
+                // Post-warm-up: real ranks. Best player 1 hits is #4.
+                { capturedAt: 4000, causeKind: "MATCH", rowsByPlayerId: { 1: { rank: 4, points: 6 }, 2: { rank: 1, points: 12 } } },
+                { capturedAt: 5000, causeKind: "MATCH", rowsByPlayerId: { 1: { rank: 5, points: 8 }, 2: { rank: 1, points: 20 } } },
+            ],
+        };
+        const w = buildWrapped(withSnaps).get(1)!;
+        expect(w.peakRank).toBe(4);
+        expect(w.rankHistory).toEqual([
+            { t: 4000, rank: 4 },
+            { t: 5000, rank: 5 },
+        ]);
     });
 });

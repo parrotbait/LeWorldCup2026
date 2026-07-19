@@ -17,7 +17,7 @@
 import { eq } from "drizzle-orm";
 import { db as dbInstance } from "@/db/client";
 import { matches, teams } from "@/db/schema";
-import { fetchScorers, type FdScorer } from "@/lib/football-data";
+import { type AssistLeader, type GoalLeader, fetchTeamDiscipline, fetchTopAssists, fetchTopGoals, resolveEspnTeamName } from "@/lib/espn-stats";
 import { findPlayer } from "@/lib/players";
 import { topByMetric, sortWoodenSpoonCandidates } from "@/lib/live-leaders-pure";
 
@@ -43,20 +43,32 @@ async function hasAnyRoundCompleted(db: DB): Promise<boolean> {
     return finished.length > 0;
 }
 
-function asPlayerLeader(
-    top: { value: number; tied: FdScorer[] },
-    subjectPlural: "players",
+/** ESPN's AssistLeader shape → LiveLeader; mirrors asPlayerLeader for FdScorer. */
+function asEspnPlayerLeader(top: { value: number; tied: AssistLeader[] }): LiveLeader {
+    return asEspnLeader(top);
+}
+
+/** Same shape adapter for ESPN GoalLeader entries. */
+function asEspnGoalLeader(top: { value: number; tied: GoalLeader[] }): LiveLeader {
+    return asEspnLeader(top);
+}
+
+/**
+ * Shared adapter for ESPN player-leaderboard rows (assists or goals). Both
+ * types have `playerName` and `teamCode`; the caller has already computed
+ * which metric produced `top.value`.
+ */
+function asEspnLeader(
+    top: { value: number; tied: { playerName: string; teamCode: string }[] },
 ): LiveLeader {
     if (top.tied.length === 1) {
         const s = top.tied[0]!;
-        // Map FD's free-form name to our canonical squad-list display name
-        // when we can; otherwise fall back to FD's name.
-        const canonical = findPlayer(s.player.name);
+        const canonical = findPlayer(s.playerName);
         return {
             kind: "single",
-            displayName: canonical?.displayName ?? s.player.name,
+            displayName: canonical?.displayName ?? s.playerName,
             metric: top.value,
-            teamCode: s.team.tla ?? undefined,
+            teamCode: s.teamCode,
         };
     }
     if (top.tied.length === 2) {
@@ -65,18 +77,18 @@ function asPlayerLeader(
         return {
             kind: "tied-pair",
             names: [
-                findPlayer(a.player.name)?.displayName ?? a.player.name,
-                findPlayer(b.player.name)?.displayName ?? b.player.name,
+                findPlayer(a.playerName)?.displayName ?? a.playerName,
+                findPlayer(b.playerName)?.displayName ?? b.playerName,
             ],
             metric: top.value,
-            teamCodes: [a.team.tla ?? "", b.team.tla ?? ""],
+            teamCodes: [a.teamCode, b.teamCode],
         };
     }
     return {
         kind: "tied-many",
         count: top.tied.length,
         metric: top.value,
-        subjectPlural,
+        subjectPlural: "players",
     };
 }
 
@@ -121,43 +133,53 @@ function asTeamLeader(
 // Player-stat leaders
 // ---------------------------------------------------------------------------
 
-async function fetchScorersOrNull(): Promise<FdScorer[] | null> {
-    try {
-        return await fetchScorers();
-    } catch {
-        return null;
-    }
-}
-
 export async function getTopScorerLeader(): Promise<LiveLeader> {
-    const scorers = await fetchScorersOrNull();
-    if (scorers === null) {
-        return { kind: "unavailable", reason: "fd_fetch_failed" };
+    // Sourced from ESPN so the chip matches the /stats page (and the
+    // auto-resolved TOP_SCORER bonus row). See the MOST_ASSISTS comment
+    // above — same reasoning: football-data /scorers disagreed at the
+    // free tier and named different players than users saw on Stats.
+    let goalLeaders: Awaited<ReturnType<typeof fetchTopGoals>>;
+    try {
+        goalLeaders = await fetchTopGoals();
+    } catch {
+        return { kind: "unavailable", reason: "espn_fetch_failed" };
     }
-    if (scorers.length === 0) {
+    if (goalLeaders === null) {
+        return { kind: "unavailable", reason: "espn_fetch_failed" };
+    }
+    if (goalLeaders.length === 0) {
         return { kind: "hidden", reason: "no_data_yet" };
     }
-    const top = topByMetric(scorers, (s) => s.goals);
-    if (top === null) {
+    const top = topByMetric(goalLeaders, (g) => g.goals);
+    if (top === null || top.value === 0) {
         return { kind: "hidden", reason: "no_data_yet" };
     }
-    return asPlayerLeader(top, "players");
+    return asEspnGoalLeader(top);
 }
 
 export async function getMostAssistsLeader(): Promise<LiveLeader> {
-    const scorers = await fetchScorersOrNull();
-    if (scorers === null) {
-        return { kind: "unavailable", reason: "fd_fetch_failed" };
+    // Assists come from ESPN (same source the /stats page uses) so the
+    // "Most assists" chip on /bonuses and the auto-resolved MOST_ASSISTS
+    // winner match what players see on the stats leaderboard. Previously
+    // pulled from football-data /scorers, which disagreed with ESPN on
+    // free-tier data and produced confusing name mismatches.
+    let assistLeaders: Awaited<ReturnType<typeof fetchTopAssists>>;
+    try {
+        assistLeaders = await fetchTopAssists();
+    } catch {
+        return { kind: "unavailable", reason: "espn_fetch_failed" };
     }
-    // Free tier may return null assists. If every row is null, hide.
-    if (scorers.every((s) => s.assists === null)) {
-        return { kind: "unavailable", reason: "assists_not_in_free_tier" };
+    if (assistLeaders === null) {
+        return { kind: "unavailable", reason: "espn_fetch_failed" };
     }
-    const top = topByMetric(scorers, (s) => s.assists);
+    if (assistLeaders.length === 0) {
+        return { kind: "hidden", reason: "no_data_yet" };
+    }
+    const top = topByMetric(assistLeaders, (a) => a.assists);
     if (top === null) {
         return { kind: "hidden", reason: "no_data_yet" };
     }
-    return asPlayerLeader(top, "players");
+    return asEspnPlayerLeader(top);
 }
 
 // ---------------------------------------------------------------------------
@@ -333,5 +355,39 @@ export async function getMightyFallenLeader(db: DB = dbInstance): Promise<LiveLe
 }
 
 export async function getPantomimeVillainLeader(): Promise<LiveLeader> {
-    return { kind: "unavailable", reason: "cards_not_in_free_tier" };
+    // Team with the most discipline points (yellow=1, red=3) per ESPN's
+    // team-level discipline table. Was previously "unavailable" because
+    // football-data doesn't surface cards; ESPN's HTML page inlines the
+    // full table so we can render a live chip and auto-resolve the bonus.
+    let discipline: Awaited<ReturnType<typeof fetchTeamDiscipline>>;
+    try {
+        discipline = await fetchTeamDiscipline();
+    } catch {
+        return { kind: "unavailable", reason: "espn_fetch_failed" };
+    }
+    if (discipline === null) {
+        return { kind: "unavailable", reason: "espn_fetch_failed" };
+    }
+    if (discipline.length === 0) {
+        return { kind: "hidden", reason: "no_data_yet" };
+    }
+    const top = topByMetric(discipline, (d) => d.points);
+    if (top === null || top.value === 0) {
+        return { kind: "hidden", reason: "no_data_yet" };
+    }
+    // ESPN gives us team names but no code/DB id. Look up the tla from
+    // our teams table when possible so the chip picks up the right flag.
+    const teamRows = await dbInstance
+        .select({ code: teams.code, name: teams.name })
+        .from(teams);
+    const codeByName = new Map(teamRows.map((t) => [t.name.toLowerCase(), t.code]));
+    const asRows = top.tied.map((d) => {
+        const canonicalName = resolveEspnTeamName(d.teamName);
+        return {
+            id: 0,
+            code: codeByName.get(canonicalName.toLowerCase()) ?? "",
+            name: canonicalName,
+        };
+    });
+    return asTeamLeader({ value: top.value, tied: asRows }, "teams");
 }

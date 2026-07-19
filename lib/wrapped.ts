@@ -507,6 +507,13 @@ export const FOOTBALLER_BY_PERSONA: Record<PersonaKey, FootballerEntry> = {
 
 export interface WrappedSnapshot {
     capturedAt: number; // epoch ms
+    /**
+     * Why this snapshot was captured. Used by the peak calc to skip the first
+     * few MATCH snapshots — early rank is unstable while the field spreads
+     * out. Optional for older payloads / test inputs; treated as MATCH when
+     * absent so the skip logic still fires.
+     */
+    causeKind?: "TOURNAMENT_START" | "MATCH" | "BONUS" | "CORRECTION";
     rowsByPlayerId: Record<number, { rank: number; points: number }>;
 }
 
@@ -580,14 +587,16 @@ export function buildWrapped(input: WrappedInput): Map<number, WrappedData> {
 
     // Snapshot-derived facts per player.
     //
-    // NOTE on peak + history: at the very start of the tournament every player
-    // is tied at rank 1 on 0 points, so a naive min(rank) — or a sparkline
-    // drawn from raw history — reports the pre-scoring window as "you led".
-    // We exclude 0-point snapshots from ALL derived facts (peak, led, climb,
-    // AND the sparkline history) so the story starts from the first snapshot
-    // where the player has actually scored. Points are monotonically
-    // non-decreasing, so this cleanly trims the leading no-op period without
-    // dropping legitimate later dips.
+    // Two sources of noise at the tournament start we filter out here:
+    //   1. Pre-scoring window — everyone tied at rank 1 on 0 points.
+    //      Filtered per-player by row.points === 0.
+    //   2. First-few-matches window — the field hasn't spread out yet, so a
+    //      single early scorer temporarily sits at rank 1 above a wall of
+    //      0-point players. Filtered globally: skip snapshots until we've
+    //      passed a warm-up quota of MATCH-caused snapshots.
+    // Points are monotonically non-decreasing, so trimming these leading
+    // no-op windows doesn't drop legitimate later dips.
+    const WARMUP_MATCH_SNAPSHOTS = 3;
     const snapshotFacts = (
         playerId: number,
     ): {
@@ -600,14 +609,29 @@ export function buildWrapped(input: WrappedInput): Map<number, WrappedData> {
         let peak: number | null = null;
         let worst: number | null = null;
         let last: number | null = null;
+        let matchSnapshotsSeen = 0;
         const history: { t: number; rank: number }[] = [];
         for (const snap of input.snapshotSeries) {
+            // Absent causeKind → treat as MATCH (older payloads / tests) so
+            // the warm-up skip still applies.
+            const kind = snap.causeKind ?? "MATCH";
+            const isMatchCause = kind === "MATCH" || kind === "CORRECTION";
+            if (isMatchCause) {
+                matchSnapshotsSeen += 1;
+                // Skip the first few match-caused snapshots — early rank is
+                // unstable while the field spreads out (a single early scorer
+                // temporarily sits at rank 1 above a wall of 0-point players).
+                // Non-match snapshots (BONUS, TOURNAMENT_START) are not gated
+                // by the warm-up; they contribute independently.
+                if (matchSnapshotsSeen <= WARMUP_MATCH_SNAPSHOTS) {
+                    continue;
+                }
+            }
             const row = snap.rowsByPlayerId[playerId];
             if (row === undefined) {
                 continue;
             }
-            // Skip pre-scoring snapshots entirely — they poison peak and the
-            // sparkline visual (everyone joint-#1 at 0 pts is not a real rank).
+            // Skip pre-scoring snapshots for this player specifically.
             if (row.points === 0) {
                 continue;
             }
